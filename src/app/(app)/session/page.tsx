@@ -35,6 +35,7 @@ import {
   SessionHistoryItem,
   SessionStats,
   Task,
+  ViolationSource,
 } from '@/lib/types';
 import { uid } from '@/lib/utils';
 import { stopAmbient } from '@/lib/ambient-sound';
@@ -113,7 +114,14 @@ export default function SessionPage() {
   // Flashcards
   const [showFlashcards, setShowFlashcards]   = useState(false);
   const [sessionCards, setSessionCards]       = useState<Flashcard[]>([]);
-  const violationStartRef = useRef(0);         // performance.now() when violation begins
+  const violationStartRef    = useRef(0);       // performance.now() when violation begins
+  const violationSourceRef   = useRef<ViolationSource>('camera');
+  // Background tracking: fires when the tab is hidden or window loses focus
+  const bgHiddenAtRef        = useRef<number | null>(null);
+  const bgIntervalRef        = useRef<ReturnType<typeof setInterval> | null>(null);
+  // rAF timing: use refs so visibility-change handler can reset lastTs
+  const lastRafTsRef         = useRef<number>(performance.now());
+  const skipNextRafTickRef   = useRef(false); // skip one tick after tab resume to avoid huge delta
 
   // Task selection
   const [selectedTaskId, setSelectedTaskId]   = useState('');
@@ -202,6 +210,9 @@ export default function SessionPage() {
     rafRef.current = null;
     if (calibTimerRef.current) clearInterval(calibTimerRef.current);
     calibTimerRef.current = null;
+    if (bgIntervalRef.current) clearInterval(bgIntervalRef.current);
+    bgIntervalRef.current = null;
+    bgHiddenAtRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   };
@@ -276,11 +287,18 @@ export default function SessionPage() {
     setAppState('session_complete');
   };
 
-  const triggerPunishment = async () => {
-    violationStartRef.current = performance.now();
+  const triggerPunishment = async (source: ViolationSource = 'camera') => {
+    // Ignore if already in violated state — avoid stacking violations
+    if (appStateRef.current === 'violated') return;
+
+    violationSourceRef.current = source;
+    violationStartRef.current  = performance.now();
     const newCount = violationRef.current + 1;
     violationRef.current = newCount;
     statsRef.current.violationCount = newCount;
+    if (source === 'tab_switch') {
+      statsRef.current.tabSwitchCount = (statsRef.current.tabSwitchCount ?? 0) + 1;
+    }
     setViolationCount(newCount);
     setAppState('violated');
 
@@ -289,7 +307,6 @@ export default function SessionPage() {
     if (!configRef.current.punishmentEnabled) return;
     const media = audioRef.current;
     if (!media) return;
-    // Escalate volume with each violation (caps at 1.0)
     media.volume      = Math.min(1.0, 0.5 + (newCount - 1) * 0.15);
     media.currentTime = 0;
     try { await media.play(); } catch { /* autoplay blocked */ }
@@ -317,17 +334,128 @@ export default function SessionPage() {
     }
   };
 
+  // ── Stable refs for functions used in event handlers with [] deps ────────────
+  // Updated every render so event handlers always call the latest version.
+  const stableFnRef = useRef({ triggerPunishment, finishSession });
+  useEffect(() => { stableFnRef.current = { triggerPunishment, finishSession }; });
+
+  // ── Background tracking: tab visibility + window focus ────────────────────────
+  useEffect(() => {
+    // States where focus enforcement is active
+    const isEnforceable = () =>
+      ['focused', 'warning'].includes(appStateRef.current);
+
+    const startBgInterval = () => {
+      if (bgIntervalRef.current) return;
+      let lastBgTs = performance.now();
+
+      bgIntervalRef.current = setInterval(() => {
+        const bgState = appStateRef.current;
+        if (!['focused', 'warning', 'violated', 'break'].includes(bgState)) {
+          clearInterval(bgIntervalRef.current!);
+          bgIntervalRef.current = null;
+          return;
+        }
+        const now   = performance.now();
+        const delta = Math.min(now - lastBgTs, 500); // cap at 500ms
+        lastBgTs = now;
+
+        // Keep the session timer ticking while rAF is throttled
+        if (bgState !== 'break') {
+          setRemainingMs((prev) => {
+            const next = Math.max(0, prev - delta);
+            if (next <= 0) stableFnRef.current.finishSession();
+            return next;
+          });
+        } else {
+          setBreakRemainingMs((prev) => Math.max(0, prev - delta));
+        }
+
+        // Accumulate distraction time while backgrounded
+        if (bgState !== 'break') {
+          statsRef.current.longestDistractionMs = Math.max(
+            statsRef.current.longestDistractionMs,
+            bgHiddenAtRef.current ? Date.now() - bgHiddenAtRef.current : 0,
+          );
+        }
+      }, 250);
+    };
+
+    const stopBgInterval = () => {
+      if (bgIntervalRef.current) {
+        clearInterval(bgIntervalRef.current);
+        bgIntervalRef.current = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (!isEnforceable()) return;
+        bgHiddenAtRef.current = Date.now();
+        startBgInterval();
+        if (configRef.current.tabSwitchViolationEnabled) {
+          stableFnRef.current.triggerPunishment('tab_switch');
+        }
+      } else {
+        // Tab is visible again — hand control back to rAF
+        bgHiddenAtRef.current = null;
+        stopBgInterval();
+        skipNextRafTickRef.current = true;
+      }
+    };
+
+    // Window blur: catches switching to another native app without hiding the tab.
+    const handleWindowBlur = () => {
+      if (document.hidden) return; // visibilitychange already handled this
+      if (!isEnforceable()) return;
+      bgHiddenAtRef.current = Date.now();
+      startBgInterval();
+      if (configRef.current.tabSwitchViolationEnabled) {
+        stableFnRef.current.triggerPunishment('tab_switch');
+      }
+    };
+
+    const handleWindowFocus = () => {
+      if (document.hidden) return;
+      bgHiddenAtRef.current = null;
+      stopBgInterval();
+      skipNextRafTickRef.current = true;
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur',  handleWindowBlur);
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur',  handleWindowBlur);
+      window.removeEventListener('focus', handleWindowFocus);
+      stopBgInterval();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Main tracking loop ────────────────────────────────────────────────────────
 
   const startTrackingLoop = () => {
     if (rafRef.current) return;
-    let lastTs = performance.now();
+    lastRafTsRef.current = performance.now();
 
     const loop = async () => {
       const state = appStateRef.current;
       const now   = performance.now();
-      const delta = now - lastTs;
-      lastTs = now;
+
+      // After returning from a hidden tab the background interval has already
+      // ticked the timer, so skip one rAF tick to avoid double-counting.
+      if (skipNextRafTickRef.current) {
+        skipNextRafTickRef.current = false;
+        lastRafTsRef.current = now;
+        rafRef.current = requestAnimationFrame(loop);
+        return;
+      }
+
+      // Cap delta at 150 ms so a single stale rAF frame can't corrupt timers.
+      const delta = Math.min(now - lastRafTsRef.current, 150);
+      lastRafTsRef.current = now;
 
       // Timer
       if (state === 'break') {
@@ -436,7 +564,7 @@ export default function SessionPage() {
               phoneCheckRef.current = newPhoneCount;
               setPhoneCheckCount(newPhoneCount);
               statsRef.current.phoneCheckCount = newPhoneCount;
-              triggerPunishment();
+              triggerPunishment('phone');
               return 0;
             }
             // Warn at 40% of threshold (same proportion as offscreen warning)
@@ -876,6 +1004,7 @@ export default function SessionPage() {
         stabilizeMs={stabilizeMs}
         maxStabilizeMs={stabilizeRequired}
         violationCount={violationCount}
+        source={violationSourceRef.current}
       />
 
       {/* Session summary */}

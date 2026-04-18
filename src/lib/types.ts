@@ -1,3 +1,5 @@
+export type ViolationSource = 'camera' | 'tab_switch' | 'phone';
+
 export type AppState =
   | 'idle'
   | 'requesting_permission'
@@ -22,6 +24,7 @@ export interface SessionConfig {
   pomodoroEnabled: boolean;
   phoneDetectionEnabled: boolean;
   advancedEyeTrackingEnabled?: boolean;
+  tabSwitchViolationEnabled?: boolean;
 }
 
 export interface CustomVideoMeta {
@@ -51,6 +54,7 @@ export interface SessionStats {
   taskTitle?: string;
   notes?: string;
   phoneCheckCount?: number;
+  tabSwitchCount?: number;
   /** Recovery duration (ms) for each violation — used by the detailed score formula */
   recoveryTimes?: number[];
   /** Count of distinct "warning" state entries — used as stability metric */
