@@ -128,7 +128,15 @@ function PunishmentMediaPanel({
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
   const [errorMsg,     setErrorMsg]     = useState('');
   const [showPreview,  setShowPreview]  = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef   = useRef<HTMLInputElement>(null);
+  // Tracks the live blob URL so cleanup always revokes the current value,
+  // not the stale one captured at effect-creation time.
+  const previewUrlRef  = useRef<string | null>(null);
+
+  const setPreviewUrlBoth = (url: string | null) => {
+    previewUrlRef.current = url;
+    setPreviewUrl(url);
+  };
 
   useEffect(() => {
     const m = loadCustomVideoMeta();
@@ -137,12 +145,14 @@ function PunishmentMediaPanel({
       getVideoBlob(m.id).then((blob) => {
         if (blob) {
           const url = URL.createObjectURL(blob);
-          setPreviewUrl(url);
+          setPreviewUrlBoth(url);
           setCustomVideoBlobUrl(url);
         }
       }).catch(() => {});
     }
-    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
+    return () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFile = async (file: File) => {
@@ -151,14 +161,17 @@ function PunishmentMediaPanel({
     if (file.size > MAX_VIDEO_BYTES) { setErrorMsg(`Max ${formatFileSize(MAX_VIDEO_BYTES)}.`); return; }
     setUploadStatus('uploading');
     try {
-      if (meta) { await deleteVideoBlob(meta.id); if (previewUrl) URL.revokeObjectURL(previewUrl); }
+      if (meta) {
+        await deleteVideoBlob(meta.id);
+        if (previewUrlRef.current) { URL.revokeObjectURL(previewUrlRef.current); previewUrlRef.current = null; }
+      }
       const id = `custom_${Date.now()}`;
       await saveVideoBlob(id, file.slice(0, file.size, file.type));
       const newMeta: CustomVideoMeta = { id, name: file.name, size: file.size, type: file.type, addedAt: new Date().toISOString() };
       saveCustomVideoMeta(newMeta);
       setMeta(newMeta);
       const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
+      setPreviewUrlBoth(url);
       setCustomVideoBlobUrl(url);
       update({ punishmentMedia: 'custom' });
       setUploadStatus('success');
@@ -172,10 +185,10 @@ function PunishmentMediaPanel({
   const handleDelete = async () => {
     if (!meta) return;
     try { await deleteVideoBlob(meta.id); } catch {}
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (previewUrlRef.current) { URL.revokeObjectURL(previewUrlRef.current); previewUrlRef.current = null; }
     clearCustomVideoMeta();
     setCustomVideoBlobUrl(null);
-    setMeta(null); setPreviewUrl(null); setShowPreview(false);
+    setMeta(null); setPreviewUrlBoth(null); setShowPreview(false);
     if (config.punishmentMedia === 'custom') update({ punishmentMedia: '/media/sahur.mp4' });
   };
 

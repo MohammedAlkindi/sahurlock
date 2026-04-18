@@ -149,6 +149,15 @@ export default function SessionPage() {
     phoneCheckCount: 0, recoveryTimes: [], focusTransitions: 0,
   });
 
+  // Mutable mirrors of the timer/accumulator states used as the source of truth
+  // inside the rAF and bgInterval loops. setState is called separately for UI
+  // updates; these refs keep values current across async frames without stale closures.
+  const remainingMsRef      = useRef(DEFAULTS.durationMinutes * 60_000);
+  const breakRemainingMsRef = useRef(0);
+  const offscreenMsRef      = useRef(0);
+  const stabilizeMsRef      = useRef(0);
+  const phoneCheckMsRef     = useRef(0);
+
   const totalMs = useMemo(() => config.durationMinutes * 60_000, [config.durationMinutes]);
 
   // Sync refs
@@ -190,7 +199,7 @@ export default function SessionPage() {
       }
       if (e.key === 'e' || e.key === 'E') {
         if (!['idle', 'session_complete', 'camera_error', 'calibrating', 'countdown', 'requesting_permission'].includes(state)) {
-          finishSession();
+          stableFnRef.current.finishSession();
         }
       }
       if (e.key === 'h' || e.key === 'H') {
@@ -220,17 +229,24 @@ export default function SessionPage() {
   const resetSession = () => {
     cleanupMedia();
     setAppState('idle');
+    appStateRef.current = 'idle';
     setAttention(null);
     setBaseline(null);
+    offscreenMsRef.current = 0;
     setOffscreenMs(0);
+    stabilizeMsRef.current = 0;
     setStabilizeMs(0);
+    breakUsedRef.current = 0;
     setBreakUsed(0);
+    breakRemainingMsRef.current = 0;
     setBreakRemainingMs(0);
     setCalibrationGoodSamples(0);
     setCalibStalled(false);
     setCountdownLeft(0);
+    violationRef.current = 0;
     setViolationCount(0);
     setPhoneCheckCount(0);
+    phoneCheckMsRef.current = 0;
     setPhoneCheckMs(0);
     setPhoneReading(null);
     phoneCheckRef.current = 0;
@@ -241,7 +257,7 @@ export default function SessionPage() {
     setSessionCards([]);
     setPomodoroRound(1);
     pomodoroRef.current = 1;
-    violationRef.current = 0;
+    remainingMsRef.current = configRef.current.durationMinutes * 60_000;
     setRemainingMs(configRef.current.durationMinutes * 60_000);
     setSummaryStats(null);
     setSummaryId('');
@@ -300,6 +316,7 @@ export default function SessionPage() {
       statsRef.current.tabSwitchCount = (statsRef.current.tabSwitchCount ?? 0) + 1;
     }
     setViolationCount(newCount);
+    appStateRef.current = 'violated';
     setAppState('violated');
 
     sounds.violation(newCount);
@@ -326,18 +343,23 @@ export default function SessionPage() {
       setPomodoroRound(currentRound);
       sounds.pomodoroRound();
       // Auto-break
-      setBreakUsed((p) => { breakUsedRef.current = p + 1; return p + 1; });
+      const newBreakUsed = breakUsedRef.current + 1;
+      breakUsedRef.current = newBreakUsed;
+      setBreakUsed(newBreakUsed);
       statsRef.current.breakUsed += 1;
+      breakRemainingMsRef.current = cfg.breakDurationSec * 1000;
       setBreakRemainingMs(cfg.breakDurationSec * 1000);
+      offscreenMsRef.current = 0;
       setOffscreenMs(0);
+      appStateRef.current = 'break';
       setAppState('break');
     }
   };
 
   // ── Stable refs for functions used in event handlers with [] deps ────────────
   // Updated every render so event handlers always call the latest version.
-  const stableFnRef = useRef({ triggerPunishment, finishSession });
-  useEffect(() => { stableFnRef.current = { triggerPunishment, finishSession }; });
+  const stableFnRef = useRef({ triggerPunishment, finishSession, checkPomodoro });
+  useEffect(() => { stableFnRef.current = { triggerPunishment, finishSession, checkPomodoro }; });
 
   // ── Background tracking: tab visibility + window focus ────────────────────────
   useEffect(() => {
@@ -362,13 +384,14 @@ export default function SessionPage() {
 
         // Keep the session timer ticking while rAF is throttled
         if (bgState !== 'break') {
-          setRemainingMs((prev) => {
-            const next = Math.max(0, prev - delta);
-            if (next <= 0) stableFnRef.current.finishSession();
-            return next;
-          });
+          const nextR = Math.max(0, remainingMsRef.current - delta);
+          remainingMsRef.current = nextR;
+          setRemainingMs(nextR);
+          if (nextR <= 0) stableFnRef.current.finishSession();
         } else {
-          setBreakRemainingMs((prev) => Math.max(0, prev - delta));
+          const nextB = Math.max(0, breakRemainingMsRef.current - delta);
+          breakRemainingMsRef.current = nextB;
+          setBreakRemainingMs(nextB);
         }
 
         // Accumulate distraction time while backgrounded
@@ -457,28 +480,35 @@ export default function SessionPage() {
       const delta = Math.min(now - lastRafTsRef.current, 150);
       lastRafTsRef.current = now;
 
-      // Timer
+      // ── Timer ──────────────────────────────────────────────────────────────
       if (state === 'break') {
-        setBreakRemainingMs((prev) => {
-          const next = Math.max(0, prev - delta);
-          statsRef.current.breakTimeUsedMs += delta;
-          if (next === 0) {
-            sounds.breakEnd();
-            setAppState('focused');
-          }
-          return next;
-        });
+        const nextBreak = Math.max(0, breakRemainingMsRef.current - delta);
+        statsRef.current.breakTimeUsedMs += delta;
+        breakRemainingMsRef.current = nextBreak;
+        setBreakRemainingMs(nextBreak);
+        if (nextBreak === 0) {
+          sounds.breakEnd();
+          appStateRef.current = 'focused';
+          setAppState('focused');
+        }
       } else if (['focused', 'warning', 'violated'].includes(state)) {
-        setRemainingMs((prev) => {
-          const next = Math.max(0, prev - delta);
-          if (next <= 0) { finishSession(); return 0; }
-          // Pomodoro check
-          checkPomodoro(next, configRef.current.durationMinutes * 60_000, configRef.current, breakUsedRef.current);
-          return next;
-        });
+        const nextRemaining = Math.max(0, remainingMsRef.current - delta);
+        remainingMsRef.current = nextRemaining;
+        setRemainingMs(nextRemaining);
+        if (nextRemaining <= 0) {
+          stableFnRef.current.finishSession();
+          return; // cleanupMedia cancels the rAF; don't re-schedule
+        }
+        // Pomodoro check
+        stableFnRef.current.checkPomodoro(
+          nextRemaining,
+          configRef.current.durationMinutes * 60_000,
+          configRef.current,
+          breakUsedRef.current,
+        );
       }
 
-      // Attention
+      // ── Attention ─────────────────────────────────────────────────────────
       const reading = detectorRef.current
         ? await detectorRef.current.estimate(videoRef.current!, baselineRef.current)
         : null;
@@ -501,7 +531,7 @@ export default function SessionPage() {
       // Stabilize required scales up with violations
       const stabilizeRequired = Math.min(5000, BASE_STABILIZE_MS + (violationRef.current - 1) * 500);
 
-      // ── Throttled live score update (every ~45 frames ≈ 1.5 s) ─────────────
+      // ── Throttled live score update (every ~45 frames ≈ 1.5 s) ──────────
       liveScoreFrameRef.current++;
       if (liveScoreFrameRef.current % 45 === 0 && ['focused', 'warning'].includes(state)) {
         const s = computeDetailedScore(statsRef.current, configRef.current).total;
@@ -511,69 +541,81 @@ export default function SessionPage() {
 
       if (state === 'violated') {
         if (!offscreen && !uncertain && !warning) {
-          setStabilizeMs((prev) => {
-            const next = prev + delta;
-            if (next >= stabilizeRequired) {
-              // Record how long this recovery took
-              statsRef.current.recoveryTimes = [
-                ...(statsRef.current.recoveryTimes ?? []),
-                performance.now() - violationStartRef.current,
-              ];
-              audioRef.current?.pause();
-              setOffscreenMs(0);
-              setStabilizeMs(0);
-              setAppState('focused');
-              return 0;
-            }
-            return next;
-          });
+          const nextStabilize = stabilizeMsRef.current + delta;
+          if (nextStabilize >= stabilizeRequired) {
+            // Record how long this recovery took
+            statsRef.current.recoveryTimes = [
+              ...(statsRef.current.recoveryTimes ?? []),
+              performance.now() - violationStartRef.current,
+            ];
+            audioRef.current?.pause();
+            offscreenMsRef.current = 0;
+            stabilizeMsRef.current = 0;
+            setOffscreenMs(0);
+            setStabilizeMs(0);
+            appStateRef.current = 'focused';
+            setAppState('focused');
+          } else {
+            stabilizeMsRef.current = nextStabilize;
+            setStabilizeMs(nextStabilize);
+          }
         } else {
+          stabilizeMsRef.current = 0;
           setStabilizeMs(0);
         }
       } else if (state === 'focused' || state === 'warning') {
         if (offscreen || warning) {
-          setOffscreenMs((prev) => {
-            const next = prev + delta;
-            statsRef.current.longestDistractionMs = Math.max(statsRef.current.longestDistractionMs, next);
-            if (next >= configRef.current.offscreenThresholdSec * 1000 && offscreen) {
-              triggerPunishment();
-            } else if (next >= configRef.current.offscreenThresholdSec * 350) {
-              // Count first entry into warning (not repeated calls while already in warning)
-              if (state === 'focused') {
-                statsRef.current.focusTransitions = (statsRef.current.focusTransitions ?? 0) + 1;
-              }
-              setAppState('warning');
-            } else if (uncertain) {
-              setAppState('warning');
+          const nextOffscreen = offscreenMsRef.current + delta;
+          statsRef.current.longestDistractionMs = Math.max(statsRef.current.longestDistractionMs, nextOffscreen);
+          offscreenMsRef.current = nextOffscreen;
+          setOffscreenMs(nextOffscreen);
+
+          if (nextOffscreen >= configRef.current.offscreenThresholdSec * 1000 && offscreen) {
+            stableFnRef.current.triggerPunishment();
+          } else if (nextOffscreen >= configRef.current.offscreenThresholdSec * 350) {
+            // Count first entry into warning (not repeated calls while already in warning)
+            if (state === 'focused') {
+              statsRef.current.focusTransitions = (statsRef.current.focusTransitions ?? 0) + 1;
             }
-            return next;
-          });
+            appStateRef.current = 'warning';
+            setAppState('warning');
+          } else if (uncertain) {
+            appStateRef.current = 'warning';
+            setAppState('warning');
+          }
         } else {
           statsRef.current.totalFocusedMs += delta;
+          offscreenMsRef.current = 0;
           setOffscreenMs(0);
-          if (state !== 'focused') setAppState('focused');
+          if (state !== 'focused') {
+            appStateRef.current = 'focused';
+            setAppState('focused');
+          }
         }
 
         // ── Phone check sub-timer (only fires when face is present & on-screen) ──
         if (configRef.current.phoneDetectionEnabled && phoneRead?.detected && !offscreen) {
-          setPhoneCheckMs((prev) => {
-            const next = prev + delta;
-            if (next >= PHONE_CHECK_THRESHOLD_MS) {
-              // Record as a phone-specific violation, then trigger shared punishment
-              const newPhoneCount = phoneCheckRef.current + 1;
-              phoneCheckRef.current = newPhoneCount;
-              setPhoneCheckCount(newPhoneCount);
-              statsRef.current.phoneCheckCount = newPhoneCount;
-              triggerPunishment('phone');
-              return 0;
-            }
+          const nextPhoneCheck = phoneCheckMsRef.current + delta;
+          if (nextPhoneCheck >= PHONE_CHECK_THRESHOLD_MS) {
+            // Record as a phone-specific violation, then trigger shared punishment
+            const newPhoneCount = phoneCheckRef.current + 1;
+            phoneCheckRef.current = newPhoneCount;
+            setPhoneCheckCount(newPhoneCount);
+            statsRef.current.phoneCheckCount = newPhoneCount;
+            phoneCheckMsRef.current = 0;
+            setPhoneCheckMs(0);
+            stableFnRef.current.triggerPunishment('phone');
+          } else {
+            phoneCheckMsRef.current = nextPhoneCheck;
+            setPhoneCheckMs(nextPhoneCheck);
             // Warn at 40% of threshold (same proportion as offscreen warning)
-            if (next >= PHONE_CHECK_THRESHOLD_MS * 0.4 && state === 'focused') {
+            if (nextPhoneCheck >= PHONE_CHECK_THRESHOLD_MS * 0.4 && state === 'focused') {
+              appStateRef.current = 'warning';
               setAppState('warning');
             }
-            return next;
-          });
+          }
         } else {
+          phoneCheckMsRef.current = 0;
           setPhoneCheckMs(0);
         }
       }
@@ -646,9 +688,11 @@ export default function SessionPage() {
       violationRef.current = 0;
       setPomodoroRound(1);
       pomodoroRef.current = 1;
+      appStateRef.current = 'requesting_permission';
       setAppState('requesting_permission');
       setSummaryStats(null);
       setSummaryId('');
+      remainingMsRef.current = configRef.current.durationMinutes * 60_000;
       setRemainingMs(configRef.current.durationMinutes * 60_000);
       setAttention(null);
       statsRef.current = {
@@ -693,11 +737,16 @@ export default function SessionPage() {
 
   const takeBreak = () => {
     if (breakUsedRef.current >= configRef.current.breakLimit || appStateRef.current === 'violated') return;
-    setBreakUsed((p) => { breakUsedRef.current = p + 1; return p + 1; });
+    const newBreakUsed = breakUsedRef.current + 1;
+    breakUsedRef.current = newBreakUsed;
+    setBreakUsed(newBreakUsed);
     statsRef.current.breakUsed += 1;
+    breakRemainingMsRef.current = configRef.current.breakDurationSec * 1000;
     setBreakRemainingMs(configRef.current.breakDurationSec * 1000);
+    offscreenMsRef.current = 0;
     setOffscreenMs(0);
     sounds.breakStart();
+    appStateRef.current = 'break';
     setAppState('break');
   };
 
