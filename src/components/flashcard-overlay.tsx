@@ -63,9 +63,16 @@ export function FlashcardOverlay({ cards, focusScore, onComplete, onDismiss }: P
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground/60">
-              Score {focusScore}
+            <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+              focusScore >= 80
+                ? 'bg-red-500/10 text-red-600'
+                : focusScore >= 60
+                  ? 'bg-amber-500/10 text-amber-600'
+                  : 'bg-green-500/10 text-green-600'
+            }`}>
+              {focusScore >= 80 ? 'Challenging mix' : focusScore >= 60 ? 'Balanced review' : 'Reinforcing basics'}
             </span>
+            <span className="text-[10px] text-muted-foreground/40">{focusScore}</span>
             <button
               onClick={onDismiss}
               className="rounded p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"

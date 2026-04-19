@@ -3,14 +3,18 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Command } from 'cmdk';
-import { Timer, CheckSquare, BarChart2, NotebookPen, Home } from 'lucide-react';
+import { Timer, CheckSquare, BarChart2, NotebookPen, Home, Music2, FlipHorizontal2, Settings, Clock } from 'lucide-react';
 
 const ITEMS = [
-  { label: 'New Session', href: '/session', icon: Timer,        keywords: 'start focus work' },
-  { label: 'Tasks',       href: '/tasks',   icon: CheckSquare,  keywords: 'checklist todo' },
-  { label: 'Stats',       href: '/stats',   icon: BarChart2,    keywords: 'history performance' },
-  { label: 'Notes',       href: '/notes',   icon: NotebookPen,  keywords: 'scratchpad write' },
-  { label: 'Home',        href: '/',        icon: Home,         keywords: 'landing' },
+  { label: 'New Session',  href: '/session',    icon: Timer,           keywords: 'start focus work pomodoro' },
+  { label: 'Tasks',        href: '/tasks',      icon: CheckSquare,     keywords: 'checklist todo add task' },
+  { label: 'Stats',        href: '/stats',      icon: BarChart2,       keywords: 'history performance score' },
+  { label: 'Notes',        href: '/notes',      icon: NotebookPen,     keywords: 'scratchpad write journal' },
+  { label: 'Flashcards',   href: '/flashcards', icon: FlipHorizontal2, keywords: 'cards review study spaced' },
+  { label: 'Sounds',       href: '/sounds',     icon: Music2,          keywords: 'ambient noise rain music' },
+  { label: 'Timer',        href: '/timer',      icon: Clock,           keywords: 'countdown stopwatch' },
+  { label: 'Settings',     href: '/settings',   icon: Settings,        keywords: 'config preferences advanced' },
+  { label: 'Home',         href: '/',           icon: Home,            keywords: 'landing' },
 ];
 
 export function CommandPalette() {

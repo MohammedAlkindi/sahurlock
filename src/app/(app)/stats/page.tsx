@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Trash2, ChevronDown, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Trash2, ChevronDown, TrendingUp, TrendingDown, Minus, Download } from 'lucide-react';
 import {
   clearAllData,
   deleteSessionById,
@@ -408,6 +408,17 @@ export default function StatsPage() {
   const handleDelete = (id: string) => { deleteSessionById(id); reload(); };
   const handleClearAll = () => { clearAllData(); setConfirming(false); reload(); };
 
+  const handleExport = () => {
+    const data = { exportedAt: new Date().toISOString(), aggregate: agg, sessions: history, tasks };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sahurlock-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
 
@@ -416,15 +427,23 @@ export default function StatsPage() {
         <div className="flex items-center gap-2">
           {hasData && (
             confirming ? (
-              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-                <span className="text-xs text-red-700">Delete everything?</span>
+              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 dark:border-red-900/40 dark:bg-red-950/20">
+                <span className="text-xs text-red-700 dark:text-red-400">Delete everything?</span>
                 <button onClick={handleClearAll} className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-500 transition">Yes, clear</button>
                 <button onClick={() => setConfirming(false)} className="text-xs text-muted-foreground hover:text-foreground transition">Cancel</button>
               </div>
             ) : (
-              <button onClick={() => setConfirming(true)} className="rounded-xl border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:border-red-200 hover:text-red-600 transition">
-                Clear data
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleExport}
+                  className="flex items-center gap-1.5 rounded-xl border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:border-accent/40 hover:text-foreground transition"
+                >
+                  <Download size={12} />Export
+                </button>
+                <button onClick={() => setConfirming(true)} className="rounded-xl border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:border-red-200 hover:text-red-600 transition">
+                  Clear data
+                </button>
+              </div>
             )
           )}
           <Link href="/session" className="rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-accent-foreground hover:opacity-90 transition">

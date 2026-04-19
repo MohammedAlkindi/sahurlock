@@ -1,10 +1,12 @@
-import { AggregateStats, CustomVideoMeta, SessionConfig, SessionHistoryItem, Task } from '@/lib/types';
+import { AggregateStats, CustomVideoMeta, SessionConfig, SessionHistoryItem, SessionPreset, Task } from '@/lib/types';
 
 const SETTINGS_KEY     = 'sahurlock.settings';
 const HISTORY_KEY      = 'sahurlock.history';
 const AGG_KEY          = 'sahurlock.aggregate';
 const TASKS_KEY        = 'sahurlock.tasks';
 const CUSTOM_VIDEO_KEY = 'sahurlock.custom_video';
+const TEMPLATES_KEY    = 'sahurlock.templates';
+const GOALS_KEY        = 'sahurlock.goals';
 
 // In-memory blob URL for the current session — set by the settings page when
 // a custom video is loaded from IndexedDB so the session page can use it.
@@ -167,4 +169,40 @@ export const deleteTask = (id: string) => {
 export const incrementTaskSessionCount = (id: string) => {
   if (typeof window === 'undefined') return;
   updateTask(id, { sessionCount: (loadTasks().find((t) => t.id === id)?.sessionCount ?? 0) + 1 });
+};
+
+// ── Session templates ──────────────────────────────────────────────────────────
+
+export const loadTemplates = (): SessionPreset[] => {
+  if (typeof window === 'undefined') return [];
+  return safeParse<SessionPreset[]>(localStorage.getItem(TEMPLATES_KEY), []);
+};
+
+export const saveTemplate = (preset: SessionPreset) => {
+  if (typeof window === 'undefined') return;
+  const existing = loadTemplates().filter((t) => t.id !== preset.id);
+  localStorage.setItem(TEMPLATES_KEY, JSON.stringify([...existing, preset]));
+};
+
+export const deleteTemplate = (id: string) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(TEMPLATES_KEY, JSON.stringify(loadTemplates().filter((t) => t.id !== id)));
+};
+
+// ── Goals ──────────────────────────────────────────────────────────────────────
+
+export interface Goals {
+  dailyGoalMinutes: number;
+}
+
+const GOALS_DEFAULTS: Goals = { dailyGoalMinutes: 0 };
+
+export const loadGoals = (): Goals => {
+  if (typeof window === 'undefined') return { ...GOALS_DEFAULTS };
+  return safeParse<Goals>(localStorage.getItem(GOALS_KEY), { ...GOALS_DEFAULTS });
+};
+
+export const saveGoals = (goals: Goals) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
 };

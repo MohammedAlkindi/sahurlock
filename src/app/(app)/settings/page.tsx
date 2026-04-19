@@ -4,14 +4,20 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Upload, Trash2, Play, RefreshCw,
   CheckCircle2, AlertCircle, ChevronDown, Eye, Video,
+  Download, Plus, Keyboard, Target, BookTemplate,
 } from 'lucide-react';
 import {
   loadSettings, saveSettings,
   loadCustomVideoMeta, saveCustomVideoMeta, clearCustomVideoMeta, setCustomVideoBlobUrl,
+  loadTemplates, saveTemplate, deleteTemplate,
+  loadGoals, saveGoals,
+  loadHistory, loadAggregate, loadTasks,
+  clearAllData,
 } from '@/lib/storage';
 import { getVideoBlob, saveVideoBlob, deleteVideoBlob } from '@/lib/video-storage';
-import { SessionConfig, CustomVideoMeta } from '@/lib/types';
+import { SessionConfig, CustomVideoMeta, SessionPreset } from '@/lib/types';
 import { PUNISHMENT_CLIPS } from '@/components/session-config';
+import { uid } from '@/lib/utils';
 
 const DEFAULTS: SessionConfig = {
   durationMinutes: 25,
@@ -28,6 +34,27 @@ const DEFAULTS: SessionConfig = {
 
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 const ALLOWED_TYPES   = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+
+const BUILTIN_TEMPLATES: SessionPreset[] = [
+  {
+    id: 'builtin_deep',
+    name: 'Deep Work',
+    description: '90 min, no breaks, strict',
+    config: { durationMinutes: 90, breakLimit: 0, offscreenThresholdSec: 4, tabSwitchViolationEnabled: true },
+  },
+  {
+    id: 'builtin_pomodoro',
+    name: 'Pomodoro',
+    description: '25 min, 3 breaks, 5 min each',
+    config: { durationMinutes: 25, breakLimit: 3, breakDurationSec: 300, pomodoroEnabled: true },
+  },
+  {
+    id: 'builtin_light',
+    name: 'Light Focus',
+    description: '45 min, relaxed threshold',
+    config: { durationMinutes: 45, breakLimit: 5, offscreenThresholdSec: 10 },
+  },
+];
 
 function formatFileSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -95,7 +122,7 @@ function SectionLabel({ title }: { title: string }) {
   );
 }
 
-function Disclosure({ label, children }: { label: string; children: React.ReactNode }) {
+function Disclosure({ label, children, icon: Icon }: { label: string; children: React.ReactNode; icon?: React.ElementType }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="border-t border-border/50">
@@ -104,7 +131,10 @@ function Disclosure({ label, children }: { label: string; children: React.ReactN
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
       >
-        <span>{label}</span>
+        <span className="flex items-center gap-1.5">
+          {Icon && <Icon size={11} />}
+          {label}
+        </span>
         <ChevronDown size={12} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && <div className="pb-3">{children}</div>}
@@ -129,8 +159,6 @@ function PunishmentMediaPanel({
   const [errorMsg,     setErrorMsg]     = useState('');
   const [showPreview,  setShowPreview]  = useState(false);
   const fileInputRef   = useRef<HTMLInputElement>(null);
-  // Tracks the live blob URL so cleanup always revokes the current value,
-  // not the stale one captured at effect-creation time.
   const previewUrlRef  = useRef<string | null>(null);
 
   const setPreviewUrlBoth = (url: string | null) => {
@@ -264,6 +292,128 @@ function PunishmentMediaPanel({
   );
 }
 
+// ── Session templates section ──────────────────────────────────────────────────
+
+function TemplatesSection({
+  config,
+  update,
+}: {
+  config: SessionConfig;
+  update: (patch: Partial<SessionConfig>) => void;
+}) {
+  const [custom,    setCustom]    = useState<SessionPreset[]>([]);
+  const [newName,   setNewName]   = useState('');
+  const [saving,    setSaving]    = useState(false);
+  const [open,      setOpen]      = useState(false);
+
+  const activeCount = custom.length;
+
+  useEffect(() => { setCustom(loadTemplates()); }, []);
+
+  const handleSave = () => {
+    if (!newName.trim()) return;
+    const preset: SessionPreset = {
+      id: uid(),
+      name: newName.trim(),
+      description: `${config.durationMinutes} min · ${config.breakLimit} breaks`,
+      config: { ...config },
+    };
+    saveTemplate(preset);
+    setCustom(loadTemplates());
+    setNewName('');
+    setSaving(false);
+  };
+
+  const handleLoad = (preset: SessionPreset) => {
+    update(preset.config);
+  };
+
+  const handleDelete = (id: string) => {
+    deleteTemplate(id);
+    setCustom(loadTemplates());
+  };
+
+  const allTemplates = [...BUILTIN_TEMPLATES, ...custom];
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-muted/10 px-3.5 py-2.5 text-xs font-medium text-muted-foreground transition hover:bg-muted/20 hover:text-foreground"
+      >
+        <span className="flex items-center gap-1.5"><BookTemplate size={12} />Templates</span>
+        <div className="flex items-center gap-2">
+          {activeCount > 0 && (
+            <span className="rounded-full bg-accent/15 px-1.5 py-px text-[10px] font-semibold text-accent">
+              {activeCount} saved
+            </span>
+          )}
+          <ChevronDown size={12} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        </div>
+      </button>
+
+      {open && (
+        <div className="mt-1 rounded-xl border border-border/60 bg-card px-4 pb-3">
+          <p className="pt-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">
+            Load preset
+          </p>
+          <div className="space-y-1.5">
+            {allTemplates.map((t) => (
+              <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-background px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-foreground leading-none">{t.name}</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground/60">{t.description}</p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => handleLoad(t)}
+                    className="rounded px-2 py-1 text-[10px] font-medium text-accent hover:bg-accent/10 transition"
+                  >
+                    Apply
+                  </button>
+                  {!t.id.startsWith('builtin_') && (
+                    <button
+                      onClick={() => handleDelete(t.id)}
+                      className="rounded p-1 text-muted-foreground/40 hover:text-red-500 transition"
+                    >
+                      <Trash2 size={10} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 border-t border-border/40 pt-3">
+            {saving ? (
+              <div className="flex items-center gap-2">
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setSaving(false); }}
+                  placeholder="Template name…"
+                  autoFocus
+                  className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder-muted-foreground/50 focus:border-accent focus:outline-none"
+                />
+                <button onClick={handleSave} className="rounded-lg bg-accent px-2.5 py-1.5 text-[10px] font-semibold text-accent-foreground transition hover:opacity-90">Save</button>
+                <button onClick={() => setSaving(false)} className="text-[10px] text-muted-foreground hover:text-foreground transition">Cancel</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setSaving(true)}
+                className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition"
+              >
+                <Plus size={10} />Save current config as template
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Advanced section — collapsed by default ────────────────────────────────────
 
 function AdvancedSection({
@@ -282,7 +432,6 @@ function AdvancedSection({
 
   return (
     <div className="mt-2">
-      {/* Trigger row */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -299,11 +448,9 @@ function AdvancedSection({
         </div>
       </button>
 
-      {/* Expanded panel */}
       {open && (
         <div className="mt-1 rounded-xl border border-border/60 bg-card px-4 pb-2">
 
-          {/* Detection group */}
           <p className="pt-3 pb-px text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">
             Detection
           </p>
@@ -353,14 +500,131 @@ function AdvancedSection({
   );
 }
 
+// ── Keyboard shortcuts section ─────────────────────────────────────────────────
+
+const SHORTCUTS = [
+  { keys: ['Ctrl', 'K'],   action: 'Open command palette' },
+  { keys: ['Esc'],         action: 'Close palette / dialogs' },
+  { keys: ['↑', '↓'],     action: 'Navigate palette items' },
+  { keys: ['Enter'],       action: 'Select palette item' },
+  { keys: ['Space'],       action: 'Reveal flashcard answer' },
+];
+
+function ShortcutsSection() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-muted/10 px-3.5 py-2.5 text-xs font-medium text-muted-foreground transition hover:bg-muted/20 hover:text-foreground"
+      >
+        <span className="flex items-center gap-1.5"><Keyboard size={12} />Keyboard shortcuts</span>
+        <ChevronDown size={12} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="mt-1 rounded-xl border border-border/60 bg-card px-4 py-3">
+          <div className="space-y-2">
+            {SHORTCUTS.map(({ keys, action }) => (
+              <div key={action} className="flex items-center justify-between gap-4">
+                <span className="text-xs text-muted-foreground">{action}</span>
+                <div className="flex items-center gap-1">
+                  {keys.map((k) => (
+                    <kbd key={k} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-foreground border border-border/60">
+                      {k}
+                    </kbd>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Data section ───────────────────────────────────────────────────────────────
+
+function DataSection() {
+  const [open,       setOpen]       = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const handleExport = () => {
+    const data = {
+      exportedAt: new Date().toISOString(),
+      aggregate: loadAggregate(),
+      sessions: loadHistory(),
+      tasks: loadTasks(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sahurlock-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-muted/10 px-3.5 py-2.5 text-xs font-medium text-muted-foreground transition hover:bg-muted/20 hover:text-foreground"
+      >
+        <span className="flex items-center gap-1.5"><Download size={12} />Data &amp; export</span>
+        <ChevronDown size={12} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="mt-1 rounded-xl border border-border/60 bg-card px-4 pb-3">
+          <p className="pt-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">Export</p>
+          <button
+            onClick={handleExport}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background py-2 text-xs font-medium text-foreground transition hover:border-accent/40 hover:bg-muted/30"
+          >
+            <Download size={12} />Download all data as JSON
+          </button>
+          <p className="mt-1.5 text-[10px] text-muted-foreground/50">
+            Sessions, stats, and tasks — all in one file.
+          </p>
+
+          <p className="mt-4 pb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">Danger zone</p>
+          {confirming ? (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50/60 px-3 py-2 dark:border-red-900/40 dark:bg-red-950/20">
+              <span className="flex-1 text-[10px] text-red-700 dark:text-red-400">This deletes all sessions and stats.</span>
+              <button
+                onClick={() => { clearAllData(); setConfirming(false); }}
+                className="rounded bg-red-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-red-500 transition"
+              >
+                Clear
+              </button>
+              <button onClick={() => setConfirming(false)} className="text-[10px] text-muted-foreground hover:text-foreground transition">Cancel</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirming(true)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs font-medium text-muted-foreground transition hover:border-red-200 hover:text-red-600"
+            >
+              <Trash2 size={11} />Clear all data
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const [config,  setConfig]  = useState<SessionConfig>(DEFAULTS);
+  const [goals,   setGoals]   = useState({ dailyGoalMinutes: 0 });
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setConfig(loadSettings(DEFAULTS));
+    setGoals(loadGoals());
     setMounted(true);
   }, []);
 
@@ -368,6 +632,12 @@ export default function SettingsPage() {
     const next = { ...config, ...patch };
     setConfig(next);
     saveSettings(next);
+  };
+
+  const updateGoal = (dailyGoalMinutes: number) => {
+    const next = { dailyGoalMinutes };
+    setGoals(next);
+    saveGoals(next);
   };
 
   if (!mounted) return null;
@@ -386,6 +656,20 @@ export default function SettingsPage() {
         <div className="divide-y divide-border/50">
           <Row label="Pomodoro" description="Auto-breaks at interval end.">
             <PillToggle checked={config.pomodoroEnabled} onChange={(v) => update({ pomodoroEnabled: v })} />
+          </Row>
+          <Row label="Daily goal" description="Target focus minutes per day.">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={0}
+                max={480}
+                value={goals.dailyGoalMinutes || ''}
+                onChange={(e) => updateGoal(Math.max(0, Math.min(480, Number(e.target.value) || 0)))}
+                placeholder="0"
+                className="w-16 rounded-lg border border-border bg-background px-2 py-1 text-center text-xs text-foreground focus:border-accent focus:outline-none"
+              />
+              <span className="text-xs text-muted-foreground">min</span>
+            </div>
           </Row>
         </div>
 
@@ -410,8 +694,17 @@ export default function SettingsPage() {
 
       </div>
 
+      {/* ── Templates ─────────────────────────────────────── */}
+      <TemplatesSection config={config} update={update} />
+
       {/* ── Advanced — separate, collapsed ────────────────── */}
       <AdvancedSection config={config} update={update} />
+
+      {/* ── Shortcuts ─────────────────────────────────────── */}
+      <ShortcutsSection />
+
+      {/* ── Data & export ─────────────────────────────────── */}
+      <DataSection />
 
       <p className="mt-3 text-center text-[10px] text-muted-foreground/40">
         Changes save instantly.
