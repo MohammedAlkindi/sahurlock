@@ -116,11 +116,11 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`flex items-start justify-between gap-8 py-4 ${last ? '' : 'border-b border-border/20'}`}>
+    <div className={`flex items-start justify-between gap-10 py-5 ${last ? '' : 'border-b border-border/20'}`}>
       <div className="min-w-0 flex-1">
         <p className="text-sm text-foreground">{label}</p>
         {description && (
-          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground/70">{description}</p>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground/60">{description}</p>
         )}
       </div>
       <div className="shrink-0 pt-0.5">{children}</div>
@@ -130,7 +130,7 @@ function Row({
 
 function SectionHeading({ title }: { title: string }) {
   return (
-    <p className="mb-1 mt-7 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50 first:mt-0">
+    <p className="mb-2 mt-8 text-xs font-medium uppercase tracking-wider text-muted-foreground/50 first:mt-0">
       {title}
     </p>
   );
@@ -446,7 +446,7 @@ function TemplatesPanel({
 
   return (
     <>
-      <p className="mb-5 text-xs text-muted-foreground/60 leading-relaxed">
+      <p className="mb-6 text-sm text-muted-foreground/60 leading-relaxed">
         Apply a preset to overwrite the current session config. Built-in presets cannot be deleted.
       </p>
 
@@ -460,12 +460,12 @@ function TemplatesPanel({
           >
             <div className="min-w-0">
               <p className="text-sm text-foreground">{t.name}</p>
-              <p className="text-xs text-muted-foreground/60">{t.description}</p>
+              <p className="mt-0.5 text-sm text-muted-foreground/60">{t.description}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => update(t.config)}
-                className="rounded-md border border-border/50 px-3 py-1 text-xs text-foreground/80 transition hover:bg-muted/40 hover:text-foreground"
+                className="rounded-md border border-border/50 px-4 py-1.5 text-sm text-foreground/80 transition hover:bg-muted/40 hover:text-foreground"
               >
                 Apply
               </button>
@@ -571,9 +571,9 @@ function DataPanel() {
       >
         <button
           onClick={handleExport}
-          className="flex items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-xs text-foreground/80 transition hover:bg-muted/40 hover:text-foreground"
+          className="flex items-center gap-1.5 rounded-md border border-border/60 px-4 py-2 text-sm text-foreground/80 transition hover:bg-muted/40 hover:text-foreground"
         >
-          <Download size={12} />Export
+          <Download size={13} />Export
         </button>
       </Row>
 
@@ -599,7 +599,7 @@ function DataPanel() {
         <Row label="Clear all data" description="Permanently remove all sessions, stats, and settings." last>
           <button
             onClick={() => setConfirming(true)}
-            className="rounded-md border border-border/60 px-3 py-1.5 text-xs text-muted-foreground transition hover:border-red-200 hover:text-red-600"
+            className="rounded-md border border-border/60 px-4 py-2 text-sm text-muted-foreground transition hover:border-red-200 hover:text-red-600"
           >
             Clear
           </button>
@@ -640,22 +640,22 @@ export default function SettingsPage() {
   const activeLabel = CATS.find((c) => c.id === active)?.label ?? '';
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
+    <div className="mx-auto max-w-4xl px-8 py-10">
 
       {/* Page title */}
-      <h1 className="mb-8 text-base font-semibold text-foreground">Settings</h1>
+      <h1 className="mb-10 text-xl font-semibold text-foreground">Settings</h1>
 
-      <div className="flex gap-10">
+      <div className="flex gap-16">
 
         {/* ── Sidebar ─────────────────────────────────────────── */}
-        <nav className="hidden w-36 shrink-0 md:block">
+        <nav className="hidden w-48 shrink-0 md:block">
           <div className="space-y-0.5">
             {CATS.map(({ id, label }) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setActive(id)}
-                className={`block w-full rounded-md px-3 py-1.5 text-left text-sm transition ${
+                className={`block w-full rounded-md px-3 py-2 text-left text-sm transition ${
                   active === id
                     ? 'bg-muted/70 text-foreground font-medium'
                     : 'text-muted-foreground hover:bg-muted/30 hover:text-foreground'
@@ -668,13 +668,13 @@ export default function SettingsPage() {
         </nav>
 
         {/* ── Mobile tab strip ────────────────────────────────── */}
-        <div className="md:hidden -mx-6 mb-6 flex overflow-x-auto border-b border-border/30 px-6">
+        <div className="md:hidden -mx-8 mb-6 flex overflow-x-auto border-b border-border/30 px-8">
           {CATS.map(({ id, label }) => (
             <button
               key={id}
               type="button"
               onClick={() => setActive(id)}
-              className={`shrink-0 border-b-2 pb-2.5 pr-5 text-sm transition ${
+              className={`shrink-0 border-b-2 pb-3 pr-6 text-sm transition ${
                 active === id
                   ? 'border-foreground font-medium text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -689,7 +689,7 @@ export default function SettingsPage() {
         <div className="flex-1 min-w-0">
 
           {/* Panel heading */}
-          <h2 className="mb-5 text-sm font-medium text-foreground">{activeLabel}</h2>
+          <h2 className="mb-6 text-base font-semibold text-foreground">{activeLabel}</h2>
 
           {/* Panel body */}
           {active === 'focus' && (
