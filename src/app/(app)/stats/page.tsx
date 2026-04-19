@@ -138,16 +138,123 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string;
   );
 }
 
-function ScoreBar({ score, label }: { score: number; label: string }) {
-  const color     = score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-yellow-500' : 'bg-red-500';
-  const textColor = score >= 80 ? 'text-green-600' : score >= 60 ? 'text-amber-600' : 'text-red-600';
+// ── SVG Score trend chart ─────────────────────────────────────────────────────
+
+interface ChartPoint { score: number; label: string; id: string }
+
+function ScoreTrendChart({ items }: { items: ChartPoint[] }) {
+  if (items.length < 2) return null;
+
+  const PAD = { top: 24, right: 16, bottom: 32, left: 32 };
+  const CHART_H = 100;
+  const STEP = Math.max(44, Math.floor(580 / (items.length - 1)));
+  const chartW = (items.length - 1) * STEP;
+  const svgW = chartW + PAD.left + PAD.right;
+  const svgH = CHART_H + PAD.top + PAD.bottom;
+
+  const xOf = (i: number) => PAD.left + i * STEP;
+  const yOf = (s: number) => PAD.top + (1 - s / 100) * CHART_H;
+
+  const dotColor = (s: number) => s >= 80 ? '#22c55e' : s >= 60 ? '#eab308' : '#ef4444';
+  const linePoints = items.map((p, i) => `${xOf(i)},${yOf(p.score)}`).join(' ');
+
+  // Show x-axis labels only every N-th to avoid crowding
+  const labelEvery = items.length > 12 ? Math.ceil(items.length / 8) : 1;
+
+  // Trend: compare last 3 vs previous 3
+  const avg = (arr: ChartPoint[]) => arr.reduce((s, p) => s + p.score, 0) / arr.length;
+  const last3 = items.slice(-3);
+  const prev3 = items.slice(-6, -3);
+  const trendDelta = prev3.length >= 2 ? Math.round(avg(last3) - avg(prev3)) : null;
+
   return (
-    <div className="flex flex-col items-center gap-1" title={`${label}: ${score}`}>
-      <span className={`text-[10px] font-bold tabular-nums ${textColor}`}>{score}</span>
-      <div className="relative w-7 overflow-hidden rounded-sm bg-muted" style={{ height: 72 }}>
-        <div className={`absolute bottom-0 w-full rounded-sm ${color}`} style={{ height: `${Math.max(2, score)}%` }} />
+    <div>
+      {trendDelta !== null && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className={`text-xs font-semibold ${trendDelta > 0 ? 'text-green-600' : trendDelta < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+            {trendDelta > 0 ? `+${trendDelta}` : trendDelta} pts
+          </span>
+          <span className="text-[11px] text-muted-foreground/50">vs previous 3 sessions</span>
+        </div>
+      )}
+      <div className="overflow-x-auto pb-1">
+        <svg
+          width={svgW}
+          height={svgH}
+          style={{ display: 'block', minWidth: svgW }}
+          aria-label="Focus score trend"
+        >
+          {/* Zone bands */}
+          <rect x={PAD.left} y={yOf(100)} width={chartW} height={yOf(80) - yOf(100)} fill="rgba(34,197,94,0.06)" />
+          <rect x={PAD.left} y={yOf(80)}  width={chartW} height={yOf(60) - yOf(80)}  fill="rgba(234,179,8,0.06)" />
+          <rect x={PAD.left} y={yOf(60)}  width={chartW} height={yOf(0) - yOf(60)}   fill="rgba(239,68,68,0.06)" />
+
+          {/* Zone threshold lines */}
+          {[80, 60].map((v) => (
+            <line
+              key={v}
+              x1={PAD.left} y1={yOf(v)}
+              x2={PAD.left + chartW} y2={yOf(v)}
+              stroke={v === 80 ? 'rgba(34,197,94,0.25)' : 'rgba(234,179,8,0.25)'}
+              strokeWidth={1}
+              strokeDasharray="4 3"
+            />
+          ))}
+
+          {/* Y-axis labels */}
+          {[100, 80, 60, 0].map((v) => (
+            <text
+              key={v}
+              x={PAD.left - 5}
+              y={yOf(v) + 3.5}
+              textAnchor="end"
+              fontSize={9}
+              fill="currentColor"
+              className="fill-muted-foreground/40"
+            >
+              {v}
+            </text>
+          ))}
+
+          {/* Polyline */}
+          <polyline
+            points={linePoints}
+            fill="none"
+            stroke="hsl(var(--accent))"
+            strokeWidth={2}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            opacity={0.7}
+          />
+
+          {/* Data points */}
+          {items.map((p, i) => (
+            <g key={p.id}>
+              <title>{p.label}: {p.score}</title>
+              <circle
+                cx={xOf(i)} cy={yOf(p.score)}
+                r={4}
+                fill={dotColor(p.score)}
+                stroke="var(--background, white)"
+                strokeWidth={1.5}
+              />
+              {/* X-axis label */}
+              {i % labelEvery === 0 && (
+                <text
+                  x={xOf(i)}
+                  y={svgH - 4}
+                  textAnchor="middle"
+                  fontSize={9}
+                  fill="currentColor"
+                  className="fill-muted-foreground/40"
+                >
+                  {p.label}
+                </text>
+              )}
+            </g>
+          ))}
+        </svg>
       </div>
-      <span className="w-7 overflow-hidden truncate text-center text-[9px] text-muted-foreground/60">{label}</span>
     </div>
   );
 }
@@ -397,7 +504,7 @@ export default function StatsPage() {
   const totalTasks = tasks.length;
   const completionRate = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : null;
 
-  const chartItems = [...history].slice(0, 16).reverse().map((item) => ({
+  const chartItems = [...history].reverse().map((item) => ({
     score: safeScore(item),
     label: item.stats.startedAt
       ? new Date(item.stats.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -490,14 +597,12 @@ export default function StatsPage() {
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-foreground">Score trend</h2>
                 <div className="flex gap-3 text-[10px] text-muted-foreground/50">
-                  <span className="flex items-center gap-1"><span className="h-1.5 w-2.5 rounded bg-green-500/50" />80+</span>
-                  <span className="flex items-center gap-1"><span className="h-1.5 w-2.5 rounded bg-yellow-500/50" />60–79</span>
-                  <span className="flex items-center gap-1"><span className="h-1.5 w-2.5 rounded bg-red-500/50" />&lt;60</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" />80+</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-yellow-500" />60–79</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" />&lt;60</span>
                 </div>
               </div>
-              <div className="flex items-end gap-1.5 overflow-x-auto pb-1">
-                {chartItems.map((s) => <ScoreBar key={s.id} score={s.score} label={s.label} />)}
-              </div>
+              <ScoreTrendChart items={chartItems} />
             </div>
           )}
 

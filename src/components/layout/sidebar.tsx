@@ -16,6 +16,7 @@ import {
   Settings2,
   Clock,
   Music2,
+  CalendarClock,
 } from 'lucide-react';
 
 function SahurLockMark({ size = 18 }: { size?: number }) {
@@ -36,13 +37,14 @@ import { useTheme } from 'next-themes';
 import { cn } from '@/lib/cn';
 
 const NAV = [
-  { href: '/session',    icon: Timer,       label: 'Session'    },
-  { href: '/tasks',      icon: CheckSquare, label: 'Tasks'      },
-  { href: '/stats',      icon: BarChart2,   label: 'Stats'      },
-  { href: '/notes',      icon: NotebookPen, label: 'Notes'      },
-  { href: '/flashcards', icon: Layers,      label: 'Flashcards' },
-  { href: '/timer',      icon: Clock,       label: 'Timer'      },
-  { href: '/sounds',     icon: Music2,      label: 'Sounds'     },
+  { href: '/session',    icon: Timer,         label: 'Session'    },
+  { href: '/tasks',      icon: CheckSquare,   label: 'Tasks'      },
+  { href: '/stats',      icon: BarChart2,     label: 'Stats'      },
+  { href: '/schedule',   icon: CalendarClock, label: 'Schedule'   },
+  { href: '/notes',      icon: NotebookPen,   label: 'Notes'      },
+  { href: '/flashcards', icon: Layers,        label: 'Flashcards' },
+  { href: '/timer',      icon: Clock,         label: 'Timer'      },
+  { href: '/sounds',     icon: Music2,        label: 'Sounds'     },
 ];
 
 const COLLAPSED_KEY = 'sahurlock.sidebar.collapsed';

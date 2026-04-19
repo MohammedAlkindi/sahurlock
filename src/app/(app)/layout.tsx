@@ -3,6 +3,12 @@
 import { Sidebar } from '@/components/layout/sidebar';
 import { Breadcrumb } from '@/components/layout/breadcrumb';
 import { CommandPalette } from '@/components/layout/command-palette';
+import { useScheduler } from '@/hooks/use-scheduler';
+
+function SchedulerMount() {
+  useScheduler();
+  return null;
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -22,6 +28,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <CommandPalette />
+      <SchedulerMount />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { AggregateStats, CustomVideoMeta, SessionConfig, SessionHistoryItem, SessionPreset, Task } from '@/lib/types';
+import { AggregateStats, CustomVideoMeta, ScheduledSession, SessionConfig, SessionHistoryItem, SessionPreset, Task } from '@/lib/types';
 
 const SETTINGS_KEY     = 'sahurlock.settings';
 const HISTORY_KEY      = 'sahurlock.history';
@@ -7,6 +7,7 @@ const TASKS_KEY        = 'sahurlock.tasks';
 const CUSTOM_VIDEO_KEY = 'sahurlock.custom_video';
 const TEMPLATES_KEY    = 'sahurlock.templates';
 const GOALS_KEY        = 'sahurlock.goals';
+const SCHEDULE_KEY     = 'sahurlock.schedule';
 
 // In-memory blob URL for the current session — set by the settings page when
 // a custom video is loaded from IndexedDB so the session page can use it.
@@ -205,4 +206,28 @@ export const loadGoals = (): Goals => {
 export const saveGoals = (goals: Goals) => {
   if (typeof window === 'undefined') return;
   localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
+};
+
+// ── Scheduled sessions ────────────────────────────────────────────────────────
+
+export const loadScheduledSessions = (): ScheduledSession[] => {
+  if (typeof window === 'undefined') return [];
+  return safeParse<ScheduledSession[]>(localStorage.getItem(SCHEDULE_KEY), []);
+};
+
+export const saveScheduledSession = (s: ScheduledSession) => {
+  if (typeof window === 'undefined') return;
+  const existing = loadScheduledSessions().filter((x) => x.id !== s.id);
+  localStorage.setItem(SCHEDULE_KEY, JSON.stringify([...existing, s]));
+};
+
+export const deleteScheduledSession = (id: string) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(SCHEDULE_KEY, JSON.stringify(loadScheduledSessions().filter((s) => s.id !== id)));
+};
+
+export const markScheduledSessionFired = (id: string) => {
+  if (typeof window === 'undefined') return;
+  const next = loadScheduledSessions().map((s) => (s.id === id ? { ...s, fired: true } : s));
+  localStorage.setItem(SCHEDULE_KEY, JSON.stringify(next));
 };

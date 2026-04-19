@@ -152,6 +152,16 @@ export interface RuntimeState {
   violationActive: boolean;
 }
 
+// ── Scheduled sessions ────────────────────────────────────────────────────────
+
+export interface ScheduledSession {
+  id: string;
+  label: string;
+  scheduledAt: string; // ISO datetime
+  durationMinutes: number;
+  fired: boolean;
+}
+
 // ── Tasks ──────────────────────────────────────────────────────────────────────
 
 export type TaskStatus = 'active' | 'done';
