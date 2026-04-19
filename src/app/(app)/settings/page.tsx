@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Upload, Trash2, Play, RefreshCw,
   CheckCircle2, AlertCircle, ChevronDown, Eye, Video,
-  Download, Plus, Keyboard, Target, BookTemplate,
+  Download, Plus,
 } from 'lucide-react';
 import {
   loadSettings, saveSettings,
@@ -18,6 +18,8 @@ import { getVideoBlob, saveVideoBlob, deleteVideoBlob } from '@/lib/video-storag
 import { SessionConfig, CustomVideoMeta, SessionPreset } from '@/lib/types';
 import { PUNISHMENT_CLIPS } from '@/components/session-config';
 import { uid } from '@/lib/utils';
+
+// ── Constants ──────────────────────────────────────────────────────────────────
 
 const DEFAULTS: SessionConfig = {
   durationMinutes: 25,
@@ -39,42 +41,65 @@ const BUILTIN_TEMPLATES: SessionPreset[] = [
   {
     id: 'builtin_deep',
     name: 'Deep Work',
-    description: '90 min, no breaks, strict',
+    description: '90 min · no breaks · strict',
     config: { durationMinutes: 90, breakLimit: 0, offscreenThresholdSec: 4, tabSwitchViolationEnabled: true },
   },
   {
     id: 'builtin_pomodoro',
     name: 'Pomodoro',
-    description: '25 min, 3 breaks, 5 min each',
+    description: '25 min · 3 breaks · 5 min each',
     config: { durationMinutes: 25, breakLimit: 3, breakDurationSec: 300, pomodoroEnabled: true },
   },
   {
     id: 'builtin_light',
     name: 'Light Focus',
-    description: '45 min, relaxed threshold',
+    description: '45 min · relaxed threshold',
     config: { durationMinutes: 45, breakLimit: 5, offscreenThresholdSec: 10 },
   },
 ];
+
+const SHORTCUTS = [
+  { keys: ['Ctrl', 'K'], action: 'Open command palette' },
+  { keys: ['Esc'],       action: 'Close palette / dialogs' },
+  { keys: ['↑', '↓'],   action: 'Navigate palette' },
+  { keys: ['Enter'],     action: 'Select item' },
+  { keys: ['Space'],     action: 'Reveal flashcard answer' },
+];
+
+const CATS = [
+  { id: 'focus',       label: 'Focus' },
+  { id: 'enforcement', label: 'Enforcement' },
+  { id: 'detection',   label: 'Detection' },
+  { id: 'templates',   label: 'Templates' },
+  { id: 'shortcuts',   label: 'Shortcuts' },
+  { id: 'data',        label: 'Data' },
+] as const;
+
+type CatId = (typeof CATS)[number]['id'];
 
 function formatFileSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// ── Primitives ─────────────────────────────────────────────────────────────────
+// ── Design primitives ──────────────────────────────────────────────────────────
 
-function PillToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-        checked ? 'bg-accent' : 'bg-border'
+      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150 focus:outline-none ${
+        checked ? 'bg-foreground' : 'bg-border'
       }`}
     >
-      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full shadow transition duration-150 ${
+          checked ? 'translate-x-4 bg-background' : 'translate-x-0 bg-white'
+        }`}
+      />
     </button>
   );
 }
@@ -82,71 +107,57 @@ function PillToggle({ checked, onChange }: { checked: boolean; onChange: (v: boo
 function Row({
   label,
   description,
+  last,
   children,
 }: {
   label: string;
   description?: string;
+  last?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-2.5">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground leading-none">{label}</p>
-        {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+    <div className={`flex items-start justify-between gap-8 py-4 ${last ? '' : 'border-b border-border/20'}`}>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-foreground">{label}</p>
+        {description && (
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground/70">{description}</p>
+        )}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="shrink-0 pt-0.5">{children}</div>
     </div>
   );
 }
 
-function CompactRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function SectionHeading({ title }: { title: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-2">
-      <p className="text-xs font-medium text-foreground">{label}</p>
-      <div className="shrink-0">{children}</div>
-    </div>
-  );
-}
-
-function SectionLabel({ title }: { title: string }) {
-  return (
-    <p className="pt-4 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 first:pt-0">
+    <p className="mb-1 mt-7 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50 first:mt-0">
       {title}
     </p>
   );
 }
 
-function Disclosure({ label, children, icon: Icon }: { label: string; children: React.ReactNode; icon?: React.ElementType }) {
+function InlineDisclosure({ label, children }: { label: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border-t border-border/50">
+    <div className="mt-1">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        className="flex items-center gap-1 text-xs text-muted-foreground/60 transition hover:text-muted-foreground"
       >
-        <span className="flex items-center gap-1.5">
-          {Icon && <Icon size={11} />}
-          {label}
-        </span>
-        <ChevronDown size={12} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={11} className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+        {label}
       </button>
-      {open && <div className="pb-3">{children}</div>}
+      {open && <div className="mt-3">{children}</div>}
     </div>
   );
 }
 
-// ── Punishment media panel ─────────────────────────────────────────────────────
+// ── Punishment media picker ────────────────────────────────────────────────────
 
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
 
-function PunishmentMediaPanel({
+function PunishmentMediaPicker({
   config,
   update,
 }: {
@@ -158,29 +169,20 @@ function PunishmentMediaPanel({
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
   const [errorMsg,     setErrorMsg]     = useState('');
   const [showPreview,  setShowPreview]  = useState(false);
-  const fileInputRef   = useRef<HTMLInputElement>(null);
-  const previewUrlRef  = useRef<string | null>(null);
+  const fileRef    = useRef<HTMLInputElement>(null);
+  const previewRef = useRef<string | null>(null);
 
-  const setPreviewUrlBoth = (url: string | null) => {
-    previewUrlRef.current = url;
-    setPreviewUrl(url);
-  };
+  const setUrl = (url: string | null) => { previewRef.current = url; setPreviewUrl(url); };
 
   useEffect(() => {
     const m = loadCustomVideoMeta();
     setMeta(m);
     if (m) {
       getVideoBlob(m.id).then((blob) => {
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          setPreviewUrlBoth(url);
-          setCustomVideoBlobUrl(url);
-        }
+        if (blob) { const u = URL.createObjectURL(blob); setUrl(u); setCustomVideoBlobUrl(u); }
       }).catch(() => {});
     }
-    return () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    };
+    return () => { if (previewRef.current) URL.revokeObjectURL(previewRef.current); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFile = async (file: File) => {
@@ -189,124 +191,236 @@ function PunishmentMediaPanel({
     if (file.size > MAX_VIDEO_BYTES) { setErrorMsg(`Max ${formatFileSize(MAX_VIDEO_BYTES)}.`); return; }
     setUploadStatus('uploading');
     try {
-      if (meta) {
-        await deleteVideoBlob(meta.id);
-        if (previewUrlRef.current) { URL.revokeObjectURL(previewUrlRef.current); previewUrlRef.current = null; }
-      }
+      if (meta) { await deleteVideoBlob(meta.id); if (previewRef.current) { URL.revokeObjectURL(previewRef.current); previewRef.current = null; } }
       const id = `custom_${Date.now()}`;
       await saveVideoBlob(id, file.slice(0, file.size, file.type));
       const newMeta: CustomVideoMeta = { id, name: file.name, size: file.size, type: file.type, addedAt: new Date().toISOString() };
       saveCustomVideoMeta(newMeta);
       setMeta(newMeta);
-      const url = URL.createObjectURL(file);
-      setPreviewUrlBoth(url);
-      setCustomVideoBlobUrl(url);
+      const u = URL.createObjectURL(file);
+      setUrl(u); setCustomVideoBlobUrl(u);
       update({ punishmentMedia: 'custom' });
       setUploadStatus('success');
-      setTimeout(() => setUploadStatus('idle'), 2500);
-    } catch {
-      setUploadStatus('error');
-      setErrorMsg('Failed to save. Try again.');
-    }
+      setTimeout(() => setUploadStatus('idle'), 2000);
+    } catch { setUploadStatus('error'); setErrorMsg('Failed to save.'); }
   };
 
   const handleDelete = async () => {
     if (!meta) return;
     try { await deleteVideoBlob(meta.id); } catch {}
-    if (previewUrlRef.current) { URL.revokeObjectURL(previewUrlRef.current); previewUrlRef.current = null; }
-    clearCustomVideoMeta();
-    setCustomVideoBlobUrl(null);
-    setMeta(null); setPreviewUrlBoth(null); setShowPreview(false);
+    if (previewRef.current) { URL.revokeObjectURL(previewRef.current); previewRef.current = null; }
+    clearCustomVideoMeta(); setCustomVideoBlobUrl(null);
+    setMeta(null); setUrl(null); setShowPreview(false);
     if (config.punishmentMedia === 'custom') update({ punishmentMedia: '/media/sahur.mp4' });
   };
 
   const hasCustom = !!meta && config.punishmentMedia === 'custom';
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       {!hasCustom && (
         <select
           value={config.punishmentMedia === 'custom' ? '/media/sahur.mp4' : config.punishmentMedia}
           onChange={(e) => update({ punishmentMedia: e.target.value })}
-          className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
+          className="w-full rounded-md border border-border/60 bg-background px-3 py-1.5 text-sm text-foreground focus:border-foreground/40 focus:outline-none"
         >
           {PUNISHMENT_CLIPS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
       )}
 
       {meta ? (
-        <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+        <div className="rounded-md border border-border/40 bg-muted/20 px-3 py-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <Video size={12} className="shrink-0 text-muted-foreground" />
+              <Video size={12} className="shrink-0 text-muted-foreground/60" />
               <span className="truncate text-xs text-foreground">{meta.name}</span>
-              <span className="shrink-0 text-[10px] text-muted-foreground/50">{formatFileSize(meta.size)}</span>
+              <span className="shrink-0 text-[10px] text-muted-foreground/40">{formatFileSize(meta.size)}</span>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               {previewUrl && (
-                <button onClick={() => setShowPreview((v) => !v)} className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground transition">
-                  <Play size={9} className="inline mr-0.5" />preview
+                <button onClick={() => setShowPreview((v) => !v)} className="text-[11px] text-muted-foreground/60 hover:text-foreground transition">
+                  <Play size={10} className="inline mr-0.5" />preview
                 </button>
               )}
-              <button onClick={() => fileInputRef.current?.click()} className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground transition">
-                <RefreshCw size={9} className="inline mr-0.5" />replace
+              <button onClick={() => fileRef.current?.click()} className="text-[11px] text-muted-foreground/60 hover:text-foreground transition">
+                <RefreshCw size={10} className="inline mr-0.5" />replace
               </button>
-              <button onClick={handleDelete} className="rounded px-1 py-0.5 text-[10px] text-red-500 hover:text-red-600 transition">
-                <Trash2 size={9} />
+              <button onClick={handleDelete} className="text-[11px] text-muted-foreground/40 hover:text-red-500 transition">
+                <Trash2 size={10} />
               </button>
             </div>
           </div>
           {showPreview && previewUrl && (
-            <div className="mt-2 overflow-hidden rounded border border-border">
+            <div className="mt-2 overflow-hidden rounded border border-border/30">
               <video src={previewUrl} controls className="w-full max-h-28 bg-black" />
             </div>
           )}
-          <div className="mt-1.5 flex items-center justify-between">
+          <div className="mt-2 flex items-center justify-between">
             {hasCustom
-              ? <><span className="flex items-center gap-1 text-[10px] text-green-600"><CheckCircle2 size={9} />Active</span>
-                  <button onClick={() => update({ punishmentMedia: '/media/sahur.mp4' })} className="text-[10px] text-muted-foreground hover:text-foreground transition">Use built-in</button></>
-              : <button onClick={() => update({ punishmentMedia: 'custom' })} className="text-[10px] font-medium text-accent hover:underline">Use this video</button>
+              ? <span className="flex items-center gap-1 text-[10px] text-green-600 dark:text-green-500"><CheckCircle2 size={9} />Active</span>
+              : <button onClick={() => update({ punishmentMedia: 'custom' })} className="text-[11px] text-foreground/70 underline underline-offset-2 hover:text-foreground transition">Use this video</button>
             }
+            {hasCustom && (
+              <button onClick={() => update({ punishmentMedia: '/media/sahur.mp4' })} className="text-[11px] text-muted-foreground/60 hover:text-foreground transition">
+                Switch to built-in
+              </button>
+            )}
           </div>
         </div>
       ) : (
         <button
           type="button"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => fileRef.current?.click()}
           disabled={uploadStatus === 'uploading'}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/10 py-2.5 text-xs text-muted-foreground transition hover:border-accent/40 hover:text-foreground disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-border/50 bg-muted/10 py-2.5 text-xs text-muted-foreground transition hover:border-foreground/20 hover:text-foreground disabled:opacity-50"
         >
           {uploadStatus === 'uploading'
-            ? <><div className="h-3 w-3 animate-spin rounded-full border border-accent border-t-transparent" />Saving…</>
-            : <><Upload size={12} />Upload custom video — MP4 · WebM · up to 200 MB</>
-          }
+            ? <><div className="h-3 w-3 animate-spin rounded-full border border-foreground/40 border-t-transparent" />Saving…</>
+            : <><Upload size={12} />Upload custom video — MP4 · WebM · up to 200 MB</>}
         </button>
       )}
 
-      {uploadStatus === 'success' && <p className="flex items-center gap-1 text-[10px] text-green-600"><CheckCircle2 size={9} />Saved</p>}
-      {(uploadStatus === 'error' || errorMsg) && <p className="flex items-center gap-1 text-[10px] text-red-600"><AlertCircle size={9} />{errorMsg || 'Error'}</p>}
-
-      <input ref={fileInputRef} type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" className="hidden"
+      {uploadStatus === 'success' && <p className="flex items-center gap-1 text-[11px] text-green-600"><CheckCircle2 size={9} />Saved</p>}
+      {(uploadStatus === 'error' || errorMsg) && <p className="flex items-center gap-1 text-[11px] text-red-500"><AlertCircle size={9} />{errorMsg || 'Error'}</p>}
+      <input ref={fileRef} type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
     </div>
   );
 }
 
-// ── Session templates section ──────────────────────────────────────────────────
+// ── Panel: Focus ───────────────────────────────────────────────────────────────
 
-function TemplatesSection({
-  config,
-  update,
+function FocusPanel({
+  config, update, goals, updateGoal,
 }: {
   config: SessionConfig;
-  update: (patch: Partial<SessionConfig>) => void;
+  update: (p: Partial<SessionConfig>) => void;
+  goals: { dailyGoalMinutes: number };
+  updateGoal: (m: number) => void;
 }) {
-  const [custom,    setCustom]    = useState<SessionPreset[]>([]);
-  const [newName,   setNewName]   = useState('');
-  const [saving,    setSaving]    = useState(false);
-  const [open,      setOpen]      = useState(false);
+  return (
+    <>
+      <Row label="Pomodoro mode" description="Enforces structured work-break intervals automatically.">
+        <Toggle checked={config.pomodoroEnabled} onChange={(v) => update({ pomodoroEnabled: v })} />
+      </Row>
+      <Row label="Daily goal" description="Target focus minutes per day. Tracked in your stats." last>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            max={480}
+            value={goals.dailyGoalMinutes || ''}
+            onChange={(e) => updateGoal(Math.max(0, Math.min(480, Number(e.target.value) || 0)))}
+            placeholder="—"
+            className="w-14 rounded-md border border-border/60 bg-background px-2 py-1 text-center text-sm text-foreground focus:border-foreground/40 focus:outline-none"
+          />
+          <span className="text-xs text-muted-foreground">min</span>
+        </div>
+      </Row>
+    </>
+  );
+}
 
-  const activeCount = custom.length;
+// ── Panel: Enforcement ─────────────────────────────────────────────────────────
+
+function EnforcementPanel({
+  config, update,
+}: {
+  config: SessionConfig;
+  update: (p: Partial<SessionConfig>) => void;
+}) {
+  return (
+    <>
+      <Row
+        label="Punishment clip"
+        description="Plays a video clip when a violation is detected."
+        last={!config.punishmentEnabled}
+      >
+        <Toggle checked={config.punishmentEnabled} onChange={(v) => update({ punishmentEnabled: v })} />
+      </Row>
+
+      {config.punishmentEnabled && (
+        <div className="py-4">
+          <p className="mb-3 text-xs text-muted-foreground/60">Choose which clip plays on violation.</p>
+          <PunishmentMediaPicker config={config} update={update} />
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Panel: Detection ───────────────────────────────────────────────────────────
+
+function DetectionPanel({
+  config, update,
+}: {
+  config: SessionConfig;
+  update: (p: Partial<SessionConfig>) => void;
+}) {
+  return (
+    <>
+      <Row
+        label="Phone detection"
+        description="Flags hand-to-face posture as a distraction."
+      >
+        <Toggle checked={config.phoneDetectionEnabled} onChange={(v) => update({ phoneDetectionEnabled: v })} />
+      </Row>
+      <Row
+        label="Tab switch violation"
+        description="Triggers a violation when you leave the tab."
+      >
+        <Toggle checked={!!config.tabSwitchViolationEnabled} onChange={(v) => update({ tabSwitchViolationEnabled: v })} />
+      </Row>
+      <Row
+        label="Iris gaze tracking"
+        description="Monitors eye direction, not just face position. More sensitive."
+        last
+      >
+        <Toggle checked={!!config.advancedEyeTrackingEnabled} onChange={(v) => update({ advancedEyeTrackingEnabled: v })} />
+      </Row>
+
+      {config.advancedEyeTrackingEnabled && (
+        <div className="pb-4">
+          <InlineDisclosure label="How iris tracking works">
+            <div className="space-y-3 text-xs text-muted-foreground/70 leading-relaxed">
+              <p>
+                Standard mode passes as long as your face is detected. Iris mode also checks
+                that your eyes are directed at the screen — you can fail even with your head
+                forward if your gaze drifts.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-md border border-border/30 bg-muted/20 p-3">
+                  <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40">Standard</p>
+                  <p className="text-[11px]">Face present → pass</p>
+                  <p className="text-[11px] text-muted-foreground/40">Eyes not checked</p>
+                </div>
+                <div className="rounded-md border border-border/30 bg-muted/20 p-3">
+                  <p className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40">
+                    <Eye size={9} />Iris
+                  </p>
+                  <p className="text-[11px]">Face present → pass</p>
+                  <p className="text-[11px]">Eyes on screen → pass</p>
+                </div>
+              </div>
+            </div>
+          </InlineDisclosure>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Panel: Templates ───────────────────────────────────────────────────────────
+
+function TemplatesPanel({
+  config, update,
+}: {
+  config: SessionConfig;
+  update: (p: Partial<SessionConfig>) => void;
+}) {
+  const [custom,  setCustom]  = useState<SessionPreset[]>([]);
+  const [saving,  setSaving]  = useState(false);
+  const [newName, setNewName] = useState('');
 
   useEffect(() => { setCustom(loadTemplates()); }, []);
 
@@ -320,12 +434,7 @@ function TemplatesSection({
     };
     saveTemplate(preset);
     setCustom(loadTemplates());
-    setNewName('');
-    setSaving(false);
-  };
-
-  const handleLoad = (preset: SessionPreset) => {
-    update(preset.config);
+    setNewName(''); setSaving(false);
   };
 
   const handleDelete = (id: string) => {
@@ -336,218 +445,104 @@ function TemplatesSection({
   const allTemplates = [...BUILTIN_TEMPLATES, ...custom];
 
   return (
-    <div className="mt-2">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-muted/10 px-3.5 py-2.5 text-xs font-medium text-muted-foreground transition hover:bg-muted/20 hover:text-foreground"
-      >
-        <span className="flex items-center gap-1.5"><BookTemplate size={12} />Templates</span>
-        <div className="flex items-center gap-2">
-          {activeCount > 0 && (
-            <span className="rounded-full bg-accent/15 px-1.5 py-px text-[10px] font-semibold text-accent">
-              {activeCount} saved
-            </span>
-          )}
-          <ChevronDown size={12} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-        </div>
-      </button>
+    <>
+      <p className="mb-5 text-xs text-muted-foreground/60 leading-relaxed">
+        Apply a preset to overwrite the current session config. Built-in presets cannot be deleted.
+      </p>
 
-      {open && (
-        <div className="mt-1 rounded-xl border border-border/60 bg-card px-4 pb-3">
-          <p className="pt-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">
-            Load preset
-          </p>
-          <div className="space-y-1.5">
-            {allTemplates.map((t) => (
-              <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-background px-3 py-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-foreground leading-none">{t.name}</p>
-                  <p className="mt-0.5 text-[10px] text-muted-foreground/60">{t.description}</p>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => handleLoad(t)}
-                    className="rounded px-2 py-1 text-[10px] font-medium text-accent hover:bg-accent/10 transition"
-                  >
-                    Apply
-                  </button>
-                  {!t.id.startsWith('builtin_') && (
-                    <button
-                      onClick={() => handleDelete(t.id)}
-                      className="rounded p-1 text-muted-foreground/40 hover:text-red-500 transition"
-                    >
-                      <Trash2 size={10} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-3 border-t border-border/40 pt-3">
-            {saving ? (
-              <div className="flex items-center gap-2">
-                <input
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setSaving(false); }}
-                  placeholder="Template name…"
-                  autoFocus
-                  className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder-muted-foreground/50 focus:border-accent focus:outline-none"
-                />
-                <button onClick={handleSave} className="rounded-lg bg-accent px-2.5 py-1.5 text-[10px] font-semibold text-accent-foreground transition hover:opacity-90">Save</button>
-                <button onClick={() => setSaving(false)} className="text-[10px] text-muted-foreground hover:text-foreground transition">Cancel</button>
-              </div>
-            ) : (
+      <div className="space-y-px">
+        {allTemplates.map((t, i) => (
+          <div
+            key={t.id}
+            className={`flex items-center justify-between gap-4 py-3 ${
+              i < allTemplates.length - 1 ? 'border-b border-border/20' : ''
+            }`}
+          >
+            <div className="min-w-0">
+              <p className="text-sm text-foreground">{t.name}</p>
+              <p className="text-xs text-muted-foreground/60">{t.description}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={() => setSaving(true)}
-                className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition"
+                onClick={() => update(t.config)}
+                className="rounded-md border border-border/50 px-3 py-1 text-xs text-foreground/80 transition hover:bg-muted/40 hover:text-foreground"
               >
-                <Plus size={10} />Save current config as template
+                Apply
               </button>
-            )}
+              {!t.id.startsWith('builtin_') && (
+                <button
+                  onClick={() => handleDelete(t.id)}
+                  className="text-muted-foreground/30 transition hover:text-red-500"
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        ))}
+      </div>
+
+      <div className="mt-6 border-t border-border/20 pt-5">
+        {saving ? (
+          <div className="flex items-center gap-2">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setSaving(false); }}
+              placeholder="Template name…"
+              autoFocus
+              className="flex-1 rounded-md border border-border/60 bg-background px-3 py-1.5 text-sm text-foreground placeholder-muted-foreground/40 focus:border-foreground/40 focus:outline-none"
+            />
+            <button onClick={handleSave} className="rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition hover:opacity-80">
+              Save
+            </button>
+            <button onClick={() => setSaving(false)} className="text-xs text-muted-foreground/60 hover:text-foreground transition">
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setSaving(true)}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground/60 transition hover:text-foreground"
+          >
+            <Plus size={12} />Save current config as template
+          </button>
+        )}
+      </div>
+    </>
   );
 }
 
-// ── Advanced section — collapsed by default ────────────────────────────────────
+// ── Panel: Shortcuts ───────────────────────────────────────────────────────────
 
-function AdvancedSection({
-  config,
-  update,
-}: {
-  config: SessionConfig;
-  update: (patch: Partial<SessionConfig>) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  const activeCount = [
-    config.tabSwitchViolationEnabled,
-    config.advancedEyeTrackingEnabled,
-  ].filter(Boolean).length;
-
+function ShortcutsPanel() {
   return (
-    <div className="mt-2">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-muted/10 px-3.5 py-2.5 text-xs font-medium text-muted-foreground transition hover:bg-muted/20 hover:text-foreground"
-      >
-        <span>Advanced settings</span>
-        <div className="flex items-center gap-2">
-          {activeCount > 0 && (
-            <span className="rounded-full bg-accent/15 px-1.5 py-px text-[10px] font-semibold text-accent">
-              {activeCount} on
-            </span>
-          )}
-          <ChevronDown size={12} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-        </div>
-      </button>
-
-      {open && (
-        <div className="mt-1 rounded-xl border border-border/60 bg-card px-4 pb-2">
-
-          <p className="pt-3 pb-px text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">
-            Detection
-          </p>
-          <div className="divide-y divide-border/40">
-            <CompactRow label="Tab switch violation">
-              <PillToggle
-                checked={!!config.tabSwitchViolationEnabled}
-                onChange={(v) => update({ tabSwitchViolationEnabled: v })}
-              />
-            </CompactRow>
-
-            <CompactRow label="Iris gaze tracking">
-              <PillToggle
-                checked={!!config.advancedEyeTrackingEnabled}
-                onChange={(v) => update({ advancedEyeTrackingEnabled: v })}
-              />
-            </CompactRow>
-
-            {config.advancedEyeTrackingEnabled && (
-              <Disclosure label="About iris tracking">
-                <div className="space-y-2 text-[11px] text-muted-foreground leading-relaxed">
-                  <p>Reads iris position on every frame — you can fail even if your face is forward but your eyes drift off screen. More sensitive than head-pose-only tracking.</p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <div className="rounded-lg border border-border bg-background p-2">
-                      <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/50 mb-1">Standard</p>
-                      <div className="space-y-0.5 text-[10px]">
-                        <div className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />Face detected</div>
-                        <div className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-border shrink-0" />Eyes ignored</div>
-                      </div>
-                    </div>
-                    <div className="rounded-lg border border-accent/30 bg-background p-2">
-                      <p className="text-[9px] font-semibold uppercase tracking-wide text-accent/60 mb-1">Advanced</p>
-                      <div className="space-y-0.5 text-[10px]">
-                        <div className="flex items-center gap-1.5"><Eye size={8} className="text-accent shrink-0" />Face detected</div>
-                        <div className="flex items-center gap-1.5"><Eye size={8} className="text-accent shrink-0" />Eyes on screen</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Disclosure>
-            )}
-          </div>
-
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Keyboard shortcuts section ─────────────────────────────────────────────────
-
-const SHORTCUTS = [
-  { keys: ['Ctrl', 'K'],   action: 'Open command palette' },
-  { keys: ['Esc'],         action: 'Close palette / dialogs' },
-  { keys: ['↑', '↓'],     action: 'Navigate palette items' },
-  { keys: ['Enter'],       action: 'Select palette item' },
-  { keys: ['Space'],       action: 'Reveal flashcard answer' },
-];
-
-function ShortcutsSection() {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mt-2">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-muted/10 px-3.5 py-2.5 text-xs font-medium text-muted-foreground transition hover:bg-muted/20 hover:text-foreground"
-      >
-        <span className="flex items-center gap-1.5"><Keyboard size={12} />Keyboard shortcuts</span>
-        <ChevronDown size={12} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="mt-1 rounded-xl border border-border/60 bg-card px-4 py-3">
-          <div className="space-y-2">
-            {SHORTCUTS.map(({ keys, action }) => (
-              <div key={action} className="flex items-center justify-between gap-4">
-                <span className="text-xs text-muted-foreground">{action}</span>
-                <div className="flex items-center gap-1">
-                  {keys.map((k) => (
-                    <kbd key={k} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-foreground border border-border/60">
-                      {k}
-                    </kbd>
-                  ))}
-                </div>
-              </div>
+    <div className="space-y-px">
+      {SHORTCUTS.map(({ keys, action }, i) => (
+        <div
+          key={action}
+          className={`flex items-center justify-between py-3 ${i < SHORTCUTS.length - 1 ? 'border-b border-border/20' : ''}`}
+        >
+          <span className="text-sm text-foreground">{action}</span>
+          <div className="flex items-center gap-1">
+            {keys.map((k) => (
+              <kbd
+                key={k}
+                className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground/80 border border-border/40"
+              >
+                {k}
+              </kbd>
             ))}
           </div>
         </div>
-      )}
+      ))}
     </div>
   );
 }
 
-// ── Data section ───────────────────────────────────────────────────────────────
+// ── Panel: Data ────────────────────────────────────────────────────────────────
 
-function DataSection() {
-  const [open,       setOpen]       = useState(false);
+function DataPanel() {
   const [confirming, setConfirming] = useState(false);
 
   const handleExport = () => {
@@ -567,51 +562,50 @@ function DataSection() {
   };
 
   return (
-    <div className="mt-2">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-muted/10 px-3.5 py-2.5 text-xs font-medium text-muted-foreground transition hover:bg-muted/20 hover:text-foreground"
+    <>
+      <SectionHeading title="Export" />
+      <Row
+        label="Download data"
+        description="All sessions, stats, and tasks as a JSON file."
+        last
       >
-        <span className="flex items-center gap-1.5"><Download size={12} />Data &amp; export</span>
-        <ChevronDown size={12} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="mt-1 rounded-xl border border-border/60 bg-card px-4 pb-3">
-          <p className="pt-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">Export</p>
-          <button
-            onClick={handleExport}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background py-2 text-xs font-medium text-foreground transition hover:border-accent/40 hover:bg-muted/30"
-          >
-            <Download size={12} />Download all data as JSON
-          </button>
-          <p className="mt-1.5 text-[10px] text-muted-foreground/50">
-            Sessions, stats, and tasks — all in one file.
-          </p>
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-xs text-foreground/80 transition hover:bg-muted/40 hover:text-foreground"
+        >
+          <Download size={12} />Export
+        </button>
+      </Row>
 
-          <p className="mt-4 pb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">Danger zone</p>
-          {confirming ? (
-            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50/60 px-3 py-2 dark:border-red-900/40 dark:bg-red-950/20">
-              <span className="flex-1 text-[10px] text-red-700 dark:text-red-400">This deletes all sessions and stats.</span>
-              <button
-                onClick={() => { clearAllData(); setConfirming(false); }}
-                className="rounded bg-red-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-red-500 transition"
-              >
-                Clear
-              </button>
-              <button onClick={() => setConfirming(false)} className="text-[10px] text-muted-foreground hover:text-foreground transition">Cancel</button>
-            </div>
-          ) : (
+      <SectionHeading title="Danger zone" />
+      {confirming ? (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-red-200/60 bg-red-50/40 px-4 py-3 dark:border-red-900/30 dark:bg-red-950/20">
+          <p className="text-xs text-red-700 dark:text-red-400">
+            This permanently deletes all sessions, stats, and settings.
+          </p>
+          <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => setConfirming(true)}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs font-medium text-muted-foreground transition hover:border-red-200 hover:text-red-600"
+              onClick={() => { clearAllData(); setConfirming(false); }}
+              className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500"
             >
-              <Trash2 size={11} />Clear all data
+              Clear everything
             </button>
-          )}
+            <button onClick={() => setConfirming(false)} className="text-xs text-muted-foreground/60 hover:text-foreground transition">
+              Cancel
+            </button>
+          </div>
         </div>
+      ) : (
+        <Row label="Clear all data" description="Permanently remove all sessions, stats, and settings." last>
+          <button
+            onClick={() => setConfirming(true)}
+            className="rounded-md border border-border/60 px-3 py-1.5 text-xs text-muted-foreground transition hover:border-red-200 hover:text-red-600"
+          >
+            Clear
+          </button>
+        </Row>
       )}
-    </div>
+    </>
   );
 }
 
@@ -620,6 +614,7 @@ function DataSection() {
 export default function SettingsPage() {
   const [config,  setConfig]  = useState<SessionConfig>(DEFAULTS);
   const [goals,   setGoals]   = useState({ dailyGoalMinutes: 0 });
+  const [active,  setActive]  = useState<CatId>('focus');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -642,73 +637,78 @@ export default function SettingsPage() {
 
   if (!mounted) return null;
 
+  const activeLabel = CATS.find((c) => c.id === active)?.label ?? '';
+
   return (
-    <div className="mx-auto max-w-md px-4 py-7">
-      <div className="mb-5">
-        <h1 className="text-xl font-black tracking-tight">Settings</h1>
-        <p className="mt-0.5 text-xs text-muted-foreground">Global defaults for every session.</p>
-      </div>
+    <div className="mx-auto max-w-2xl px-6 py-10">
 
-      {/* ── Core settings ─────────────────────────────────── */}
-      <div className="rounded-2xl border border-border bg-card px-4">
+      {/* Page title */}
+      <h1 className="mb-8 text-base font-semibold text-foreground">Settings</h1>
 
-        <SectionLabel title="Focus" />
-        <div className="divide-y divide-border/50">
-          <Row label="Pomodoro" description="Auto-breaks at interval end.">
-            <PillToggle checked={config.pomodoroEnabled} onChange={(v) => update({ pomodoroEnabled: v })} />
-          </Row>
-          <Row label="Daily goal" description="Target focus minutes per day.">
-            <div className="flex items-center gap-1.5">
-              <input
-                type="number"
-                min={0}
-                max={480}
-                value={goals.dailyGoalMinutes || ''}
-                onChange={(e) => updateGoal(Math.max(0, Math.min(480, Number(e.target.value) || 0)))}
-                placeholder="0"
-                className="w-16 rounded-lg border border-border bg-background px-2 py-1 text-center text-xs text-foreground focus:border-accent focus:outline-none"
-              />
-              <span className="text-xs text-muted-foreground">min</span>
-            </div>
-          </Row>
+      <div className="flex gap-10">
+
+        {/* ── Sidebar ─────────────────────────────────────────── */}
+        <nav className="hidden w-36 shrink-0 md:block">
+          <div className="space-y-0.5">
+            {CATS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActive(id)}
+                className={`block w-full rounded-md px-3 py-1.5 text-left text-sm transition ${
+                  active === id
+                    ? 'bg-muted/70 text-foreground font-medium'
+                    : 'text-muted-foreground hover:bg-muted/30 hover:text-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </nav>
+
+        {/* ── Mobile tab strip ────────────────────────────────── */}
+        <div className="md:hidden -mx-6 mb-6 flex overflow-x-auto border-b border-border/30 px-6">
+          {CATS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActive(id)}
+              className={`shrink-0 border-b-2 pb-2.5 pr-5 text-sm transition ${
+                active === id
+                  ? 'border-foreground font-medium text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        <SectionLabel title="Enforcement" />
-        <div className="divide-y divide-border/50">
-          <Row label="Punishment clip" description="Plays a clip on violation.">
-            <PillToggle checked={config.punishmentEnabled} onChange={(v) => update({ punishmentEnabled: v })} />
-          </Row>
-          {config.punishmentEnabled && (
-            <Disclosure label="Configure media">
-              <PunishmentMediaPanel config={config} update={update} />
-            </Disclosure>
+        {/* ── Right panel ─────────────────────────────────────── */}
+        <div className="flex-1 min-w-0">
+
+          {/* Panel heading */}
+          <h2 className="mb-5 text-sm font-medium text-foreground">{activeLabel}</h2>
+
+          {/* Panel body */}
+          {active === 'focus' && (
+            <FocusPanel config={config} update={update} goals={goals} updateGoal={updateGoal} />
           )}
-        </div>
+          {active === 'enforcement' && (
+            <EnforcementPanel config={config} update={update} />
+          )}
+          {active === 'detection' && (
+            <DetectionPanel config={config} update={update} />
+          )}
+          {active === 'templates' && (
+            <TemplatesPanel config={config} update={update} />
+          )}
+          {active === 'shortcuts' && <ShortcutsPanel />}
+          {active === 'data'      && <DataPanel />}
 
-        <SectionLabel title="Detection" />
-        <div className="divide-y divide-border/50 pb-1">
-          <Row label="Phone detection" description="Flags hand-to-face posture.">
-            <PillToggle checked={config.phoneDetectionEnabled} onChange={(v) => update({ phoneDetectionEnabled: v })} />
-          </Row>
         </div>
-
       </div>
-
-      {/* ── Templates ─────────────────────────────────────── */}
-      <TemplatesSection config={config} update={update} />
-
-      {/* ── Advanced — separate, collapsed ────────────────── */}
-      <AdvancedSection config={config} update={update} />
-
-      {/* ── Shortcuts ─────────────────────────────────────── */}
-      <ShortcutsSection />
-
-      {/* ── Data & export ─────────────────────────────────── */}
-      <DataSection />
-
-      <p className="mt-3 text-center text-[10px] text-muted-foreground/40">
-        Changes save instantly.
-      </p>
     </div>
   );
 }
