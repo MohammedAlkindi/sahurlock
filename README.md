@@ -1,18 +1,26 @@
-# SahurLock MVP
+# SahurLock
 
 SahurLock is a browser-based focus enforcement app that uses your webcam and client-side face tracking to estimate attention. If you're off-screen too long (outside allowed breaks), it triggers a fullscreen **LOCK IN** punishment overlay and optionally plays a local meme clip.
 
-## Features
+## Attention detection
 
-- Next.js App Router + TypeScript + Tailwind CSS
-- Client-side webcam processing using the browser Face Detection API (with graceful uncertainty fallback)
+- MediaPipe FaceMesh, injected at runtime and run entirely in the page — it tracks yaw, pitch, roll, gaze offset and eyelid-open ratio against a per-user calibrated baseline
 - Explicit app states: idle, requesting permission, calibrating, countdown, focused, warning, break, violated, session complete, camera error
-- 2.5s calibration and visible 3s countdown before session starts
-- Warning at 50% off-screen threshold
-- Violation clear requires 2s continuous attention stabilization
+- 2.5s calibration and visible 3s countdown before a session starts
+- Warning at 50% of the off-screen threshold; clearing a violation requires 2s of continuous attention
 - Configurable session duration, thresholds, break count/duration, punishment on/off
-- Local persistence for settings, history, and aggregate stats
-- No frame upload; all processing stays in browser
+- No frame upload — every frame stays in the browser
+
+## Around the timer
+
+The session screen is the core, but the app also carries Pomodoro sessions, flashcards
+during breaks, tasks, notes, session scheduling, a four-component focus score, stats
+history, ambient sound, and optional Spotify playback.
+
+Settings, history and stats persist locally (`localStorage` under `sahurlock.*`, plus
+IndexedDB for custom videos). Nothing is sent to a server.
+
+Built with Next.js App Router, TypeScript and Tailwind CSS.
 
 ## Install
 
@@ -28,16 +36,15 @@ npm run dev
 
 Open http://localhost:3000.
 
-## Punishment media asset
+## Punishment media
 
-Expected path:
-
-- `public/media/sahur.mp4`
-
-A placeholder instruction file is included at `public/media/README.md`. Replace/add `sahur.mp4` with your own clip.
+Six clips ship in `public/media/` (`sahur.mp4` is the default). You can add your own
+there, or load one through the UI — custom videos are stored in IndexedDB rather than
+in the repo.
 
 ## Known limitations
 
-- Detection depends on browser support for `FaceDetector` (Chromium-based browsers recommended). Unsupported browsers will stay in uncertain mode and avoid aggressive punishment.
+- No automated tests. `session-machine.ts` is a pure state-transition function and is the obvious place to start.
+- MediaPipe FaceMesh is loaded from a CDN at runtime rather than bundled, so first calibration needs a network round trip and the app will not detect attention offline.
 - Browsers require user interaction for media playback. SahurLock primes playback after **Start Session** but still gracefully falls back to visual-only alert if playback is blocked.
 - Landmark quality can drop in low light, extreme camera angles, or lower-end devices.
