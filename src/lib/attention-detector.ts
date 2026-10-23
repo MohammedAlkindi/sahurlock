@@ -54,6 +54,10 @@ const ROLL_MODERATE    = 0.30;
 const EYE_CLOSED_RATIO = 0.45; // fraction of calibrated open-ratio that counts as closed
 const MIN_CONFIDENCE   = 0.35;
 
+// Served from this app's origin, copied from the pinned npm package by
+// scripts/copy-mediapipe.mjs, so no third-party script runs next to the camera.
+const FACE_MESH_ASSETS = '/vendor/mediapipe/face_mesh';
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
@@ -135,11 +139,11 @@ export class AttentionDetector {
   }
 
   async init() {
-    await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js');
+    await loadScript(`${FACE_MESH_ASSETS}/face_mesh.js`);
     if (!window.FaceMesh) throw new Error('MediaPipe Face Mesh API unavailable.');
 
     this.mesh = new window.FaceMesh({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+      locateFile: (file) => `${FACE_MESH_ASSETS}/${file}`
     });
     this.mesh.setOptions({
       maxNumFaces: 1,
