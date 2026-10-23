@@ -18,8 +18,8 @@ during breaks, tasks, notes, session scheduling, a four-component focus score, s
 history, ambient sound, and optional Spotify playback.
 
 Settings, history and stats persist locally (`localStorage` under `sahurlock.*`, plus
-IndexedDB for custom videos). The only network traffic is Vercel Analytics page views and,
-if you connect it, Spotify.
+IndexedDB for custom videos and saved scans). The only network traffic is Vercel
+Analytics page views and, if you connect it, Spotify.
 
 Built with Next.js App Router, TypeScript and Tailwind CSS.
 
@@ -29,8 +29,9 @@ Photograph a page of handwritten notes, or open a PDF of them, and the Scan tool
 it up: it finds the page edges and corrects the perspective, evens out shadows and
 uneven light, levels tilted writing and removes ruled or grid lines while keeping
 strokes that cross them. Several pages save as one PDF on A4 or Letter, or a single page
-as a PNG. It runs in a Web Worker on your device, so the photos are never uploaded. This
-is the first step of the notes converter. Recognising the handwriting comes later.
+as a PNG, and scans can be saved to the device to download again later. It runs in a Web
+Worker on your device, so the photos are never uploaded. This is the first step of the
+notes converter. Recognising the handwriting comes later.
 
 ## Install
 

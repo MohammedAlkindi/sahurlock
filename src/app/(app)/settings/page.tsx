@@ -556,7 +556,7 @@ function DataPanel() {
       {confirming ? (
         <div className="flex items-center justify-between gap-3 rounded-md border border-danger/30 bg-danger/10 px-4 py-3">
           <p className="text-xs text-danger">
-            This permanently deletes everything SahurLock keeps in this browser, including notes, flashcards, the uploaded video and the Spotify connection.
+            This permanently deletes everything SahurLock keeps in this browser, including notes, flashcards, saved scans, the uploaded video and the Spotify connection.
           </p>
           <div className="flex items-center gap-2 shrink-0">
             <button

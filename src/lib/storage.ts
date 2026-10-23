@@ -1,4 +1,4 @@
-import { clearAppStorage, deleteVideoDatabase } from '@/lib/data-management';
+import { clearAppStorage, deleteAppDatabases } from '@/lib/data-management';
 import {
   decodeAggregate, decodeConfig, decodeGoals, decodeHistoryItem, decodeScheduledSession,
   decodeTask, decodeTemplate, decodeVideoMeta, listOf, parseStored,
@@ -93,14 +93,14 @@ export const updateSessionNotes = (id: string, notes: string) => {
 /**
  * Remove everything SahurLock keeps in this browser: every sahurlock.* key
  * (sessions, notes, flashcards, tasks, settings, schedules, Spotify tokens, UI
- * state), the theme preference, and the uploaded-video database. Callers should
+ * state), the theme preference, and the uploaded-video and saved-scan databases. Callers should
  * reload afterwards so no in-memory copy writes data back.
  */
 export const clearAllData = async () => {
   if (typeof window === 'undefined') return;
   clearAppStorage(localStorage);
   setCustomVideoBlobUrl(null);
-  await deleteVideoDatabase(indexedDB);
+  await deleteAppDatabases(indexedDB);
 };
 
 // ── Aggregate stats ────────────────────────────────────────────────────────────
