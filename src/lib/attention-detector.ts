@@ -1,5 +1,6 @@
 import { AttentionReading, BaselinePose, CalibrationReport, EyeData, PixelBox } from '@/lib/types';
 import { clamp } from '@/lib/utils';
+import { headPose, headTurn } from '@/lib/head-pose';
 
 interface Landmark {
   x: number;
@@ -45,13 +46,6 @@ const GAZE_OFFSCREEN_X = 0.20;
 const GAZE_OFFSCREEN_Y = 0.25;
 const GAZE_WARNING_X   = 0.12;
 const GAZE_WARNING_Y   = 0.16;
-const YAW_EXTREME      = 0.22;
-const YAW_MODERATE     = 0.15;
-const PITCH_EXTREME    = 0.20;
-const PITCH_MODERATE   = 0.13;
-// Roll thresholds in radians (~17° moderate, ~29° extreme relative to calibrated baseline)
-const ROLL_EXTREME     = 0.50;
-const ROLL_MODERATE    = 0.30;
 const EYE_CLOSED_RATIO = 0.45; // fraction of calibrated open-ratio that counts as closed
 const MIN_CONFIDENCE   = 0.35;
 
@@ -395,15 +389,11 @@ export class AttentionDetector {
     };
     this.roi = faceBox;
 
-    // 8. Head pose: yaw + pitch (existing formula, unchanged scale) + roll (new)
+    // 8. Head pose, in units that do not change with distance or aspect ratio
     const lEye = mapped[33]  ?? mapped[0];
     const rEye = mapped[263] ?? mapped[0];
     const nose = mapped[1]   ?? mapped[4] ?? mapped[0];
-
-    const yaw   = nose.x - (lEye.x + rEye.x) / 2;
-    const pitch = nose.y - (lEye.y + rEye.y) / 2;
-    // Roll: clockwise head tilt gives positive value; atan2 returns radians
-    const roll = Math.atan2(rEye.y - lEye.y, Math.abs(rEye.x - lEye.x) + 0.001);
+    const { yaw, pitch, roll } = headPose(nose, lEye, rEye, frameW, frameH);
 
     // 9. Landmark stability (for confidence scoring)
     let landmarkStability = 0.7;
@@ -425,7 +415,8 @@ export class AttentionDetector {
 
     // 11. Composite confidence score
     const sizeScore    = clamp((faceBox.width * faceBox.height) / (frameW * frameH * 0.12), 0, 1);
-    const poseScore    = clamp(1 - Math.abs(yaw) * 3 - Math.abs(pitch) * 2.5, 0, 1);
+    // Weights put a face 55 cm from a 16:9 webcam where the old frame-unit formula did.
+    const poseScore    = clamp(1 - Math.abs(yaw) * 0.4 - Math.abs(pitch) * 0.6, 0, 1);
     const eyeOpenScore = clamp(eye.eyeOpenRatio / 0.13, 0, 1);
     // Light score less punishing now that we enhance the frame
     const lightScore   = (dark || backlit) ? 0.80 : 1.0;
@@ -467,12 +458,9 @@ export class AttentionDetector {
     const eyesClosed = eye.eyeOpenRatio < baseline.eyeOpenRatio * EYE_CLOSED_RATIO;
     const eyesFocused = !eyesClosed && eyeDeltaX <= GAZE_OFFSCREEN_X && eyeDeltaY <= GAZE_OFFSCREEN_Y;
 
-    const yawDelta   = Math.abs(yaw   - baseline.yaw);
-    const pitchDelta = Math.abs(pitch - baseline.pitch);
-    const rollDelta  = Math.abs(roll  - (baseline.roll ?? 0));
-
-    const extremeHead = yawDelta > YAW_EXTREME || pitchDelta > PITCH_EXTREME || rollDelta > ROLL_EXTREME;
-    const moderateHead = yawDelta > YAW_MODERATE || pitchDelta > PITCH_MODERATE || rollDelta > ROLL_MODERATE;
+    const turn = headTurn({ yaw, pitch, roll }, { yaw: baseline.yaw, pitch: baseline.pitch, roll: baseline.roll ?? 0 });
+    const extremeHead  = turn === 'extreme';
+    const moderateHead = turn !== 'none';
 
     let attention: AttentionReading['attention'] = 'focused';
 
