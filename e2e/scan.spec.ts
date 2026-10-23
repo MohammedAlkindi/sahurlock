@@ -839,6 +839,69 @@ test.describe('on a touch screen', () => {
   });
 });
 
+/** Two cleaned pages, with one text region marked on page 1. */
+async function twoPagesWithARegion(page: Page) {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) },
+    { name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) },
+  ]);
+  await expect(page.getByRole('button', { name: 'Download PDF (2 pages)' })).toBeEnabled({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Page 1', exact: true }).click();
+  await page.getByRole('button', { name: 'Mark regions on page 1' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Add region' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
+}
+
+test('Start over asks first when marked regions are not saved, and not once they are', async ({ page }) => {
+  await twoPagesWithARegion(page);
+  await page.getByRole('button', { name: 'Start over' }).click();
+  const confirm = page.getByRole('group', { name: 'Start over? The marked regions are not saved and will be lost.' });
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Start over' })).toBeFocused();
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(2);
+
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await expect(page.getByLabel('Choose photos or a PDF')).toBeAttached();
+});
+
+test('Start over goes ahead after the confirm', async ({ page }) => {
+  await twoPagesWithARegion(page);
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await page.getByRole('group', { name: /^Start over\?/ }).getByRole('button', { name: 'Start over' }).click();
+  await expect(page.getByLabel('Choose photos or a PDF')).toBeAttached();
+});
+
+test('removing a page with marked regions asks first', async ({ page }) => {
+  await twoPagesWithARegion(page);
+  const strip = page.getByRole('list', { name: 'Pages' });
+  await page.getByRole('button', { name: 'Remove page 1' }).click();
+  const confirm = page.getByRole('group', { name: 'Remove page 1 and its marked region?' });
+  await expect(confirm.getByRole('button', { name: 'Keep' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Remove page 1' })).toBeFocused();
+  await expect(strip.getByRole('button', { name: /^Page \d/ })).toHaveCount(2);
+
+  await page.getByRole('button', { name: 'Remove page 1' }).click();
+  await confirm.getByRole('button', { name: 'Remove' }).click();
+  await expect(strip.getByRole('button', { name: /^Page \d/ })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Remove page 1' })).toBeFocused();
+
+  // A page with nothing marked goes at once, as before.
+  await page.getByRole('button', { name: 'Remove page 1' }).click();
+  await expect(page.getByLabel('Choose photos or a PDF')).toBeAttached();
+});
+
+test('leaving the page with unsaved marked regions asks the browser to warn', async ({ page }) => {
+  await twoPagesWithARegion(page);
+  const warned = new Promise<string>((resolve) => page.once('dialog', async (d) => { resolve(d.type()); await d.dismiss(); }));
+  await page.close({ runBeforeUnload: true });
+  expect(await warned).toBe('beforeunload');
+});
+
 test('a file that is not an image gets a clear message', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
   await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('not an image') });

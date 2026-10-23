@@ -91,6 +91,11 @@ export default function ScanPage() {
   const [announcement, setAnnouncement] = useState('');
   /** The page the region editor opened on, while it is open. */
   const [markingFrom, setMarkingFrom] = useState<string | null>(null);
+  /** What is waiting for a yes before marked regions are thrown away. */
+  const [discarding, setDiscarding] = useState<{ action: 'start-over' } | { action: 'remove'; pageId: string } | null>(null);
+  const startOverButton = useRef<HTMLButtonElement | null>(null);
+  const removeButtons = useRef(new Map<string, HTMLButtonElement>());
+  const discardCancel = useRef<HTMLButtonElement | null>(null);
   const pageHeading = useRef<HTMLHeadingElement | null>(null);
   // Async work checks these when it finishes, so it lands only where it started.
   /** Changes when the pages are replaced as a whole (Open, Start over). Imports in flight are dropped. */
@@ -223,6 +228,29 @@ export default function ScanPage() {
     scanKey(name, courseName, list.map((p) => ({ url: p.cleaned?.url ?? '', regionsComplete: p.regionsComplete, blocks: p.blocks })));
   const currentKey = useMemo(() => keyOf(title.trim(), course, pages), [title, course, pages]);
   const upToDate = savedAs !== null && savedAs.key === currentKey;
+  /** Marked regions that only exist on this screen, which leaving or starting over would lose. */
+  const unsavedRegions = !upToDate && pages.some((p) => p.blocks.length > 0);
+
+  useEffect(() => {
+    if (!unsavedRegions) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [unsavedRegions]);
+
+  useEffect(() => { if (discarding) discardCancel.current?.focus(); }, [discarding]);
+
+  /** Close the confirm and put focus back on the button that opened it. */
+  const keepRegions = () => {
+    if (!discarding) return;
+    const was = discarding;
+    // The Start over button is replaced by the confirm, so it only exists again after this render.
+    flushSync(() => setDiscarding(null));
+    (was.action === 'start-over' ? startOverButton.current : removeButtons.current.get(was.pageId))?.focus();
+  };
+  const askStartOver = () => (unsavedRegions ? setDiscarding({ action: 'start-over' }) : startOver());
+  const askRemovePage = (id: string) =>
+    (pages.find((p) => p.id === id)?.blocks.length ? setDiscarding({ action: 'remove', pageId: id }) : removePage(id));
   const courses = groupByCourse(library).map((g) => g.course).filter(Boolean);
 
   const savePdf = async (jpegs: Blob[], filename: string) => {
@@ -338,11 +366,17 @@ export default function ScanPage() {
     <div className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-2 flex items-center justify-between">
         <h1 ref={pageHeading} tabIndex={-1} className="text-2xl font-black tracking-tight focus:outline-none">Scan notes</h1>
-        {pages.length > 0 && (
-          <button onClick={startOver} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground">
+        {pages.length > 0 && (discarding?.action === 'start-over' ? (
+          <div key="confirm" role="group" aria-label="Start over? The marked regions are not saved and will be lost." className="flex flex-wrap items-center justify-end gap-2 text-sm">
+            <span className="text-muted-foreground" aria-hidden="true">Unsaved regions will be lost.</span>
+            <button onClick={() => { setDiscarding(null); startOver(); }} className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-red-700">Start over</button>
+            <button ref={discardCancel} onClick={keepRegions} className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground">Cancel</button>
+          </div>
+        ) : (
+          <button key="start-over" ref={startOverButton} onClick={askStartOver} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground">
             <RotateCcw size={14} /> Start over
           </button>
-        )}
+        ))}
       </div>
       <p className="mb-6 max-w-2xl text-sm text-muted-foreground">
         Photograph pages of handwritten notes, or open a PDF of them. SahurLock straightens each page, evens out the
@@ -415,7 +449,8 @@ export default function ScanPage() {
                   )}
                 </button>
                 <button
-                  onClick={() => removePage(page.id)}
+                  ref={(el) => { if (el) removeButtons.current.set(page.id, el); else removeButtons.current.delete(page.id); }}
+                  onClick={() => askRemovePage(page.id)}
                   aria-label={`Remove page ${i + 1}`}
                   className="absolute -right-1.5 -top-1.5 rounded-full border border-input bg-card p-0.5 text-muted-foreground transition hover:text-danger"
                 >
@@ -431,6 +466,28 @@ export default function ScanPage() {
               </label>
             </li>
           </ol>
+
+          {discarding?.action === 'remove' && (() => {
+            const index = pages.findIndex((p) => p.id === discarding.pageId);
+            const count = pages[index]?.blocks.length ?? 0;
+            const question = `Remove page ${index + 1} and its ${count === 1 ? 'marked region' : `${count} marked regions`}?`;
+            return (
+              <div role="group" aria-label={question} className="mb-5 flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted-foreground" aria-hidden="true">{question}</span>
+                <button
+                  onClick={() => {
+                    const next = pages[index + 1] ?? pages[index - 1];
+                    flushSync(() => { setDiscarding(null); removePage(discarding.pageId); });
+                    (next ? removeButtons.current.get(next.id) : pageHeading.current)?.focus();
+                  }}
+                  className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-red-700"
+                >
+                  Remove
+                </button>
+                <button ref={discardCancel} onClick={keepRegions} className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground">Keep</button>
+              </div>
+            );
+          })()}
 
           {selected && (
             <>
