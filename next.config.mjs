@@ -22,8 +22,8 @@ const contentSecurityPolicy = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // The app uses no next/image, so the image optimizer endpoint only adds attack
-  // surface (Next.js 14.2 has unpatched advisories in it). Turn it off.
+  // The app uses no next/image, so the image optimizer endpoint would only add
+  // attack surface. Keep it off.
   images: { unoptimized: true },
   async headers() {
     return [

@@ -12,7 +12,7 @@ const FOCUSABLE =
  * stays mounted while the dialog itself is closed. Children should not use
  * `autoFocus`: it moves focus before this hook can note where to return it.
  */
-export function useDialog(ref: RefObject<HTMLElement>, onClose: () => void, active = true) {
+export function useDialog(ref: RefObject<HTMLElement | null>, onClose: () => void, active = true) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 

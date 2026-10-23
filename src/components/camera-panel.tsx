@@ -6,7 +6,7 @@ import { AttentionReading } from '@/lib/types';
 import type { PhoneReading } from '@/lib/phone-detector';
 
 interface Props {
-  videoRef: RefObject<HTMLVideoElement>;
+  videoRef: RefObject<HTMLVideoElement | null>;
   attention: AttentionReading | null;
   // Calibration state
   calibrating: boolean;
