@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useDialog } from '@/hooks/use-dialog';
 import Link from 'next/link';
 import { loadAggregate, updateSessionNotes } from '@/lib/storage';
 import { AggregateStats, SessionConfig, SessionStats } from '@/lib/types';
@@ -38,6 +39,8 @@ export function SessionSummary({ sessionId, stats, config, onReset }: Props) {
 
   const [notes, setNotes] = useState(stats.notes ?? '');
   const [agg, setAgg]     = useState<AggregateStats | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialog(dialogRef, onReset);
 
   useEffect(() => { setAgg(loadAggregate()); }, []);
 
@@ -55,10 +58,17 @@ export function SessionSummary({ sessionId, stats, config, onReset }: Props) {
 
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-foreground/20 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="session-summary-title"
+        tabIndex={-1}
+        className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-xl"
+      >
         {/* Header */}
         <div className={`px-6 py-4 ${grade.bg} border-b border-border`}>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Session Complete</p>
+          <p id="session-summary-title" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Session Complete</p>
           <p className="mt-1 text-sm text-foreground">{message}</p>
         </div>
 

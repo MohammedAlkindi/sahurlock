@@ -207,6 +207,8 @@ export default function SessionPage() {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      // An open modal (break flashcards, summary) owns the keyboard.
+      if (document.querySelector('[aria-modal="true"]')) return;
 
       const state = appStateRef.current;
       if (e.key === 'b' || e.key === 'B') {

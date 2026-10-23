@@ -20,3 +20,24 @@ for (const theme of ['light', 'dark'] as const) {
     }
   });
 }
+
+test('the command palette traps focus and gives it back on Escape', async ({ page }) => {
+  await page.goto('/tasks', { waitUntil: 'networkidle' });
+  const opener = page.getByPlaceholder(/add a task/i);
+  await opener.focus();
+
+  await page.keyboard.press('Control+k');
+  const dialog = page.getByRole('dialog', { name: 'Command palette' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByPlaceholder('Go to…')).toBeFocused();
+  expect(await violations(page)).toEqual([]);
+
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press('Tab');
+    expect(await dialog.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+  }
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(opener).toBeFocused();
+});

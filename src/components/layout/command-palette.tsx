@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Command } from 'cmdk';
+import { useDialog } from '@/hooks/use-dialog';
 import { Timer, CheckSquare, BarChart2, NotebookPen, Home, Music2, FlipHorizontal2, Settings, Clock } from 'lucide-react';
 
 const ITEMS = [
@@ -20,6 +21,8 @@ const ITEMS = [
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const router = useRouter();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialog(dialogRef, () => setOpen(false), open);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -42,6 +45,10 @@ export function CommandPalette() {
     >
       <div className="absolute inset-0 bg-foreground/20 backdrop-blur-sm" />
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
         className="relative w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -50,7 +57,6 @@ export function CommandPalette() {
             <Command.Input
               placeholder="Go to…"
               className="flex-1 bg-transparent py-3.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none"
-              autoFocus
             />
             <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">ESC</kbd>
           </div>

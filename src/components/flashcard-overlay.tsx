@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useDialog } from '@/hooks/use-dialog';
 import { X, RotateCcw, Check } from 'lucide-react';
 import type { Flashcard, ReviewResult } from '@/lib/flashcards';
 
@@ -25,6 +26,8 @@ export function FlashcardOverlay({ cards, focusScore, onComplete, onDismiss }: P
   const [idx,     setIdx]     = useState(0);
   const [phase,   setPhase]   = useState<Phase>('front');
   const [results, setResults] = useState<ReviewResult[]>([]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialog(dialogRef, onDismiss, cards.length > 0);
 
   if (cards.length === 0) return null;
 
@@ -50,12 +53,19 @@ export function FlashcardOverlay({ cards, focusScore, onComplete, onDismiss }: P
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4 backdrop-blur-sm">
-      <div className="relative w-full max-w-md rounded-2xl border border-border bg-card shadow-xl">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="flashcard-dialog-title"
+        tabIndex={-1}
+        className="relative w-full max-w-md rounded-2xl border border-border bg-card shadow-xl"
+      >
 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
           <div className="flex items-center gap-2.5">
-            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            <span id="flashcard-dialog-title" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Break Review
             </span>
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
