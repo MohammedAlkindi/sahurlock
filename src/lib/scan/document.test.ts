@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { type Block, decodeDocument, DOCUMENT_VERSION, emptyDocument, needsReview } from '@/lib/scan/document';
+import {
+  type Block, BLOCK_KINDS, decodeDocument, DOCUMENT_VERSION, emptyDocument, isReadKind, needsReview, userBlock, withContent, withKind,
+} from '@/lib/scan/document';
 
 const block = (overrides: Record<string, unknown> = {}): Block => ({
   id: 'b1',
@@ -16,12 +18,20 @@ const block = (overrides: Record<string, unknown> = {}): Block => ({
   ...overrides,
 } as Block);
 
-const doc = (blocks: unknown[]) => ({ version: DOCUMENT_VERSION, pages: [{ width: 1700, height: 2200, blocks }] });
+const doc = (blocks: unknown[], regionsComplete = false) => ({ version: DOCUMENT_VERSION, pages: [{ width: 1700, height: 2200, regionsComplete, blocks }] });
 
 describe('decodeDocument', () => {
   it('keeps a well-formed document as it is', () => {
-    const value = doc([block(), block({ id: 'b2', kind: 'math', content: 'F = ma', origin: { by: 'user' } })]);
+    const value = doc([block(), block({ id: 'b2', kind: 'math', content: 'F = ma', origin: { by: 'user' } })], true);
     expect(decodeDocument(value)).toEqual(value);
+  });
+
+  it('counts a page as completely marked only when it says so', () => {
+    for (const flag of [undefined, 'yes', 1, null, false]) {
+      const value = { version: DOCUMENT_VERSION, pages: [{ width: 1700, height: 2200, regionsComplete: flag, blocks: [] }] };
+      expect(decodeDocument(value)?.pages[0].regionsComplete).toBe(false);
+    }
+    expect(decodeDocument(doc([], true))?.pages[0].regionsComplete).toBe(true);
   });
 
   it('keeps a block nothing has read yet', () => {
@@ -64,8 +74,8 @@ describe('decodeDocument', () => {
     const value = {
       version: DOCUMENT_VERSION,
       pages: [
-        { width: 1700, height: 2200, blocks: [block({ id: 'same', content: 'first' })] },
-        { width: 1700, height: 2200, blocks: [block({ id: 'same', content: 'second' })] },
+        { width: 1700, height: 2200, regionsComplete: false, blocks: [block({ id: 'same', content: 'first' })] },
+        { width: 1700, height: 2200, regionsComplete: false, blocks: [block({ id: 'same', content: 'second' })] },
       ],
     };
     const decoded = decodeDocument(value)!;
@@ -97,10 +107,44 @@ describe('needsReview', () => {
   });
 });
 
+describe('BLOCK_KINDS', () => {
+  it('keeps its order, because training data numbers kinds by position', () => {
+    expect(BLOCK_KINDS).toEqual(['text', 'heading', 'math', 'table', 'graph', 'diagram']);
+    expect(BLOCK_KINDS.filter(isReadKind)).toEqual(['text', 'heading', 'math']);
+  });
+});
+
+describe('editing user regions', () => {
+  const box = { x: 10, y: 20, width: 300, height: 40 };
+
+  it('starts a drawn region as the user’s, reviewed, with nothing typed', () => {
+    const b = userBlock('r1', 'math', box);
+    expect(b).toEqual({ id: 'r1', kind: 'math', box, content: null, tokens: [], origin: { by: 'user' }, reviewed: true });
+    expect(needsReview(b)).toBe(false);
+    expect(decodeDocument(doc([b]))?.pages[0].blocks).toEqual([b]);
+  });
+
+  it('keeps typed text between read kinds and drops it for kinds kept as images', () => {
+    const typed = withContent(userBlock('r1', 'text', box), 'Kinematics');
+    expect(withKind(typed, 'heading').content).toBe('Kinematics');
+    for (const kind of ['table', 'graph', 'diagram'] as const) {
+      expect(withKind(typed, kind)).toMatchObject({ kind, content: null, tokens: [] });
+    }
+  });
+
+  it('trims what is typed, clears blanks, and makes recognized content the user’s', () => {
+    const predicted = block({ kind: 'math', content: 'F = rna', reviewed: false });
+    const fixed = withContent(predicted, '  F = ma \n');
+    expect(fixed).toMatchObject({ content: 'F = ma', tokens: [], origin: { by: 'user' }, reviewed: true });
+    expect(withContent(fixed, '   ').content).toBeNull();
+    expect(withContent(userBlock('r2', 'graph', box), 'axes')).toEqual(userBlock('r2', 'graph', box));
+  });
+});
+
 describe('emptyDocument', () => {
   it('has one empty page per size, which decodes back to itself', () => {
     const empty = emptyDocument([{ width: 1700, height: 2200 }, { width: 2200, height: 1700 }]);
-    expect(empty.pages.map((p) => [p.width, p.height, p.blocks.length])).toEqual([[1700, 2200, 0], [2200, 1700, 0]]);
+    expect(empty.pages.map((p) => [p.width, p.height, p.blocks.length, p.regionsComplete])).toEqual([[1700, 2200, 0, false], [2200, 1700, 0, false]]);
     expect(decodeDocument(JSON.parse(JSON.stringify(empty)))).toEqual(empty);
   });
 });
