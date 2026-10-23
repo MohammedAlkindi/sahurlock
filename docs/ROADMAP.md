@@ -16,7 +16,7 @@ that shipped it.
       flashcard scheduling, formatting (bc621ff)
 - [x] Turn the camera off and stop every loop when leaving the session page (14a9a26)
 - [x] Keep the camera feed alive when it is hidden (9690e98)
-- [ ] CI on every push: lint, typecheck, test, build
+- [x] CI on every push: lint, typecheck, test, build (this commit)
 - [ ] Retry Calibration reuses the existing stream instead of a new, empty `<video>`
 - [ ] Play a custom punishment video from its IndexedDB copy (the session uses the
       literal string `custom` as the video source today)
