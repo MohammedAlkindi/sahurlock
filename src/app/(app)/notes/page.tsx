@@ -133,7 +133,7 @@ export default function NotesPage() {
                   <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                     {note.body.trim().slice(0, 55) || 'No content'}
                   </p>
-                  <p className="mt-1.5 text-[10px] text-muted-foreground/40">
+                  <p className="mt-1.5 text-[10px] text-muted-foreground">
                     {timeAgo(note.updatedAt)}
                   </p>
                 </button>
@@ -159,7 +159,7 @@ export default function NotesPage() {
             </span>
             <button
               onClick={() => deleteNote(activeNote.id)}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground/40 transition-colors hover:bg-muted hover:text-red-600"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-red-600"
             >
               <Trash2 size={13} />
               Delete
@@ -173,7 +173,7 @@ export default function NotesPage() {
               value={activeNote.title}
               onChange={(e) => updateNote(activeNote.id, { title: e.target.value })}
               placeholder="Untitled"
-              className="w-full bg-transparent text-2xl font-black text-foreground placeholder-muted-foreground/25 focus:outline-none"
+              className="w-full bg-transparent text-2xl font-black text-foreground placeholder-muted-foreground focus:outline-none"
             />
           </div>
 
@@ -187,7 +187,7 @@ export default function NotesPage() {
               value={activeNote.body}
               onChange={(e) => updateNote(activeNote.id, { body: e.target.value })}
               placeholder="Start writing…"
-              className="h-full w-full resize-none bg-transparent text-sm leading-7 text-foreground placeholder-muted-foreground/25 focus:outline-none"
+              className="h-full w-full resize-none bg-transparent text-sm leading-7 text-foreground placeholder-muted-foreground focus:outline-none"
             />
           </div>
         </div>

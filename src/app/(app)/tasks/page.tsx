@@ -121,8 +121,8 @@ export default function TasksPage() {
                     {task.sessionCount} session{task.sessionCount !== 1 ? 's' : ''}
                   </span>
                 )}
-                <span className="text-[10px] text-muted-foreground/50">{formatDate(task.createdAt)}</span>
-                <button onClick={() => removeTask(task.id)} className="text-muted-foreground/40 transition hover:text-red-600" aria-label="Delete">
+                <span className="text-[10px] text-muted-foreground">{formatDate(task.createdAt)}</span>
+                <button onClick={() => removeTask(task.id)} className="text-muted-foreground transition hover:text-red-600" aria-label="Delete">
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -149,18 +149,18 @@ export default function TasksPage() {
                   key={task.id}
                   className={`group flex items-center gap-3 px-4 py-3 transition hover:bg-muted/20 ${i < done.length - 1 ? 'border-b border-border/40' : ''}`}
                 >
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-accent/30 bg-accent/10 text-accent/60">
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-accent/30 bg-accent/10 text-accent">
                     <Check size={12} />
                   </div>
                   <span className="flex-1 text-sm text-muted-foreground line-through">{task.title}</span>
                   <div className="flex items-center gap-3 opacity-0 transition group-hover:opacity-100">
                     {task.completedAt && (
-                      <span className="text-[10px] text-muted-foreground/50">{formatDate(task.completedAt)}</span>
+                      <span className="text-[10px] text-muted-foreground">{formatDate(task.completedAt)}</span>
                     )}
-                    <button onClick={() => restoreTask(task.id)} className="text-muted-foreground/40 transition hover:text-foreground" aria-label="Restore">
+                    <button onClick={() => restoreTask(task.id)} className="text-muted-foreground transition hover:text-foreground" aria-label="Restore">
                       <RotateCcw size={13} />
                     </button>
-                    <button onClick={() => removeTask(task.id)} className="text-muted-foreground/40 transition hover:text-red-600" aria-label="Delete">
+                    <button onClick={() => removeTask(task.id)} className="text-muted-foreground transition hover:text-red-600" aria-label="Delete">
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -172,7 +172,7 @@ export default function TasksPage() {
       )}
 
       {active.length > 0 && (
-        <p className="mt-5 text-center text-xs text-muted-foreground/50">
+        <p className="mt-5 text-center text-xs text-muted-foreground">
           Double-click to rename · Select tasks when starting a session
         </p>
       )}

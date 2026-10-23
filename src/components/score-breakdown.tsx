@@ -28,7 +28,7 @@ export function ScoreBreakdownPanel({ breakdown, showHeader = true }: Props) {
           <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             Score breakdown
           </span>
-          <span className="text-xs text-muted-foreground/60">out of 100</span>
+          <span className="text-xs text-muted-foreground">out of 100</span>
         </div>
       )}
 
@@ -40,9 +40,9 @@ export function ScoreBreakdownPanel({ breakdown, showHeader = true }: Props) {
             <div key={key}>
               <div className="mb-1 flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">{label}</span>
-                <span className="tabular-nums text-foreground/70">
+                <span className="tabular-nums text-foreground">
                   {value}
-                  <span className="text-muted-foreground/40">/{max}</span>
+                  <span className="text-muted-foreground">/{max}</span>
                 </span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-muted">

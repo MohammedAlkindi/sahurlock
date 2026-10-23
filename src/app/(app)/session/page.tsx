@@ -864,7 +864,7 @@ export default function SessionPage() {
             </p>
           )}
           {isActive && config.pomodoroEnabled && config.breakLimit > 0 && !['calibrating', 'countdown', 'requesting_permission'].includes(appState) && (
-            <p className="mt-0.5 text-xs text-muted-foreground/60">Round {pomodoroRound} of {pomodoroTotalRounds}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Round {pomodoroRound} of {pomodoroTotalRounds}</p>
           )}
         </div>
 
@@ -1019,7 +1019,7 @@ export default function SessionPage() {
                 </div>
 
                 {attention && (
-                  <p className="mt-3 text-xs text-muted-foreground/70">
+                  <p className="mt-3 text-xs text-muted-foreground">
                     Confidence: <span className="text-muted-foreground">{Math.round(attention.confidence * 100)}%</span>
                     {' · '}
                     <span className={derivedState === 'focused' ? 'text-green-600' : derivedState === 'warning' ? 'text-amber-600' : 'text-red-600'}>
@@ -1049,7 +1049,7 @@ export default function SessionPage() {
             {['focused', 'warning', 'break'].includes(appState) && config.breakLimit > 0 && (
               <div className="rounded-2xl border border-border bg-card p-5">
                 <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Breaks {config.pomodoroEnabled && <span className="text-muted-foreground/50 normal-case font-normal">· auto</span>}
+                  Breaks {config.pomodoroEnabled && <span className="text-muted-foreground normal-case font-normal">· auto</span>}
                 </h3>
                 <BreakControls
                   breakUsed={breakUsed}

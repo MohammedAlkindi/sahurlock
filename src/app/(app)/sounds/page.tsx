@@ -121,11 +121,11 @@ function CategorySection({
       >
         <ChevronRight
           size={13}
-          className={`shrink-0 text-muted-foreground/50 transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
+          className={`shrink-0 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
         />
         <span className="flex-1 text-sm font-medium text-foreground">{name}</span>
         {!open && (
-          <span className="text-[11px] text-muted-foreground/50 tracking-wide">{preview}</span>
+          <span className="text-[11px] text-muted-foreground tracking-wide">{preview}</span>
         )}
         <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
           {sounds.length}
@@ -225,13 +225,13 @@ export default function SoundsPage() {
             </span>
           )}
           <div className="flex items-center gap-1.5 shrink-0">
-            <VolumeX size={12} className="text-muted-foreground/40" />
+            <VolumeX size={12} className="text-muted-foreground" />
             <input
               type="range" min={0} max={1} step={0.02} value={volume}
               onChange={(e) => handleVolume(Number(e.target.value))}
               className="w-20 h-1 cursor-pointer accent-accent"
             />
-            <Volume2 size={12} className="text-muted-foreground/40" />
+            <Volume2 size={12} className="text-muted-foreground" />
           </div>
           <button
             onClick={stop}
@@ -251,13 +251,13 @@ export default function SoundsPage() {
             <p className="mt-0.5 text-xs text-muted-foreground">{SOUNDS.length} ambient · browser-generated</p>
           </div>
           <div className="relative">
-            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50 pointer-events-none" />
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <input
               type="text"
               placeholder="Search…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-40 rounded-lg border border-border bg-background pl-7 pr-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-accent focus:outline-none"
+              className="w-40 rounded-lg border border-border bg-background pl-7 pr-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none"
             />
           </div>
         </div>
@@ -281,7 +281,7 @@ export default function SoundsPage() {
             {/* ── Recently used ──────────────────────────────────────────────── */}
             {recentSounds.length > 0 && (
               <div className="mb-6">
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Recent</p>
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Recent</p>
                 <div className="flex gap-2 flex-wrap">
                   {recentSounds.map((s) => (
                     <SoundTile key={s.id} sound={s} isActive={activeId === s.id} onToggle={() => toggle(s.id)} size="sm" />
@@ -292,7 +292,7 @@ export default function SoundsPage() {
 
             {/* ── Featured ───────────────────────────────────────────────────── */}
             <div className="mb-6">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Featured</p>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Featured</p>
               <div className="grid gap-1.5 grid-cols-4 sm:grid-cols-8">
                 {featuredSounds.map((s) => (
                   <SoundTile key={s.id} sound={s} isActive={activeId === s.id} onToggle={() => toggle(s.id)} />
@@ -302,7 +302,7 @@ export default function SoundsPage() {
 
             {/* ── Category library ───────────────────────────────────────────── */}
             <div className="mb-1">
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Library</p>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Library</p>
             </div>
             <div className="rounded-2xl border border-border bg-card px-4">
               {byCategory.map(({ name, sounds }) => (

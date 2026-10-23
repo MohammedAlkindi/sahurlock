@@ -66,7 +66,7 @@ function StreakBanner({ agg }: { agg: AggregateStats }) {
               <span className="text-base font-semibold text-muted-foreground">day streak</span>
             </div>
             {longest > 0 && (
-              <p className="text-[11px] text-muted-foreground/50">Best: {longest} days</p>
+              <p className="text-[11px] text-muted-foreground">Best: {longest} days</p>
             )}
           </div>
         </div>
@@ -87,7 +87,7 @@ function StreakBanner({ agg }: { agg: AggregateStats }) {
       {/* Progress to next milestone */}
       {nextMilestone !== null && streak > 0 && (
         <div className="mt-4">
-          <div className="mb-1 flex justify-between text-[10px] text-muted-foreground/50">
+          <div className="mb-1 flex justify-between text-[10px] text-muted-foreground">
             <span>{streak}d</span>
             <span>{nextMilestone - streak} day{nextMilestone - streak !== 1 ? 's' : ''} to {nextMilestone}d milestone</span>
           </div>
@@ -114,7 +114,7 @@ function StreakBanner({ agg }: { agg: AggregateStats }) {
                   ? 'bg-orange-500 text-white shadow-sm'
                   : achieved
                     ? 'bg-orange-100 text-orange-500 dark:bg-orange-950/40 dark:text-orange-400'
-                    : 'bg-muted/50 text-muted-foreground/30'
+                    : 'bg-muted/50 text-muted-foreground'
               }`}
             >
               {m}d
@@ -133,7 +133,7 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string;
     <div className="rounded-2xl border border-border bg-card p-5">
       <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
       <p className={`mt-2 text-3xl font-black tabular-nums ${accent ?? 'text-foreground'}`}>{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted-foreground/60">{sub}</p>}
+      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
     </div>
   );
 }
@@ -174,7 +174,7 @@ function ScoreTrendChart({ items }: { items: ChartPoint[] }) {
           <span className={`text-xs font-semibold ${trendDelta > 0 ? 'text-green-600' : trendDelta < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
             {trendDelta > 0 ? `+${trendDelta}` : trendDelta} pts
           </span>
-          <span className="text-[11px] text-muted-foreground/50">vs previous 3 sessions</span>
+          <span className="text-[11px] text-muted-foreground">vs previous 3 sessions</span>
         </div>
       )}
       <div className="overflow-x-auto pb-1">
@@ -210,7 +210,7 @@ function ScoreTrendChart({ items }: { items: ChartPoint[] }) {
               textAnchor="end"
               fontSize={9}
               fill="currentColor"
-              className="fill-muted-foreground/40"
+              className="fill-muted-foreground"
             >
               {v}
             </text>
@@ -220,7 +220,7 @@ function ScoreTrendChart({ items }: { items: ChartPoint[] }) {
           <polyline
             points={linePoints}
             fill="none"
-            stroke="hsl(var(--accent))"
+            stroke="rgb(var(--accent))"
             strokeWidth={2}
             strokeLinejoin="round"
             strokeLinecap="round"
@@ -235,7 +235,7 @@ function ScoreTrendChart({ items }: { items: ChartPoint[] }) {
                 cx={xOf(i)} cy={yOf(p.score)}
                 r={4}
                 fill={dotColor(p.score)}
-                stroke="var(--background, white)"
+                stroke="rgb(var(--background))"
                 strokeWidth={1.5}
               />
               {/* X-axis label */}
@@ -246,7 +246,7 @@ function ScoreTrendChart({ items }: { items: ChartPoint[] }) {
                   textAnchor="middle"
                   fontSize={9}
                   fill="currentColor"
-                  className="fill-muted-foreground/40"
+                  className="fill-muted-foreground"
                 >
                   {p.label}
                 </text>
@@ -295,17 +295,17 @@ function WeeklyReport({ history, tasks }: { history: SessionHistoryItem[]; tasks
   ).length;
 
   const TrendIcon = ({ delta }: { delta: number | null }) => {
-    if (delta === null) return <Minus size={12} className="text-muted-foreground/40" />;
+    if (delta === null) return <Minus size={12} className="text-muted-foreground" />;
     if (delta > 0)  return <TrendingUp  size={12} className="text-green-600" />;
     if (delta < 0)  return <TrendingDown size={12} className="text-red-600" />;
-    return <Minus size={12} className="text-muted-foreground/40" />;
+    return <Minus size={12} className="text-muted-foreground" />;
   };
 
   return (
     <div className="mb-5 rounded-2xl border border-border bg-card p-5">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold">This week</h2>
-        <span className="text-[11px] text-muted-foreground/50">
+        <span className="text-[11px] text-muted-foreground">
           {d7.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} –{' '}
           {now.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
         </span>
@@ -317,7 +317,7 @@ function WeeklyReport({ history, tasks }: { history: SessionHistoryItem[]; tasks
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Sessions</p>
           <p className="mt-1 text-2xl font-black tabular-nums">{thisWeek.length}</p>
           {lastWeek.length > 0 && (
-            <p className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground/50">
+            <p className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
               <TrendIcon delta={thisWeek.length - lastWeek.length} />
               vs {lastWeek.length} last week
             </p>
@@ -353,7 +353,7 @@ function WeeklyReport({ history, tasks }: { history: SessionHistoryItem[]; tasks
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Tasks done</p>
           <p className="mt-1 text-2xl font-black tabular-nums text-accent">{completedThisWeek}</p>
           {bestSession && (
-            <p className="mt-0.5 text-[10px] text-muted-foreground/50">
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
               Best: <span className={getFocusGrade(safeScore(bestSession)).color}>{safeScore(bestSession)}</span>
             </p>
           )}
@@ -420,7 +420,7 @@ function FocusHeatmap({ history }: { history: SessionHistoryItem[] }) {
     <div className="mb-5 rounded-2xl border border-border bg-card p-5">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground">Focus history</h2>
-        <div className="flex gap-3 text-[10px] text-muted-foreground/50">
+        <div className="flex gap-3 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-green-500" />80+</span>
           <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-yellow-500" />60–79</span>
           <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-red-500" />&lt;60</span>
@@ -431,7 +431,7 @@ function FocusHeatmap({ history }: { history: SessionHistoryItem[] }) {
         {/* Day labels */}
         <div className="flex shrink-0 flex-col justify-around pr-1" style={{ gap: '3px' }}>
           {DAYS.map((d, i) => (
-            <span key={i} className="text-[9px] leading-none text-muted-foreground/40" style={{ height: 12 }}>{d}</span>
+            <span key={i} className="text-[9px] leading-none text-muted-foreground" style={{ height: 12 }}>{d}</span>
           ))}
         </div>
 
@@ -464,7 +464,7 @@ function FocusHeatmap({ history }: { history: SessionHistoryItem[] }) {
           return (
             <div key={wi} className="w-3 shrink-0 text-center">
               {showLabel && (
-                <span className="text-[9px] text-muted-foreground/40">
+                <span className="text-[9px] text-muted-foreground">
                   {first.toLocaleDateString(undefined, { month: 'short' })}
                 </span>
               )}
@@ -596,7 +596,7 @@ export default function StatsPage() {
             <div className="mb-5 rounded-2xl border border-border bg-card p-5">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-foreground">Score trend</h2>
-                <div className="flex gap-3 text-[10px] text-muted-foreground/50">
+                <div className="flex gap-3 text-[10px] text-muted-foreground">
                   <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" />80+</span>
                   <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-yellow-500" />60–79</span>
                   <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" />&lt;60</span>
@@ -651,7 +651,7 @@ export default function StatsPage() {
                                 : '—'}
                             </p>
                             {item.stats.taskTitle && (
-                              <p className="mt-0.5 truncate text-[10px] text-muted-foreground/50">{item.stats.taskTitle}</p>
+                              <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{item.stats.taskTitle}</p>
                             )}
                           </td>
                           <td className="px-4 py-3 text-foreground">{item.config.durationMinutes} min</td>
@@ -679,11 +679,11 @@ export default function StatsPage() {
                             <div className="flex items-center justify-end gap-1">
                               <ChevronDown
                                 size={13}
-                                className={`text-muted-foreground/40 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                className={`text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                               />
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
-                                className="rounded p-1.5 text-muted-foreground/30 transition hover:bg-muted hover:text-red-600"
+                                className="rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-red-600"
                                 aria-label="Delete session"
                               >
                                 <Trash2 size={14} />

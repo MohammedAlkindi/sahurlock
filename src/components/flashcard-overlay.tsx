@@ -82,7 +82,7 @@ export function FlashcardOverlay({ cards, focusScore, onComplete, onDismiss }: P
             }`}>
               {focusScore >= 80 ? 'Challenging mix' : focusScore >= 60 ? 'Balanced review' : 'Reinforcing basics'}
             </span>
-            <span className="text-[10px] text-muted-foreground/40">{focusScore}</span>
+            <span className="text-[10px] text-muted-foreground">{focusScore}</span>
             <button
               onClick={onDismiss}
               className="rounded p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -109,7 +109,7 @@ export function FlashcardOverlay({ cards, focusScore, onComplete, onDismiss }: P
               {DIFFICULTY_LABEL[card.difficulty]}
             </span>
             {card.reviewCount > 0 && (
-              <span className="text-[10px] text-muted-foreground/60">
+              <span className="text-[10px] text-muted-foreground">
                 {card.correctCount}/{card.reviewCount} correct
               </span>
             )}

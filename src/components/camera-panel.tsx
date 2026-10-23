@@ -219,7 +219,7 @@ export function CameraPanel({
       <div className="mb-2 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">Live Feed</h3>
         {!calibrating && (attention?.leftEye || attention?.rightEye) && (
-          <span className="font-mono text-xs text-muted-foreground/60">
+          <span className="font-mono text-xs text-muted-foreground">
             EAR {leftOpen.toFixed(2)} / {rightOpen.toFixed(2)}
           </span>
         )}
@@ -314,7 +314,7 @@ export function CameraPanel({
 
       {/* Eye openness bars — only during active session */}
       {!calibrating && countdownLeft === 0 && (attention?.leftEye || attention?.rightEye) && (
-        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground/60">
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
           {(['Left', 'Right'] as const).map((side) => {
             const ratio = side === 'Left' ? leftOpen : rightOpen;
             const pct   = Math.min(100, Math.round(ratio * 600));
@@ -336,7 +336,7 @@ export function CameraPanel({
       {/* Phone detection progress bar */}
       {!calibrating && countdownLeft === 0 && phoneReading !== undefined && phoneReading !== null && (
         <div className="mt-3">
-          <div className="mb-1 flex justify-between text-xs text-muted-foreground/60">
+          <div className="mb-1 flex justify-between text-xs text-muted-foreground">
             <span className={phoneReading.detected ? 'text-orange-500' : ''}>
               {phoneReading.detected ? 'Hand detected' : 'Phone zone'}
             </span>
@@ -365,7 +365,7 @@ export function CameraPanel({
         >
           +
         </button>
-        <span className="text-xs text-muted-foreground/50">{zoomLevel.toFixed(1)}×</span>
+        <span className="text-xs text-muted-foreground">{zoomLevel.toFixed(1)}×</span>
       </div>
 
       {/* Active session guidance hints */}

@@ -139,7 +139,7 @@ export function Sidebar() {
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
             className={cn(
-              'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium text-foreground/70 transition-colors hover:bg-muted hover:text-foreground',
+              'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted hover:text-foreground',
               collapsed && 'justify-center'
             )}
           >

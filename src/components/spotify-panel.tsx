@@ -46,7 +46,7 @@ function TrackArt({ images, size = 40 }: { images: { url: string }[]; size?: num
   if (!src) {
     return (
       <div
-        className="rounded bg-muted flex items-center justify-center text-muted-foreground/40"
+        className="rounded bg-muted flex items-center justify-center text-muted-foreground"
         style={{ width: size, height: size }}
       >
         <Icon d={ICONS.music} size={size * 0.5} />
@@ -187,7 +187,7 @@ function SearchDropdown({
                     {track.artists.map((a) => a.name).join(', ')}
                   </p>
                 </div>
-                <span className="text-muted-foreground/60"><Icon d={ICONS.play} size={14} /></span>
+                <span className="text-muted-foreground"><Icon d={ICONS.play} size={14} /></span>
               </button>
             ))}
           </div>
@@ -212,7 +212,7 @@ function SearchDropdown({
                     {pl.tracks.total} tracks · {pl.owner.display_name}
                   </p>
                 </div>
-                <span className="text-muted-foreground/60"><Icon d={ICONS.play} size={14} /></span>
+                <span className="text-muted-foreground"><Icon d={ICONS.play} size={14} /></span>
               </button>
             ))}
           </div>
@@ -432,7 +432,7 @@ export function SpotifyPanel({ compact = false }: Props) {
                 <p className="truncate text-xs text-muted-foreground">
                   {track.artists.map((a) => a.name).join(', ')}
                 </p>
-                <p className="truncate text-[10px] text-muted-foreground/60">{track.album.name}</p>
+                <p className="truncate text-[10px] text-muted-foreground">{track.album.name}</p>
               </div>
             </div>
 
@@ -469,7 +469,7 @@ export function SpotifyPanel({ compact = false }: Props) {
           </div>
         ) : (
           playerReady && (
-            <div className="flex flex-col items-center gap-2 py-2 text-center text-muted-foreground/40">
+            <div className="flex flex-col items-center gap-2 py-2 text-center text-muted-foreground">
               <Icon d={ICONS.music} size={24} />
               <p className="text-xs text-muted-foreground">
                 Search for a track or playlist to start playing.
@@ -482,7 +482,7 @@ export function SpotifyPanel({ compact = false }: Props) {
         {connected && (
           <div className="relative">
             <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 focus-within:border-accent focus-within:ring-1 focus-within:ring-ring transition">
-              <span className="text-muted-foreground/60"><Icon d={ICONS.search} size={14} /></span>
+              <span className="text-muted-foreground"><Icon d={ICONS.search} size={14} /></span>
               <input
                 ref={searchRef}
                 type="text"
