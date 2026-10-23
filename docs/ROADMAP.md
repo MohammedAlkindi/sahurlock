@@ -36,7 +36,9 @@ that shipped it.
       threshold, recovery time, the "no backend" claim, the iris tracking toggle)
 - [x] Export and "clear everything" cover every key and the IndexedDB video store
       (04d0371)
-- [ ] Versioned storage schemas, validated on load instead of cast
+- [x] Validate stored data on load instead of casting it, so one malformed key can no
+      longer crash every page
+- [ ] Version the storage format, with migrations, when the first stored shape changes
 - [x] Accessibility pass: dialog semantics and focus traps, an alert role on the
       violation overlay, reduced motion, one `<main>`, modifier-free shortcuts made
       optional, contrast, checked by an axe scan of every route in both themes, empty

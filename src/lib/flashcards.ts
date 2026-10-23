@@ -1,3 +1,4 @@
+import { decodeFlashcard, listOf, parseStored } from '@/lib/decode';
 import { uid } from '@/lib/utils';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -37,7 +38,7 @@ const STORAGE_KEY = 'sahurlock.flashcards';
 
 export function loadCards(): Flashcard[] {
   if (typeof window === 'undefined') return [];
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]'); } catch { return []; }
+  return listOf(parseStored(localStorage.getItem(STORAGE_KEY)), decodeFlashcard);
 }
 
 export function saveCards(cards: Flashcard[]): void {

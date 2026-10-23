@@ -1,5 +1,10 @@
 import { clearAppStorage, deleteVideoDatabase } from '@/lib/data-management';
-import { AggregateStats, CustomVideoMeta, ScheduledSession, SessionConfig, SessionHistoryItem, SessionPreset, Task } from '@/lib/types';
+import {
+  decodeAggregate, decodeConfig, decodeGoals, decodeHistoryItem, decodeScheduledSession,
+  decodeTask, decodeTemplate, decodeVideoMeta, listOf, parseStored,
+} from '@/lib/decode';
+import { DEFAULT_CONFIG } from '@/lib/defaults';
+import { AggregateStats, CustomVideoMeta, Goals, ScheduledSession, SessionConfig, SessionHistoryItem, SessionPreset, Task } from '@/lib/types';
 
 const SETTINGS_KEY     = 'sahurlock.settings';
 const HISTORY_KEY      = 'sahurlock.history';
@@ -16,10 +21,7 @@ let _customVideoBlobUrl: string | null = null;
 export const setCustomVideoBlobUrl = (url: string | null) => { _customVideoBlobUrl = url; };
 export const getCustomVideoBlobUrl = (): string | null     => _customVideoBlobUrl;
 
-const safeParse = <T>(raw: string | null, fallback: T): T => {
-  if (!raw) return fallback;
-  try { return JSON.parse(raw) as T; } catch { return fallback; }
-};
+const read = (key: string): unknown => parseStored(localStorage.getItem(key));
 
 const AGGREGATE_DEFAULTS: AggregateStats = {
   sessions: 0,
@@ -53,7 +55,7 @@ function computeStreak(
 
 export const loadSettings = (defaults: SessionConfig): SessionConfig => {
   if (typeof window === 'undefined') return defaults;
-  return { ...defaults, ...safeParse<Partial<SessionConfig>>(localStorage.getItem(SETTINGS_KEY), {}) };
+  return decodeConfig(read(SETTINGS_KEY), defaults);
 };
 
 export const saveSettings = (settings: SessionConfig) => {
@@ -65,7 +67,7 @@ export const saveSettings = (settings: SessionConfig) => {
 
 export const loadHistory = (): SessionHistoryItem[] => {
   if (typeof window === 'undefined') return [];
-  return safeParse<SessionHistoryItem[]>(localStorage.getItem(HISTORY_KEY), []);
+  return listOf(read(HISTORY_KEY), (item) => decodeHistoryItem(item, DEFAULT_CONFIG));
 };
 
 export const saveSessionHistory = (item: SessionHistoryItem) => {
@@ -105,7 +107,7 @@ export const clearAllData = async () => {
 
 export const loadAggregate = (): AggregateStats => {
   if (typeof window === 'undefined') return { ...AGGREGATE_DEFAULTS };
-  return safeParse<AggregateStats>(localStorage.getItem(AGG_KEY), { ...AGGREGATE_DEFAULTS });
+  return decodeAggregate(read(AGG_KEY), AGGREGATE_DEFAULTS);
 };
 
 export const updateAggregate = (input: {
@@ -131,7 +133,7 @@ export const updateAggregate = (input: {
     currentStreak,
     longestStreak,
     lastSessionDate:  new Date().toDateString(),
-    totalFocusScore:  (agg.totalFocusScore ?? 0) + input.focusScore,
+    totalFocusScore:  agg.totalFocusScore + input.focusScore,
   };
   localStorage.setItem(AGG_KEY, JSON.stringify(next));
 };
@@ -140,7 +142,7 @@ export const updateAggregate = (input: {
 
 export const loadCustomVideoMeta = (): CustomVideoMeta | null => {
   if (typeof window === 'undefined') return null;
-  return safeParse<CustomVideoMeta | null>(localStorage.getItem(CUSTOM_VIDEO_KEY), null);
+  return decodeVideoMeta(read(CUSTOM_VIDEO_KEY));
 };
 
 export const saveCustomVideoMeta = (meta: CustomVideoMeta) => {
@@ -157,7 +159,7 @@ export const clearCustomVideoMeta = () => {
 
 export const loadTasks = (): Task[] => {
   if (typeof window === 'undefined') return [];
-  return safeParse<Task[]>(localStorage.getItem(TASKS_KEY), []);
+  return listOf(read(TASKS_KEY), decodeTask);
 };
 
 export const saveTask = (task: Task) => {
@@ -185,7 +187,7 @@ export const incrementTaskSessionCount = (id: string) => {
 
 export const loadTemplates = (): SessionPreset[] => {
   if (typeof window === 'undefined') return [];
-  return safeParse<SessionPreset[]>(localStorage.getItem(TEMPLATES_KEY), []);
+  return listOf(read(TEMPLATES_KEY), decodeTemplate);
 };
 
 export const saveTemplate = (preset: SessionPreset) => {
@@ -201,15 +203,11 @@ export const deleteTemplate = (id: string) => {
 
 // ── Goals ──────────────────────────────────────────────────────────────────────
 
-export interface Goals {
-  dailyGoalMinutes: number;
-}
-
 const GOALS_DEFAULTS: Goals = { dailyGoalMinutes: 0 };
 
 export const loadGoals = (): Goals => {
   if (typeof window === 'undefined') return { ...GOALS_DEFAULTS };
-  return safeParse<Goals>(localStorage.getItem(GOALS_KEY), { ...GOALS_DEFAULTS });
+  return decodeGoals(read(GOALS_KEY), GOALS_DEFAULTS);
 };
 
 export const saveGoals = (goals: Goals) => {
@@ -229,7 +227,7 @@ const writeScheduledSessions = (sessions: ScheduledSession[]) => {
 
 export const loadScheduledSessions = (): ScheduledSession[] => {
   if (typeof window === 'undefined') return [];
-  return safeParse<ScheduledSession[]>(localStorage.getItem(SCHEDULE_KEY), []);
+  return listOf(read(SCHEDULE_KEY), decodeScheduledSession);
 };
 
 export const saveScheduledSession = (s: ScheduledSession) => {

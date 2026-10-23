@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Volume2, VolumeX, Square, Headphones, ChevronRight } from 'lucide-react';
 import { SpotifyPanel } from '@/components/spotify-panel';
+import { decodeStrings, parseStored } from '@/lib/decode';
 import {
   SOUNDS,
   SoundDef,
@@ -32,7 +33,7 @@ const CATEGORY_ORDER = [
 ];
 
 function loadRecent(): string[] {
-  try { return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]'); } catch { return []; }
+  return decodeStrings(parseStored(localStorage.getItem(RECENT_KEY)));
 }
 
 function saveRecent(id: string) {
