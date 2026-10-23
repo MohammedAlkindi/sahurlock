@@ -1,9 +1,16 @@
 import { SCAN_DATABASE } from '@/lib/data-management';
+import { decodeDocument, emptyDocument, type ScanDocument } from '@/lib/scan/document';
 
 // Saved scans live in their own IndexedDB database on this device. Nothing is
 // uploaded, and Settings > Data > Clear all data deletes the database.
 
 const STORE = 'scans';
+/**
+ * Version 2 added marked regions. Bump this whenever DOCUMENT_VERSION changes:
+ * code that predates the change then gets a VersionError instead of opening the
+ * database and saving over labels it cannot read.
+ */
+const DB_VERSION = 2;
 
 /** One cleaned page. The JPEG is what the PDF embeds, so it is all that is kept. */
 export interface SavedPage {
@@ -20,6 +27,10 @@ export interface SavedScan {
   /** ISO time it was last saved. */
   createdAt: string;
   pages: SavedPage[];
+  /** Regions marked on each page, lined up with `pages` by position. */
+  document: ScanDocument;
+  /** Set when stored labels could not be read, so the scan was opened without them. Never stored. */
+  labelsUnreadable?: true;
 }
 
 const isSize = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n > 0;
@@ -31,8 +42,18 @@ export function decodeSavedScan(value: unknown): SavedScan | null {
   if (!Array.isArray(s.pages) || s.pages.length === 0) return null;
   const pagesOk = s.pages.every((p: Partial<SavedPage> | null) => p?.jpeg instanceof Blob && isSize(p.width) && isSize(p.height));
   if (!pagesOk) return null;
-  // Scans saved before courses existed have none.
-  return { id: s.id, title: s.title, course: typeof s.course === 'string' ? s.course : '', createdAt: s.createdAt, pages: s.pages };
+  const pages = s.pages;
+  // Scans saved before courses or regions existed have none.
+  const scan: SavedScan = {
+    id: s.id, title: s.title, course: typeof s.course === 'string' ? s.course : '', createdAt: s.createdAt, pages,
+    document: emptyDocument(pages.map(({ width, height }) => ({ width, height }))),
+  };
+  if (s.document === undefined) return scan;
+  // Labels count only if they line up with the pages. Otherwise the scan opens without them.
+  const document = decodeDocument(s.document);
+  const fits = document !== null && document.pages.length === pages.length
+    && document.pages.every((p, i) => p.width === pages[i].width && p.height === pages[i].height);
+  return fits ? { ...scan, document } : { ...scan, labelsUnreadable: true };
 }
 
 export interface CourseGroup {
@@ -68,8 +89,11 @@ export function scanFileName(title: string): string {
 
 function open(idb: IDBFactory): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = idb.open(SCAN_DATABASE, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE, { keyPath: 'id' });
+    const request = idb.open(SCAN_DATABASE, DB_VERSION);
+    request.onupgradeneeded = () => {
+      // Upgrading from version 1 keeps its store and records as they are.
+      if (!request.result.objectStoreNames.contains(STORE)) request.result.createObjectStore(STORE, { keyPath: 'id' });
+    };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });

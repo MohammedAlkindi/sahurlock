@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { ChevronLeft, ChevronRight, Download, FileDown, ImageUp, Plus, RotateCcw, Save, X } from 'lucide-react';
 import { PaperSelect } from '@/components/paper-select';
 import { SavedScans } from '@/components/saved-scans';
 import type { LineRemoval } from '@/lib/scan/clean';
+import { type Block, DOCUMENT_VERSION } from '@/lib/scan/document';
 import { buildPdf, type Paper } from '@/lib/scan/pdf';
 import { isPdf, MAX_PDF_PAGES, pdfToImages } from '@/lib/scan/pdf-pages';
 import { deleteScan, groupByCourse, listScans, saveScan, scanFileName, type SavedScan } from '@/lib/scan/library';
+import { scanKey } from '@/lib/scan/scan-key';
 import type { ScanRequest, ScanResponse } from '@/lib/scan/worker';
 import { uid } from '@/lib/utils';
 
@@ -40,6 +42,9 @@ interface ScanPage {
   request: string | null;
   cleaned: Cleaned | null;
   error: string | null;
+  /** Regions marked on the cleaned page, in its pixels. They follow the page when it moves. */
+  blocks: Block[];
+  regionsComplete: boolean;
 }
 
 /** Letter in the countries that use it, A4 everywhere else. */
@@ -132,7 +137,7 @@ export default function ScanPage() {
 
   const addImages = (files: File[]) => {
     const added = files.map((file) =>
-      send({ id: uid(), file, originalUrl: URL.createObjectURL(file), request: null, cleaned: null, error: null }, lines));
+      send({ id: uid(), file, originalUrl: URL.createObjectURL(file), request: null, cleaned: null, error: null, blocks: [], regionsComplete: false }, lines));
     if (added.length === 0) return;
     setPages((all) => [...all, ...added]);
     setSelectedId((current) => current ?? added[0].id);
@@ -211,10 +216,10 @@ export default function ScanPage() {
 
   const today = localDate();
   const ready = pages.length > 0 && pages.every((p) => p.cleaned && !p.request && !p.error);
-  // Each clean makes a new URL, so this changes whenever a page, the order, the title or the course does.
   const keyOf = (name: string, courseName: string, list: ScanPage[]) =>
-    [name, courseName.trim(), ...list.map((p) => p.cleaned?.url ?? '')].join('\n');
-  const upToDate = savedAs !== null && savedAs.key === keyOf(title.trim(), course, pages);
+    scanKey(name, courseName, list.map((p) => ({ url: p.cleaned?.url ?? '', regionsComplete: p.regionsComplete, blocks: p.blocks })));
+  const currentKey = useMemo(() => keyOf(title.trim(), course, pages), [title, course, pages]);
+  const upToDate = savedAs !== null && savedAs.key === currentKey;
   const courses = groupByCourse(library).map((g) => g.course).filter(Boolean);
 
   const savePdf = async (jpegs: Blob[], filename: string) => {
@@ -258,6 +263,10 @@ export default function ScanPage() {
         course: course.trim(),
         createdAt: new Date().toISOString(),
         pages: pages.map((p) => ({ jpeg: p.cleaned!.jpeg, width: p.cleaned!.width, height: p.cleaned!.height })),
+        document: {
+          version: DOCUMENT_VERSION,
+          pages: pages.map((p) => ({ width: p.cleaned!.width, height: p.cleaned!.height, regionsComplete: p.regionsComplete, blocks: p.blocks })),
+        },
       });
       // The editor may hold another scan by now. Linking it to this save would let
       // its next save overwrite this one.
@@ -285,13 +294,17 @@ export default function ScanPage() {
     pageSet.current += 1;
     editing.current += 1;
     pages.forEach(release);
-    const opened: ScanPage[] = scan.pages.map((p) => ({
+    const opened: ScanPage[] = scan.pages.map((p, i) => ({
       id: uid(), file: null, originalUrl: null, request: null, error: null,
       cleaned: { url: URL.createObjectURL(p.jpeg), format: 'jpeg', jpeg: p.jpeg, width: p.width, height: p.height, pageFound: true, skewDegrees: 0 },
+      blocks: scan.document.pages[i].blocks,
+      regionsComplete: scan.document.pages[i].regionsComplete,
     }));
     setPages(opened);
     setSelectedId(opened[0].id);
-    setNotice(null);
+    setNotice(scan.labelsUnreadable
+      ? { kind: 'info', text: "This scan's marked regions could not be read, so it opened without them." }
+      : null);
     setSaveError(null);
     setTitle(scan.title);
     setCourse(scan.course);

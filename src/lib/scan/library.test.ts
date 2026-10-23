@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DOCUMENT_VERSION, emptyDocument, userBlock } from '@/lib/scan/document';
 import { decodeSavedScan, groupByCourse, scanFileName, type SavedScan } from '@/lib/scan/library';
 
 const page = () => ({ jpeg: new Blob([new Uint8Array([0xff, 0xd8])], { type: 'image/jpeg' }), width: 1700, height: 2200 });
@@ -9,7 +10,34 @@ const scan = (overrides: Record<string, unknown> = {}) => ({
 describe('decodeSavedScan', () => {
   it('keeps a well-formed scan', () => {
     const value = scan();
-    expect(decodeSavedScan(value)).toEqual(value);
+    expect(decodeSavedScan(value)).toEqual({ ...value, document: emptyDocument([{ width: 1700, height: 2200 }, { width: 1700, height: 2200 }]) });
+  });
+
+  it('keeps marked regions that line up with the pages', () => {
+    const document = {
+      version: DOCUMENT_VERSION,
+      pages: [
+        { width: 1700, height: 2200, regionsComplete: true, blocks: [userBlock('r1', 'math', { x: 10, y: 20, width: 300, height: 40 })] },
+        { width: 1700, height: 2200, regionsComplete: false, blocks: [] },
+      ],
+    };
+    const decoded = decodeSavedScan(scan({ document }));
+    expect(decoded?.document).toEqual(document);
+    expect(decoded?.labelsUnreadable).toBeUndefined();
+  });
+
+  it('opens a scan without its labels when they do not line up, instead of dropping the scan', () => {
+    const one = { width: 1700, height: 2200, regionsComplete: true, blocks: [] };
+    for (const document of [
+      { version: DOCUMENT_VERSION, pages: [one] },
+      { version: DOCUMENT_VERSION, pages: [one, { ...one, width: 1600 }] },
+      { version: DOCUMENT_VERSION + 1, pages: [one, one] },
+      'labels',
+    ]) {
+      const decoded = decodeSavedScan(scan({ document }));
+      expect(decoded?.labelsUnreadable).toBe(true);
+      expect(decoded?.document.pages.map((p) => p.blocks.length)).toEqual([0, 0]);
+    }
   });
 
   it('files a scan saved before courses existed under no course', () => {

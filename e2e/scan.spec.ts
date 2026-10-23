@@ -501,6 +501,117 @@ test('a save still running when another scan is opened leaves the opened scan al
   await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
 });
 
+/** Put scans straight into IndexedDB, as an earlier version of the app would have saved them. */
+async function seedScans(page: Page, version: number, scans: { id: string; title: string; sizes: [number, number][]; document?: unknown }[]) {
+  await page.evaluate(async ({ version, scans }) => {
+    const jpeg = (w: number, h: number) => new Promise<Blob>((resolve) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#fbfaf5';
+      ctx.fillRect(0, 0, w, h);
+      canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.9);
+    });
+    const records: Record<string, unknown>[] = [];
+    for (const s of scans) {
+      const pages: { jpeg: Blob; width: number; height: number }[] = [];
+      for (const [width, height] of s.sizes) pages.push({ jpeg: await jpeg(width, height), width, height });
+      records.push({ id: s.id, title: s.title, course: '', createdAt: new Date().toISOString(), pages, ...(s.document === undefined ? {} : { document: s.document }) });
+    }
+    await new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open('sahurlock-scans', version);
+      open.onupgradeneeded = () => open.result.createObjectStore('scans', { keyPath: 'id' });
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const tx = open.result.transaction('scans', 'readwrite');
+        for (const r of records) tx.objectStore('scans').put(r);
+        tx.oncomplete = () => { open.result.close(); resolve(); };
+      };
+    });
+  }, { version, scans });
+}
+
+/** A saved scan as stored, with each page's image left out. */
+async function readScan(page: Page, id: string) {
+  return page.evaluate((id) => new Promise<{ title: string; pages: { width: number; height: number }[]; document: unknown }>((resolve, reject) => {
+    const open = indexedDB.open('sahurlock-scans');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const request = open.result.transaction('scans').objectStore('scans').get(id);
+      request.onsuccess = () => {
+        open.result.close();
+        const r = request.result;
+        resolve({ ...r, pages: r.pages.map((p: { width: number; height: number }) => ({ width: p.width, height: p.height })) });
+      };
+    };
+  }), id);
+}
+
+test('a scan saved before regions existed still opens and saves', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 1, [{ id: 'old', title: 'Old notes', sizes: [[400, 500]] }]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Old notes' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+  await page.getByLabel('Title').fill('Old notes, renamed');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+
+  const record = await readScan(page, 'old');
+  expect(record.title).toBe('Old notes, renamed');
+  expect(record.document).toEqual({ version: 1, pages: [{ width: 400, height: 500, regionsComplete: false, blocks: [] }] });
+});
+
+test('marked regions stay with their page when pages are reordered', async ({ page }) => {
+  const block = { id: 'r1', kind: 'math', box: { x: 40, y: 50, width: 200, height: 60 }, content: 'F = ma', tokens: [], origin: { by: 'user' }, reviewed: true };
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [{
+    id: 'lab', title: 'Lab', sizes: [[400, 500], [500, 400]],
+    document: { version: 1, pages: [
+      { width: 400, height: 500, regionsComplete: true, blocks: [block] },
+      { width: 500, height: 400, regionsComplete: false, blocks: [] },
+    ] },
+  }]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lab' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Page 2', exact: true }).click();
+  await page.getByRole('button', { name: 'Move earlier' }).click();
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+
+  const record = await readScan(page, 'lab');
+  expect(record.pages).toEqual([{ width: 500, height: 400 }, { width: 400, height: 500 }]);
+  expect(record.document).toEqual({ version: 1, pages: [
+    { width: 500, height: 400, regionsComplete: false, blocks: [] },
+    { width: 400, height: 500, regionsComplete: true, blocks: [block] },
+  ] });
+});
+
+test('code from before regions cannot open the scans database and save over them', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.waitForFunction(async () => (await indexedDB.databases()).some((d) => d.name === 'sahurlock-scans' && d.version === 2));
+  const outcome = await page.evaluate(() => new Promise<string>((resolve) => {
+    const open = indexedDB.open('sahurlock-scans', 1);
+    open.onsuccess = () => { open.result.close(); resolve('opened'); };
+    open.onerror = () => resolve(open.error?.name ?? 'error');
+  }));
+  expect(outcome).toBe('VersionError');
+});
+
+test('a scan whose labels do not line up with its pages opens without them and says so', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [{
+    id: 'odd', title: 'Odd', sizes: [[400, 500], [500, 400]],
+    document: { version: 1, pages: [{ width: 400, height: 500, regionsComplete: true, blocks: [] }] },
+  }]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Odd' }).click();
+  await expect(page.getByRole('status').filter({ hasText: "This scan's marked regions could not be read" })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(2);
+});
+
 test('a file that is not an image gets a clear message', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
   await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('not an image') });
