@@ -81,7 +81,9 @@ that shipped it.
 - [x] Scan several pages and save them as one PDF on A4 or Letter
 - [x] Accept PDF pages too, through pdf.js (its legacy build, for older browsers)
 - [x] Save scans to an on-device library, covered by Clear everything
-- [ ] Organize saved scans: rename, reorder and regroup pages, file them by course
+- [x] Open a saved scan again to rename it, file it under a course, and reorder, add or
+      remove its pages. The list groups scans by course
+- [ ] Move pages from one saved scan to another
 - [ ] Versioned Document JSON for a converted page: blocks with bounding boxes,
       content, per-token confidence and alternatives
 - [ ] Layout styles (outline, Cornell, two-column) with print-ready PDF and

@@ -15,6 +15,8 @@ export interface SavedPage {
 export interface SavedScan {
   id: string;
   title: string;
+  /** The course it is filed under. Empty when it is not filed. */
+  course: string;
   /** ISO time it was last saved. */
   createdAt: string;
   pages: SavedPage[];
@@ -28,7 +30,34 @@ export function decodeSavedScan(value: unknown): SavedScan | null {
   if (typeof s?.id !== 'string' || typeof s.title !== 'string' || typeof s.createdAt !== 'string') return null;
   if (!Array.isArray(s.pages) || s.pages.length === 0) return null;
   const pagesOk = s.pages.every((p: Partial<SavedPage> | null) => p?.jpeg instanceof Blob && isSize(p.width) && isSize(p.height));
-  return pagesOk ? { id: s.id, title: s.title, createdAt: s.createdAt, pages: s.pages } : null;
+  if (!pagesOk) return null;
+  // Scans saved before courses existed have none.
+  return { id: s.id, title: s.title, course: typeof s.course === 'string' ? s.course : '', createdAt: s.createdAt, pages: s.pages };
+}
+
+export interface CourseGroup {
+  course: string;
+  scans: SavedScan[];
+}
+
+/**
+ * Scans grouped by course, courses in alphabetical order and unfiled scans last.
+ * Courses that differ only in case or surrounding spaces are one course, shown
+ * as first spelled. Within a group the input order is kept.
+ */
+export function groupByCourse(scans: SavedScan[]): CourseGroup[] {
+  const groups = new Map<string, CourseGroup>();
+  for (const scan of scans) {
+    const course = scan.course.trim();
+    const key = course.toLocaleLowerCase();
+    const group = groups.get(key) ?? { course, scans: [] };
+    group.scans.push(scan);
+    groups.set(key, group);
+  }
+  return [...groups.values()].sort((a, b) => {
+    if (!a.course || !b.course) return a.course ? -1 : b.course ? 1 : 0;
+    return a.course.localeCompare(b.course, undefined, { sensitivity: 'base', numeric: true });
+  });
 }
 
 /** A download name from a scan's title: letters and digits in any script, spaces as hyphens. */
