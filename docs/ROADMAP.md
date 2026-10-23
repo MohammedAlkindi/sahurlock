@@ -75,6 +75,7 @@ that shipped it.
 
 - [x] Upload a photo and see it cleaned: page detection, perspective correction,
       illumination flattening, deskew, ruled-line removal, before and after view
+- [x] Scan several pages and save them as one PDF on A4 or Letter
 - [ ] Accept PDF pages too, through pdf.js
 - [ ] Versioned Document JSON for a converted page: blocks with bounding boxes,
       content, per-token confidence and alternatives

@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 
 /**
@@ -44,10 +45,10 @@ test('a photographed page comes back cleaned, on the device', async ({ page }) =
   });
   await page.goto('/scan', { waitUntil: 'networkidle' });
 
-  await page.getByLabel('Choose a photo').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await page.getByLabel('Choose photos').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
 
   // Straightening to the page edges also removes the tilt, so there is nothing left to level.
-  await expect(page.getByRole('status')).toHaveText('Found the page edges and straightened it.', { timeout: 30_000 });
+  await expect(page.getByRole('status')).toHaveText('Page 1: Found the page edges and straightened it.', { timeout: 30_000 });
   const cleaned = page.getByRole('img', { name: 'The cleaned page' });
   await expect(cleaned).toBeVisible();
   expect(await cleaned.evaluate((img: HTMLImageElement) => img.naturalWidth / img.naturalHeight)).toBeCloseTo(840 / 1120, 1);
@@ -66,9 +67,9 @@ test('a photographed page comes back cleaned, on the device', async ({ page }) =
   });
   expect(darkestEdge).toBeGreaterThan(200);
 
-  const download = page.getByRole('link', { name: 'Download PNG' });
+  const download = page.getByRole('link', { name: 'Download this page as PNG' });
   await expect(download).toHaveAttribute('href', /^blob:/);
-  await expect(download).toHaveAttribute('download', /^notes-\d{4}-\d{2}-\d{2}\.png$/);
+  await expect(download).toHaveAttribute('download', /^notes-\d{4}-\d{2}-\d{2}-page-1\.png$/);
 
   expect(await page.evaluate(() => (window as unknown as { __csp?: string[] }).__csp ?? [])).toEqual([]);
   expect([...origins]).toEqual([new URL(page.url()).origin]);
@@ -76,14 +77,14 @@ test('a photographed page comes back cleaned, on the device', async ({ page }) =
 
 test('writing on a page that fills the photo is levelled', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
-  await page.getByLabel('Choose a photo').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
+  await page.getByLabel('Choose photos').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
   await expect(page.getByRole('status')).toContainText('No page edge stood out', { timeout: 30_000 });
   await expect(page.getByRole('status')).toContainText(/Levelled the writing by (3\.[6-9]|4\.[0-4])°/);
 });
 
 test('changing an option cleans the page again', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
-  await page.getByLabel('Choose a photo').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await page.getByLabel('Choose photos').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
   const cleaned = page.getByRole('img', { name: 'The cleaned page' });
   await expect(cleaned).toBeVisible({ timeout: 30_000 });
   const first = await cleaned.getAttribute('src');
@@ -91,8 +92,37 @@ test('changing an option cleans the page again', async ({ page }) => {
   await expect(cleaned).not.toHaveAttribute('src', first ?? '', { timeout: 30_000 });
 });
 
+test('several pages download as one PDF on the chosen paper', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await page.getByLabel('Add page').setInputFiles({ name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
+  const pdfButton = page.getByRole('button', { name: 'Download PDF (2 pages)' });
+  await expect(pdfButton).toBeEnabled({ timeout: 30_000 });
+
+  await page.getByLabel('Paper').selectOption('letter');
+  const [download] = await Promise.all([page.waitForEvent('download'), pdfButton.click()]);
+  expect(download.suggestedFilename()).toMatch(/^notes-\d{4}-\d{2}-\d{2}\.pdf$/);
+  const pdf = (await readFile(await download.path())).toString('latin1');
+  expect(pdf.startsWith('%PDF-1.4')).toBe(true);
+  expect(pdf).toContain('/Count 2');
+  expect(pdf.match(/\/MediaBox \[0 0 612 792\]/g)).toHaveLength(2);
+  expect(pdf.match(/\/Filter \/DCTDecode/g)).toHaveLength(2);
+});
+
+test('a page can be removed', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos').setInputFiles([
+    { name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) },
+    { name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) },
+  ]);
+  await expect(page.getByRole('button', { name: 'Download PDF (2 pages)' })).toBeEnabled({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Remove page 2' }).click();
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled();
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(1);
+});
+
 test('a file that is not an image gets a clear message', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
-  await page.getByLabel('Choose a photo').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('not an image') });
+  await page.getByLabel('Choose photos').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('not an image') });
   await expect(page.getByRole('alert').filter({ hasText: 'could not be opened' })).toBeVisible({ timeout: 30_000 });
 });
