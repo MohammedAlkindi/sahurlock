@@ -28,8 +28,8 @@ that shipped it.
 - [ ] Scale head-pose thresholds by face size, with recorded-landmark test fixtures
 - [x] Self-host a pinned MediaPipe build, so no third-party script sees camera frames
       (2d29870)
-- [x] Add a Content Security Policy that keeps it that way
-- [ ] Harden the scheduler: feature-detect `Notification`, split timeouts longer than
+- [x] Add a Content Security Policy that keeps it that way (103d70a)
+- [x] Harden the scheduler: feature-detect `Notification`, split timeouts longer than
       2^31 ms, use an icon that exists, arm new schedules without a reload
 - [ ] Move Spotify to PKCE and remove the server-side refresh route
 - [ ] Make the README, landing page and settings text match the code (warning

@@ -7,7 +7,7 @@ const TASKS_KEY        = 'sahurlock.tasks';
 const CUSTOM_VIDEO_KEY = 'sahurlock.custom_video';
 const TEMPLATES_KEY    = 'sahurlock.templates';
 const GOALS_KEY        = 'sahurlock.goals';
-const SCHEDULE_KEY     = 'sahurlock.schedule';
+export const SCHEDULE_KEY = 'sahurlock.schedule';
 
 // In-memory blob URL for the current session — set by the settings page when
 // a custom video is loaded from IndexedDB so the session page can use it.
@@ -210,6 +210,14 @@ export const saveGoals = (goals: Goals) => {
 
 // ── Scheduled sessions ────────────────────────────────────────────────────────
 
+/** Dispatched on window after any write below, so the scheduler can re-arm. */
+export const SCHEDULE_CHANGED_EVENT = 'sahurlock:schedule-changed';
+
+const writeScheduledSessions = (sessions: ScheduledSession[]) => {
+  localStorage.setItem(SCHEDULE_KEY, JSON.stringify(sessions));
+  window.dispatchEvent(new Event(SCHEDULE_CHANGED_EVENT));
+};
+
 export const loadScheduledSessions = (): ScheduledSession[] => {
   if (typeof window === 'undefined') return [];
   return safeParse<ScheduledSession[]>(localStorage.getItem(SCHEDULE_KEY), []);
@@ -218,16 +226,17 @@ export const loadScheduledSessions = (): ScheduledSession[] => {
 export const saveScheduledSession = (s: ScheduledSession) => {
   if (typeof window === 'undefined') return;
   const existing = loadScheduledSessions().filter((x) => x.id !== s.id);
-  localStorage.setItem(SCHEDULE_KEY, JSON.stringify([...existing, s]));
+  writeScheduledSessions([...existing, s]);
 };
 
 export const deleteScheduledSession = (id: string) => {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(SCHEDULE_KEY, JSON.stringify(loadScheduledSessions().filter((s) => s.id !== id)));
+  writeScheduledSessions(loadScheduledSessions().filter((s) => s.id !== id));
 };
 
 export const markScheduledSessionFired = (id: string) => {
   if (typeof window === 'undefined') return;
   const next = loadScheduledSessions().map((s) => (s.id === id ? { ...s, fired: true } : s));
+  // No change event: firing is the scheduler's own write and must not re-arm it.
   localStorage.setItem(SCHEDULE_KEY, JSON.stringify(next));
 };
