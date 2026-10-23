@@ -284,6 +284,8 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
     await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
     await page.getByLabel('Title').fill('Physics');
+    // Filed under a course, so the grouped list is what gets checked.
+    await page.getByLabel('Course').fill('PHYS 2A');
     await page.getByRole('button', { name: 'Save to this device' }).click();
     const saved = page.getByRole('region', { name: 'Saved scans' });
     await expect(saved).toBeVisible();
@@ -294,6 +296,84 @@ for (const theme of ['light', 'dark'] as const) {
     expect(await violations(page)).toEqual([]);
   });
 }
+
+test('a saved scan opens again to rename, file under a course and reorder', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) },
+    { name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) },
+  ]);
+  await expect(page.getByRole('button', { name: 'Download PDF (2 pages)' })).toBeEnabled({ timeout: 30_000 });
+  const widthOf = async (n: number) => {
+    await page.getByRole('button', { name: `Page ${n}`, exact: true }).click();
+    return Number((await page.getByText(/^Cleaned, \d+ × \d+ px$/).innerText()).match(/(\d+) ×/)![1]);
+  };
+  const [first, second] = [await widthOf(1), await widthOf(2)];
+  expect(first).not.toBe(second);
+  await page.getByLabel('Title').fill('Lecture 5');
+  await page.getByLabel('Course').fill('CSE 12');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await page.getByRole('button', { name: 'Start over' }).click();
+
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await expect(saved.getByRole('heading', { level: 3, name: 'CSE 12' })).toBeVisible();
+  await saved.getByRole('button', { name: 'Open Lecture 5' }).click();
+  await expect(page.getByRole('heading', { name: 'Scan notes' })).toBeFocused();
+  await expect(page.getByLabel('Title')).toHaveValue('Lecture 5');
+  await expect(page.getByLabel('Course')).toHaveValue('CSE 12');
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+  await expect(page.getByText('Saved scans keep only the cleaned page, not the photo.')).toBeVisible();
+
+  // Opened pages are cleaned already, so the options leave them as they are.
+  await page.getByLabel('Remove grid lines').check();
+  await expect(page.getByText('already cleaned, so these options apply to photos you add')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+
+  // Refiling alone is a change worth saving.
+  await page.getByLabel('Course').fill('MATH 20C');
+  await expect(page.getByRole('button', { name: 'Save changes' })).toBeEnabled();
+
+  await page.getByRole('button', { name: 'Page 2', exact: true }).click();
+  await page.getByRole('button', { name: 'Move earlier' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Page 1:' })).toHaveText('Page 1: Opened from Saved scans.');
+  await expect(page.getByRole('button', { name: 'Move earlier' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Move earlier' })).toBeFocused();
+
+  await page.getByLabel('Title').fill('Lecture 5 annotated');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+  await expect(saved.getByRole('listitem')).toHaveCount(1);
+  await expect(saved.getByRole('heading', { level: 3, name: 'MATH 20C' })).toBeVisible();
+  await expect(saved.getByRole('heading', { level: 3, name: 'CSE 12' })).toHaveCount(0);
+
+  const [download] = await Promise.all([page.waitForEvent('download'), saved.getByRole('button', { name: 'Download Lecture 5 annotated as PDF' }).click()]);
+  const pdf = (await readFile(await download.path())).toString('latin1');
+  expect([...pdf.matchAll(/\/Subtype \/Image \/Width (\d+)/g)].map((m) => Number(m[1]))).toEqual([second, first]);
+});
+
+test('opening a saved scan over unsaved pages asks first', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByLabel('Title').fill('Scan A');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Scan A' }).click();
+  const confirm = saved.getByRole('group', { name: 'Replace the unsaved pages with Scan A?' });
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(saved.getByRole('button', { name: 'Open Scan A' })).toBeFocused();
+  await expect(page.getByLabel('Title')).toHaveValue('');
+
+  await saved.getByRole('button', { name: 'Open Scan A' }).click();
+  await confirm.getByRole('button', { name: 'Replace' }).click();
+  await expect(page.getByLabel('Title')).toHaveValue('Scan A');
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+});
 
 test('a file that is not an image gets a clear message', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });

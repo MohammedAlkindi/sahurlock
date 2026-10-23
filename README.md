@@ -29,9 +29,10 @@ Photograph a page of handwritten notes, or open a PDF of them, and the Scan tool
 it up: it finds the page edges and corrects the perspective, evens out shadows and
 uneven light, levels tilted writing and removes ruled or grid lines while keeping
 strokes that cross them. Several pages save as one PDF on A4 or Letter, or a single page
-as a PNG, and scans can be saved to the device to download again later. It runs in a Web
-Worker on your device, so the photos are never uploaded. Cleanup is where Scan starts.
-Recognising handwriting, math and diagrams, with models that run on the device, comes next.
+as a PNG. Scans can be saved to the device, filed by course, and opened again later to
+rename them, reorder their pages or add more. It runs in a Web Worker on your device, so
+the photos are never uploaded. Cleanup is where Scan starts. Recognising handwriting,
+math and diagrams, with models that run on the device, comes next.
 
 ## Install
 

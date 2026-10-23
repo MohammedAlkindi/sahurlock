@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Download, FileDown, ImageUp, Plus, RotateCcw, Save, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, FileDown, ImageUp, Plus, RotateCcw, Save, X } from 'lucide-react';
 import { PaperSelect } from '@/components/paper-select';
 import { SavedScans } from '@/components/saved-scans';
 import type { LineRemoval } from '@/lib/scan/clean';
 import { buildPdf, type Paper } from '@/lib/scan/pdf';
 import { isPdf, MAX_PDF_PAGES, pdfToImages } from '@/lib/scan/pdf-pages';
-import { deleteScan, listScans, saveScan, scanFileName, type SavedScan } from '@/lib/scan/library';
+import { deleteScan, groupByCourse, listScans, saveScan, scanFileName, type SavedScan } from '@/lib/scan/library';
 import type { ScanRequest, ScanResponse } from '@/lib/scan/worker';
 import { uid } from '@/lib/utils';
 
@@ -21,7 +21,9 @@ const localDate = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1
 const localTime = (d = new Date()) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 interface Cleaned {
-  pngUrl: string;
+  /** Object URL of the cleaned image: the worker's PNG, or the stored JPEG of a saved page. */
+  url: string;
+  format: 'png' | 'jpeg';
   jpeg: Blob;
   width: number;
   height: number;
@@ -31,8 +33,9 @@ interface Cleaned {
 
 interface ScanPage {
   id: string;
-  file: File;
-  originalUrl: string;
+  /** The photo, or null for a page opened from Saved scans, which keep only the cleaned image. */
+  file: File | null;
+  originalUrl: string | null;
   /** The worker request whose answer this page is waiting for. */
   request: string | null;
   cleaned: Cleaned | null;
@@ -48,11 +51,18 @@ function defaultPaper(): Paper {
 function describe(page: ScanPage): string {
   if (page.error) return page.error;
   if (!page.cleaned || page.request) return 'Cleaning the page…';
+  if (!page.file) return 'Opened from Saved scans.';
   const { pageFound, skewDegrees } = page.cleaned;
   return [
     pageFound ? 'Found the page edges and straightened it.' : 'No page edge stood out, so the whole photo was used.',
     Math.abs(skewDegrees) >= 0.5 ? ` Levelled the writing by ${Math.abs(skewDegrees).toFixed(1)}°.` : '',
   ].join('');
+}
+
+/** Free the object URLs a page holds. */
+function release(page: ScanPage) {
+  if (page.originalUrl) URL.revokeObjectURL(page.originalUrl);
+  if (page.cleaned) URL.revokeObjectURL(page.cleaned.url);
 }
 
 export default function ScanPage() {
@@ -67,6 +77,7 @@ export default function ScanPage() {
   const [notice, setNotice] = useState<{ kind: 'reading' | 'error' | 'info'; text: string } | null>(null);
   const [library, setLibrary] = useState<SavedScan[]>([]);
   const [title, setTitle] = useState('');
+  const [course, setCourse] = useState('');
   /** The library entry these pages were saved as, and what they looked like then. */
   const [savedAs, setSavedAs] = useState<{ id: string; key: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -92,24 +103,23 @@ export default function ScanPage() {
       setPages((all) => all.map((page) => {
         if (page.request !== r.id) return page;
         if (!r.ok) return { ...page, request: null, error: r.error };
-        if (page.cleaned) URL.revokeObjectURL(page.cleaned.pngUrl);
+        if (page.cleaned) URL.revokeObjectURL(page.cleaned.url);
         return {
           ...page, request: null, error: null,
-          cleaned: { pngUrl: URL.createObjectURL(r.png), jpeg: r.jpeg, width: r.width, height: r.height, pageFound: r.pageFound, skewDegrees: r.skewDegrees },
+          cleaned: { url: URL.createObjectURL(r.png), format: 'png', jpeg: r.jpeg, width: r.width, height: r.height, pageFound: r.pageFound, skewDegrees: r.skewDegrees },
         };
       }));
     };
     workerRef.current = worker;
     return () => {
       worker.terminate();
-      for (const page of pagesRef.current) {
-        URL.revokeObjectURL(page.originalUrl);
-        if (page.cleaned) URL.revokeObjectURL(page.cleaned.pngUrl);
-      }
+      pagesRef.current.forEach(release);
     };
   }, []);
 
   const send = (page: ScanPage, options: LineRemoval): ScanPage => {
+    // A page opened from Saved scans was cleaned when it was scanned, and its photo is not kept.
+    if (!page.file) return page;
     const request: ScanRequest = { id: uid(), file: page.file, lines: options };
     workerRef.current?.postMessage(request);
     return { ...page, request: request.id, error: null };
@@ -146,12 +156,20 @@ export default function ScanPage() {
     setPages(pages.map((page) => send(page, next)));
   };
 
+  const movePage = (id: string, step: -1 | 1) => {
+    setPages((all) => {
+      const from = all.findIndex((p) => p.id === id);
+      const to = from + step;
+      if (from < 0 || to < 0 || to >= all.length) return all;
+      const next = [...all];
+      [next[from], next[to]] = [next[to], next[from]];
+      return next;
+    });
+  };
+
   const removePage = (id: string) => {
     const page = pages.find((p) => p.id === id);
-    if (page) {
-      URL.revokeObjectURL(page.originalUrl);
-      if (page.cleaned) URL.revokeObjectURL(page.cleaned.pngUrl);
-    }
+    if (page) release(page);
     const rest = pages.filter((p) => p.id !== id);
     setPages(rest);
     if (selectedId === id) setSelectedId(rest[0]?.id ?? null);
@@ -161,15 +179,13 @@ export default function ScanPage() {
 
   const forgetSavedScan = () => {
     setTitle('');
+    setCourse('');
     setSavedAs(null);
     setSaveError(null);
   };
 
   const startOver = () => {
-    for (const page of pages) {
-      URL.revokeObjectURL(page.originalUrl);
-      if (page.cleaned) URL.revokeObjectURL(page.cleaned.pngUrl);
-    }
+    pages.forEach(release);
     setPages([]);
     setSelectedId(null);
     setNotice(null);
@@ -184,9 +200,11 @@ export default function ScanPage() {
 
   const today = localDate();
   const ready = pages.length > 0 && pages.every((p) => p.cleaned && !p.request && !p.error);
-  // Each clean makes a new URL, so this changes whenever a page, the order or the title does.
-  const keyFor = (name: string) => [name, ...pages.map((p) => p.cleaned?.pngUrl ?? '')].join('\n');
-  const upToDate = savedAs !== null && savedAs.key === keyFor(title.trim());
+  // Each clean makes a new URL, so this changes whenever a page, the order, the title or the course does.
+  const keyOf = (name: string, courseName: string, list: ScanPage[]) =>
+    [name, courseName.trim(), ...list.map((p) => p.cleaned?.url ?? '')].join('\n');
+  const upToDate = savedAs !== null && savedAs.key === keyOf(title.trim(), course, pages);
+  const courses = groupByCourse(library).map((g) => g.course).filter(Boolean);
 
   const savePdf = async (jpegs: Blob[], filename: string) => {
     if (exporting) return;
@@ -218,13 +236,14 @@ export default function ScanPage() {
     const replacing = savedAs !== null;
     // An untitled scan is named when it is saved, and the name shows in the field.
     const name = title.trim() || `Notes ${localDate()} ${localTime()}`;
-    const key = keyFor(name);
+    const key = keyOf(name, course, pages);
     setSaving(true);
     setSaveError(null);
     try {
       await saveScan(idb, {
         id,
         title: name,
+        course: course.trim(),
         createdAt: new Date().toISOString(),
         pages: pages.map((p) => ({ jpeg: p.cleaned!.jpeg, width: p.cleaned!.width, height: p.cleaned!.height })),
       });
@@ -239,6 +258,23 @@ export default function ScanPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const openSaved = (scan: SavedScan) => {
+    pages.forEach(release);
+    const opened: ScanPage[] = scan.pages.map((p) => ({
+      id: uid(), file: null, originalUrl: null, request: null, error: null,
+      cleaned: { url: URL.createObjectURL(p.jpeg), format: 'jpeg', jpeg: p.jpeg, width: p.width, height: p.height, pageFound: true, skewDegrees: 0 },
+    }));
+    setPages(opened);
+    setSelectedId(opened[0].id);
+    setNotice(null);
+    setSaveError(null);
+    setTitle(scan.title);
+    setCourse(scan.course);
+    setSavedAs({ id: scan.id, key: keyOf(scan.title, scan.course, opened) });
+    announce(`Opened ${scan.title}.`);
+    pageHeading.current?.focus();
   };
 
   const removeSaved = async (scan: SavedScan) => {
@@ -310,6 +346,9 @@ export default function ScanPage() {
               <input type="checkbox" checked={lines.vertical} onChange={(e) => changeLines({ ...lines, vertical: e.target.checked })} className="h-4 w-4 accent-accent" />
               Remove grid lines
             </label>
+            {pages.some((p) => !p.file) && (
+              <p className="w-full text-xs text-muted-foreground">Pages opened from Saved scans are already cleaned, so these options apply to photos you add.</p>
+            )}
           </fieldset>
 
           <ol aria-label="Pages" className="mb-5 flex flex-wrap items-center gap-2">
@@ -322,7 +361,7 @@ export default function ScanPage() {
                 >
                   {page.cleaned
                     // eslint-disable-next-line @next/next/no-img-element -- a local blob URL, which next/image cannot optimise
-                    ? <img src={page.cleaned.pngUrl} alt="" className="h-full w-full object-contain" />
+                    ? <img src={page.cleaned.url} alt="" className="h-full w-full object-contain" />
                     : <span className="text-[10px] text-muted-foreground">{page.error ? 'Error' : '…'}</span>}
                   <span className="sr-only">Page {i + 1}</span>
                 </button>
@@ -350,16 +389,38 @@ export default function ScanPage() {
                 ? <p role="alert" className="mb-4 text-sm text-danger">Page {selectedNumber}: {selected.error}</p>
                 : <p role="status" aria-live="polite" className="mb-4 min-h-5 text-sm text-muted-foreground">Page {selectedNumber}: {describe(selected)}</p>}
 
+              {pages.length > 1 && (
+                <div className="mb-4 flex gap-2">
+                  {/* aria-disabled at the ends, so the button keeps focus after the last move. */}
+                  <button
+                    onClick={() => movePage(selected.id, -1)}
+                    aria-disabled={selectedNumber === 1}
+                    className="inline-flex items-center gap-1 rounded-lg border border-input px-3 py-1.5 text-sm text-foreground transition hover:bg-muted aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
+                  >
+                    <ChevronLeft size={14} aria-hidden="true" /> Move earlier
+                  </button>
+                  <button
+                    onClick={() => movePage(selected.id, 1)}
+                    aria-disabled={selectedNumber === pages.length}
+                    className="inline-flex items-center gap-1 rounded-lg border border-input px-3 py-1.5 text-sm text-foreground transition hover:bg-muted aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
+                  >
+                    Move later <ChevronRight size={14} aria-hidden="true" />
+                  </button>
+                </div>
+              )}
+
               <div className="grid gap-4 md:grid-cols-2">
                 <figure className="overflow-hidden rounded-xl border border-border bg-card">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- a local blob URL, which next/image cannot optimise */}
-                  <img src={selected.originalUrl} alt="The photo as taken" className="max-h-[70vh] w-full object-contain" />
+                  {selected.originalUrl
+                    // eslint-disable-next-line @next/next/no-img-element -- a local blob URL, which next/image cannot optimise
+                    ? <img src={selected.originalUrl} alt="The photo as taken" className="max-h-[70vh] w-full object-contain" />
+                    : <div className="flex h-64 items-center justify-center px-6 text-center text-sm text-muted-foreground">Saved scans keep only the cleaned page, not the photo.</div>}
                   <figcaption className="border-t border-border px-3 py-2 text-xs text-muted-foreground">Original</figcaption>
                 </figure>
                 <figure className="overflow-hidden rounded-xl border border-border bg-card">
                   {selected.cleaned
                     // eslint-disable-next-line @next/next/no-img-element -- a local blob URL, which next/image cannot optimise
-                    ? <img src={selected.cleaned.pngUrl} alt="The cleaned page" className="max-h-[70vh] w-full bg-white object-contain" />
+                    ? <img src={selected.cleaned.url} alt="The cleaned page" className="max-h-[70vh] w-full bg-white object-contain" />
                     : <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">{selected.error ? '' : 'Cleaning…'}</div>}
                   <figcaption className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
                     Cleaned{selected.cleaned ? `, ${selected.cleaned.width} × ${selected.cleaned.height} px` : ''}
@@ -382,11 +443,11 @@ export default function ScanPage() {
             <PaperSelect value={paper} onChange={setPaper} />
             {selected?.cleaned && (
               <a
-                href={selected.cleaned.pngUrl}
-                download={`notes-${today}-page-${selectedNumber}.png`}
+                href={selected.cleaned.url}
+                download={`notes-${today}-page-${selectedNumber}.${selected.cleaned.format === 'png' ? 'png' : 'jpg'}`}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-input px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-muted"
               >
-                <Download size={15} /> Download this page as PNG
+                <Download size={15} /> Download this page as {selected.cleaned.format === 'png' ? 'PNG' : 'JPEG'}
               </a>
             )}
           </div>
@@ -401,6 +462,19 @@ export default function ScanPage() {
               maxLength={120}
               className="w-56 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none"
             />
+            <label htmlFor="scan-course" className="text-sm text-muted-foreground">Course</label>
+            <input
+              id="scan-course"
+              value={course}
+              onChange={(e) => setCourse(e.target.value)}
+              list="scan-courses"
+              placeholder="Optional"
+              maxLength={60}
+              className="w-36 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none"
+            />
+            <datalist id="scan-courses">
+              {courses.map((c) => <option key={c} value={c} />)}
+            </datalist>
             <button
               onClick={saveToLibrary}
               disabled={!ready}
@@ -422,6 +496,9 @@ export default function ScanPage() {
           exporting={exporting}
           // The editor has its own paper control. Without it open, the list shows one.
           paper={pages.length === 0 ? { value: paper, onChange: setPaper } : null}
+          // Opening over pages that are not saved as they are asks first.
+          openNeedsConfirm={pages.length > 0 && !upToDate}
+          onOpen={openSaved}
           onDownload={(scan) => savePdf(scan.pages.map((pg) => pg.jpeg), scanFileName(scan.title))}
           onDelete={removeSaved}
         />
