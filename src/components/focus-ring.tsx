@@ -55,7 +55,7 @@ export function FocusRing({ remainingMs, totalMs, appState, offscreenMs = 0, thr
           cy={RADIUS + STROKE}
           r={RADIUS}
           fill="none"
-          stroke="var(--border)"
+          stroke="rgb(var(--border))"
           strokeWidth={STROKE}
         />
 

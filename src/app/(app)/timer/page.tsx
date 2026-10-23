@@ -121,7 +121,7 @@ function Stopwatch() {
             const lapNum   = laps.length - i;
             return (
               <div key={i} className="flex items-center justify-between rounded-lg px-4 py-2.5 text-sm">
-                <span className="text-muted-foreground/60">Lap {lapNum}</span>
+                <span className="text-muted-foreground">Lap {lapNum}</span>
                 <span className="font-mono tabular-nums text-muted-foreground">{formatMs(lapTime)}</span>
               </div>
             );
@@ -196,7 +196,7 @@ function Countdown() {
             { label: 's', value: seconds, set: setSeconds, max: 59 },
           ] as const).map(({ label, value, set, max }, i) => (
             <div key={label} className="flex items-center gap-2">
-              {i > 0 && <span className="text-2xl font-black text-muted-foreground/30">:</span>}
+              {i > 0 && <span className="text-2xl font-black text-muted-foreground">:</span>}
               <div className="flex flex-col items-center gap-1">
                 <input
                   type="number"
@@ -206,7 +206,7 @@ function Countdown() {
                   onChange={(e) => set(Math.min(max, Math.max(0, Number(e.target.value))))}
                   className="w-16 rounded-xl border border-border bg-card px-2 py-2 text-center font-mono text-2xl font-bold tabular-nums text-foreground focus:border-accent focus:outline-none"
                 />
-                <span className="text-[10px] uppercase tracking-widest text-muted-foreground/40">{label}</span>
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</span>
               </div>
             </div>
           ))}

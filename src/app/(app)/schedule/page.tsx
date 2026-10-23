@@ -251,14 +251,14 @@ export default function SchedulePage() {
                   <button
                     onClick={() => handleStartNow(s)}
                     title="Start now"
-                    className="rounded-lg p-2 text-muted-foreground/50 transition hover:bg-accent/10 hover:text-accent"
+                    className="rounded-lg p-2 text-muted-foreground transition hover:bg-accent/10 hover:text-accent"
                   >
                     <Play size={14} />
                   </button>
                   <button
                     onClick={() => handleDelete(s.id)}
                     title="Delete"
-                    className="rounded-lg p-2 text-muted-foreground/30 transition hover:bg-muted hover:text-red-600"
+                    className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-red-600"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -291,7 +291,7 @@ export default function SchedulePage() {
                 </div>
                 <button
                   onClick={() => handleDelete(s.id)}
-                  className="shrink-0 rounded-lg p-2 text-muted-foreground/30 transition hover:bg-muted hover:text-red-600"
+                  className="shrink-0 rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-red-600"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -303,7 +303,7 @@ export default function SchedulePage() {
 
       {sessions.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-border/50 bg-card/30 py-16 text-center">
-          <CalendarClock size={28} className="text-muted-foreground/30" />
+          <CalendarClock size={28} className="text-muted-foreground" />
           <p className="text-sm text-muted-foreground">No sessions scheduled yet</p>
         </div>
       )}

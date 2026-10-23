@@ -185,12 +185,12 @@ function CardRow({
         {isDue ? (
           <span className="rounded bg-amber-500/10 px-1.5 py-0.5 font-medium text-amber-700">Due</span>
         ) : (
-          <span className="text-muted-foreground/60">
+          <span className="text-muted-foreground">
             Next {new Date(card.nextReview + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
           </span>
         )}
         {accuracy !== null && (
-          <span className={cn('text-muted-foreground/60', accuracy >= 80 ? 'text-green-600' : accuracy < 50 ? 'text-red-600' : '')}>
+          <span className={cn('text-muted-foreground', accuracy >= 80 ? 'text-green-600' : accuracy < 50 ? 'text-red-600' : '')}>
             {accuracy}% correct ({card.reviewCount} reviews)
           </span>
         )}
@@ -304,7 +304,7 @@ export default function FlashcardsPage() {
       {cards.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-20 text-center">
           <p className="text-sm font-semibold text-muted-foreground">No cards yet</p>
-          <p className="mt-1 text-xs text-muted-foreground/60">Add your first card and it will appear during session breaks.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Add your first card and it will appear during session breaks.</p>
           <button
             onClick={() => setShowForm(true)}
             className="mt-4 flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:border-foreground/20 hover:text-foreground transition"

@@ -116,7 +116,7 @@ function Row({
       <div className="min-w-0 flex-1">
         <p className="text-sm text-foreground">{label}</p>
         {description && (
-          <p className="mt-1 text-sm leading-relaxed text-muted-foreground/60">{description}</p>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
         )}
       </div>
       <div className="shrink-0 pt-0.5">{children}</div>
@@ -126,7 +126,7 @@ function Row({
 
 function SectionHeading({ title }: { title: string }) {
   return (
-    <p className="mb-2 mt-8 text-xs font-medium uppercase tracking-wider text-muted-foreground/50 first:mt-0">
+    <p className="mb-2 mt-8 text-xs font-medium uppercase tracking-wider text-muted-foreground first:mt-0">
       {title}
     </p>
   );
@@ -139,7 +139,7 @@ function InlineDisclosure({ label, children }: { label: string; children: React.
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 text-xs text-muted-foreground/60 transition hover:text-muted-foreground"
+        className="flex items-center gap-1 text-xs text-muted-foreground transition hover:text-muted-foreground"
       >
         <ChevronDown size={11} className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
         {label}
@@ -228,20 +228,20 @@ function PunishmentMediaPicker({
         <div className="rounded-md border border-border/40 bg-muted/20 px-3 py-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <Video size={12} className="shrink-0 text-muted-foreground/60" />
+              <Video size={12} className="shrink-0 text-muted-foreground" />
               <span className="truncate text-xs text-foreground">{meta.name}</span>
-              <span className="shrink-0 text-[10px] text-muted-foreground/40">{formatFileSize(meta.size)}</span>
+              <span className="shrink-0 text-[10px] text-muted-foreground">{formatFileSize(meta.size)}</span>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               {previewUrl && (
-                <button onClick={() => setShowPreview((v) => !v)} className="text-[11px] text-muted-foreground/60 hover:text-foreground transition">
+                <button onClick={() => setShowPreview((v) => !v)} className="text-[11px] text-muted-foreground hover:text-foreground transition">
                   <Play size={10} className="inline mr-0.5" />preview
                 </button>
               )}
-              <button onClick={() => fileRef.current?.click()} className="text-[11px] text-muted-foreground/60 hover:text-foreground transition">
+              <button onClick={() => fileRef.current?.click()} className="text-[11px] text-muted-foreground hover:text-foreground transition">
                 <RefreshCw size={10} className="inline mr-0.5" />replace
               </button>
-              <button onClick={handleDelete} className="text-[11px] text-muted-foreground/40 hover:text-red-500 transition">
+              <button onClick={handleDelete} className="text-[11px] text-muted-foreground hover:text-red-500 transition">
                 <Trash2 size={10} />
               </button>
             </div>
@@ -254,10 +254,10 @@ function PunishmentMediaPicker({
           <div className="mt-2 flex items-center justify-between">
             {hasCustom
               ? <span className="flex items-center gap-1 text-[10px] text-green-600 dark:text-green-500"><CheckCircle2 size={9} />Active</span>
-              : <button onClick={() => update({ punishmentMedia: CUSTOM_PUNISHMENT_MEDIA })} className="text-[11px] text-foreground/70 underline underline-offset-2 hover:text-foreground transition">Use this video</button>
+              : <button onClick={() => update({ punishmentMedia: CUSTOM_PUNISHMENT_MEDIA })} className="text-[11px] text-foreground underline underline-offset-2 hover:text-foreground transition">Use this video</button>
             }
             {hasCustom && (
-              <button onClick={() => update({ punishmentMedia: DEFAULT_PUNISHMENT_MEDIA })} className="text-[11px] text-muted-foreground/60 hover:text-foreground transition">
+              <button onClick={() => update({ punishmentMedia: DEFAULT_PUNISHMENT_MEDIA })} className="text-[11px] text-muted-foreground hover:text-foreground transition">
                 Switch to built-in
               </button>
             )}
@@ -337,7 +337,7 @@ function EnforcementPanel({
 
       {config.punishmentEnabled && (
         <div className="py-4">
-          <p className="mb-3 text-xs text-muted-foreground/60">Choose which clip plays on violation.</p>
+          <p className="mb-3 text-xs text-muted-foreground">Choose which clip plays on violation.</p>
           <PunishmentMediaPicker config={config} update={update} />
         </div>
       )}
@@ -408,7 +408,7 @@ function TemplatesPanel({
 
   return (
     <>
-      <p className="mb-6 text-sm text-muted-foreground/60 leading-relaxed">
+      <p className="mb-6 text-sm text-muted-foreground leading-relaxed">
         Apply a preset to overwrite the current session config. Built-in presets cannot be deleted.
       </p>
 
@@ -422,19 +422,19 @@ function TemplatesPanel({
           >
             <div className="min-w-0">
               <p className="text-sm text-foreground">{t.name}</p>
-              <p className="mt-0.5 text-sm text-muted-foreground/60">{t.description}</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">{t.description}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => update(t.config)}
-                className="rounded-md border border-border/50 px-4 py-1.5 text-sm text-foreground/80 transition hover:bg-muted/40 hover:text-foreground"
+                className="rounded-md border border-border/50 px-4 py-1.5 text-sm text-foreground transition hover:bg-muted/40 hover:text-foreground"
               >
                 Apply
               </button>
               {!t.id.startsWith('builtin_') && (
                 <button
                   onClick={() => handleDelete(t.id)}
-                  className="text-muted-foreground/30 transition hover:text-red-500"
+                  className="text-muted-foreground transition hover:text-red-500"
                 >
                   <Trash2 size={13} />
                 </button>
@@ -453,19 +453,19 @@ function TemplatesPanel({
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setSaving(false); }}
               placeholder="Template name…"
               autoFocus
-              className="flex-1 rounded-md border border-border/60 bg-background px-3 py-1.5 text-sm text-foreground placeholder-muted-foreground/40 focus:border-foreground/40 focus:outline-none"
+              className="flex-1 rounded-md border border-border/60 bg-background px-3 py-1.5 text-sm text-foreground placeholder-muted-foreground focus:border-foreground/40 focus:outline-none"
             />
             <button onClick={handleSave} className="rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition hover:opacity-80">
               Save
             </button>
-            <button onClick={() => setSaving(false)} className="text-xs text-muted-foreground/60 hover:text-foreground transition">
+            <button onClick={() => setSaving(false)} className="text-xs text-muted-foreground hover:text-foreground transition">
               Cancel
             </button>
           </div>
         ) : (
           <button
             onClick={() => setSaving(true)}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground/60 transition hover:text-foreground"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground transition hover:text-foreground"
           >
             <Plus size={12} />Save current config as template
           </button>
@@ -490,7 +490,7 @@ function ShortcutList({ items }: { items: { keys: string[]; action: string }[] }
             {keys.map((k) => (
               <kbd
                 key={k}
-                className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground/80 border border-border/40"
+                className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground border border-border/40"
               >
                 {k}
               </kbd>
@@ -546,7 +546,7 @@ function DataPanel() {
       >
         <button
           onClick={handleExport}
-          className="flex items-center gap-1.5 rounded-md border border-border/60 px-4 py-2 text-sm text-foreground/80 transition hover:bg-muted/40 hover:text-foreground"
+          className="flex items-center gap-1.5 rounded-md border border-border/60 px-4 py-2 text-sm text-foreground transition hover:bg-muted/40 hover:text-foreground"
         >
           <Download size={13} />Export
         </button>
@@ -565,7 +565,7 @@ function DataPanel() {
             >
               Clear everything
             </button>
-            <button onClick={() => setConfirming(false)} className="text-xs text-muted-foreground/60 hover:text-foreground transition">
+            <button onClick={() => setConfirming(false)} className="text-xs text-muted-foreground hover:text-foreground transition">
               Cancel
             </button>
           </div>

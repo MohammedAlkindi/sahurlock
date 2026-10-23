@@ -60,7 +60,7 @@ function NumInput({
   return (
     <label className="block space-y-1">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      {hint && <span className="ml-1 text-xs text-muted-foreground/60">({hint})</span>}
+      {hint && <span className="ml-1 text-xs text-muted-foreground">({hint})</span>}
       <input
         type="number"
         value={value}
@@ -79,11 +79,11 @@ function NumInput({
 
 function PresetDuration({ preset }: { preset: SessionPreset }) {
   const minutes = preset.config.durationMinutes;
-  if (!minutes) return <span className="font-mono text-lg font-bold text-muted-foreground/40">—</span>;
+  if (!minutes) return <span className="font-mono text-lg font-bold text-muted-foreground">—</span>;
   return (
     <span>
       <span className="font-mono text-xl font-black tabular-nums text-foreground">{minutes}</span>
-      <span className="ml-0.5 text-xs text-muted-foreground/60">min</span>
+      <span className="ml-0.5 text-xs text-muted-foreground">min</span>
     </span>
   );
 }
@@ -226,7 +226,7 @@ export function SessionConfigCard({ value, onChange, onStart, disabled, selected
           >
             <PresetDuration preset={p} />
             <span className="mt-1.5 text-xs font-semibold text-foreground">{p.name}</span>
-            <span className="text-[10px] text-muted-foreground/70">{p.description}</span>
+            <span className="text-[10px] text-muted-foreground">{p.description}</span>
           </button>
         ))}
       </div>

@@ -80,7 +80,7 @@ export default function LandingPage() {
               key={f.index}
               className={`bg-card p-8 ${i < FEATURES.length - 1 ? 'border-b border-border md:border-b-0 md:border-r' : ''}`}
             >
-              <p className="mb-3 font-mono text-[11px] text-muted-foreground/40">{f.index}</p>
+              <p className="mb-3 font-mono text-[11px] text-muted-foreground">{f.index}</p>
               <h3 className="mb-2 text-base font-semibold text-foreground">{f.title}</h3>
               <p className="text-sm leading-relaxed text-muted-foreground">{f.description}</p>
             </div>
@@ -89,7 +89,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border px-6 py-4 text-center text-xs text-muted-foreground/40">
+      <footer className="border-t border-border px-6 py-4 text-center text-xs text-muted-foreground">
         SahurLock &copy; 2026 Mohammed Alkindi &mdash; MIT License
       </footer>
 

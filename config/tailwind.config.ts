@@ -6,16 +6,16 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: 'var(--background)',
-        foreground: 'var(--foreground)',
-        muted: 'var(--muted)',
-        'muted-foreground': 'var(--muted-foreground)',
-        border: 'var(--border)',
-        card: 'var(--card)',
-        'card-foreground': 'var(--card-foreground)',
-        accent: 'var(--accent)',
-        'accent-foreground': 'var(--accent-foreground)',
-        ring: 'var(--ring)',
+        background: 'rgb(var(--background) / <alpha-value>)',
+        foreground: 'rgb(var(--foreground) / <alpha-value>)',
+        muted: 'rgb(var(--muted) / <alpha-value>)',
+        'muted-foreground': 'rgb(var(--muted-foreground) / <alpha-value>)',
+        border: 'rgb(var(--border) / <alpha-value>)',
+        card: 'rgb(var(--card) / <alpha-value>)',
+        'card-foreground': 'rgb(var(--card-foreground) / <alpha-value>)',
+        accent: 'rgb(var(--accent) / <alpha-value>)',
+        'accent-foreground': 'rgb(var(--accent-foreground) / <alpha-value>)',
+        ring: 'rgb(var(--ring) / 0.25)',
       },
       fontFamily: {
         sans: ['var(--font-geist-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
