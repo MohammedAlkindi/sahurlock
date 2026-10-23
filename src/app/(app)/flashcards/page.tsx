@@ -17,9 +17,9 @@ import {
 // ── Difficulty selector ────────────────────────────────────────────────────────
 
 const DIFF_OPTIONS: { value: CardDifficulty; label: string; color: string }[] = [
-  { value: 1, label: 'Easy',   color: 'border-green-300  text-green-700  data-[active]:bg-green-500/15'  },
-  { value: 2, label: 'Medium', color: 'border-amber-300 text-amber-700 data-[active]:bg-amber-500/15' },
-  { value: 3, label: 'Hard',   color: 'border-red-300    text-red-700    data-[active]:bg-red-500/15'    },
+  { value: 1, label: 'Easy',   color: 'border-success/50  text-success  data-[active]:bg-success/15'  },
+  { value: 2, label: 'Medium', color: 'border-warning/50 text-warning data-[active]:bg-warning/15' },
+  { value: 3, label: 'Hard',   color: 'border-danger/50    text-danger    data-[active]:bg-danger/15'    },
 ];
 
 function DifficultyPicker({
@@ -118,9 +118,9 @@ function CardForm({ initial, onSave, onCancel }: CardFormProps) {
 // ── Card row ──────────────────────────────────────────────────────────────────
 
 const DIFF_BADGE: Record<number, string> = {
-  1: 'bg-green-500/10  text-green-700',
-  2: 'bg-amber-500/10 text-amber-700',
-  3: 'bg-red-500/10    text-red-700',
+  1: 'bg-success/10  text-success',
+  2: 'bg-warning/10 text-warning',
+  3: 'bg-danger/10    text-danger',
 };
 const DIFF_LABEL: Record<number, string> = { 1: 'Easy', 2: 'Med', 3: 'Hard' };
 
@@ -162,16 +162,18 @@ function CardRow({
           <p className="text-sm font-medium text-foreground leading-snug">{card.front}</p>
           <p className="mt-1.5 text-xs text-muted-foreground leading-snug">{card.back}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition group-hover:opacity-100">
+        <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
           <button
             onClick={() => setEditing(true)}
+            aria-label="Edit card"
             className="rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
           >
             <Pencil size={13} />
           </button>
           <button
             onClick={() => onDelete(card.id)}
-            className="rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-red-600"
+            aria-label="Delete card"
+            className="rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-danger"
           >
             <Trash2 size={13} />
           </button>
@@ -183,14 +185,14 @@ function CardRow({
           {DIFF_LABEL[card.difficulty]}
         </span>
         {isDue ? (
-          <span className="rounded bg-amber-500/10 px-1.5 py-0.5 font-medium text-amber-700">Due</span>
+          <span className="rounded bg-warning/10 px-1.5 py-0.5 font-medium text-warning">Due</span>
         ) : (
           <span className="text-muted-foreground">
             Next {new Date(card.nextReview + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
           </span>
         )}
         {accuracy !== null && (
-          <span className={cn('text-muted-foreground', accuracy >= 80 ? 'text-green-600' : accuracy < 50 ? 'text-red-600' : '')}>
+          <span className={cn('text-muted-foreground', accuracy >= 80 ? 'text-success' : accuracy < 50 ? 'text-danger' : '')}>
             {accuracy}% correct ({card.reviewCount} reviews)
           </span>
         )}
@@ -261,8 +263,8 @@ export default function FlashcardsPage() {
         <div className="mb-5 grid grid-cols-3 gap-3">
           {[
             { label: 'Total',    value: stats.total,    accent: '' },
-            { label: 'Due today', value: stats.due,     accent: stats.due > 0 ? 'text-amber-600' : '' },
-            { label: 'Mastered', value: stats.mastered, accent: stats.mastered > 0 ? 'text-green-600' : '' },
+            { label: 'Due today', value: stats.due,     accent: stats.due > 0 ? 'text-warning' : '' },
+            { label: 'Mastered', value: stats.mastered, accent: stats.mastered > 0 ? 'text-success' : '' },
           ].map(({ label, value, accent }) => (
             <div key={label} className="rounded-2xl border border-border bg-card p-4">
               <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>

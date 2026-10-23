@@ -217,7 +217,7 @@ function Countdown() {
       {hasStarted && (
         <div className={cn(
           'mb-8 font-mono text-7xl font-black tabular-nums tracking-tight',
-          finished ? 'text-green-600' : 'text-foreground'
+          finished ? 'text-success' : 'text-foreground'
         )}>
           {finished ? 'Done' : formatCountdown(displayMs)}
         </div>

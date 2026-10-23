@@ -16,6 +16,12 @@ export default {
         accent: 'rgb(var(--accent) / <alpha-value>)',
         'accent-foreground': 'rgb(var(--accent-foreground) / <alpha-value>)',
         ring: 'rgb(var(--ring) / 0.25)',
+        // Status text and tints. Each theme picks shades that stay above
+        // 4.5:1 on the page, card and muted backgrounds and on a tint of up
+        // to 20 percent of the same color.
+        success: 'rgb(var(--success) / <alpha-value>)',
+        warning: 'rgb(var(--warning) / <alpha-value>)',
+        danger: 'rgb(var(--danger) / <alpha-value>)',
       },
       fontFamily: {
         sans: ['var(--font-geist-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],

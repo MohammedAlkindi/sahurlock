@@ -40,15 +40,15 @@ export function BreakControls({
       </div>
 
       {breakActive ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center">
-          <p className="text-xs text-amber-600 mb-1">Break ends in</p>
-          <p className="text-2xl font-bold text-amber-700 tabular-nums">{formatTime(breakRemainingMs)}</p>
+        <div className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-center">
+          <p className="text-xs text-warning mb-1">Break ends in</p>
+          <p className="text-2xl font-bold text-warning tabular-nums">{formatTime(breakRemainingMs)}</p>
         </div>
       ) : (
         <button
           onClick={onStartBreak}
           disabled={disabled || exhausted}
-          className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
+          className="w-full rounded-xl border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm font-semibold text-warning transition hover:bg-warning/20 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Take Break
         </button>

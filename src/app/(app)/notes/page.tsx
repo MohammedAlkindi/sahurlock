@@ -159,7 +159,7 @@ export default function NotesPage() {
             </span>
             <button
               onClick={() => deleteNote(activeNote.id)}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-red-600"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-danger"
             >
               <Trash2 size={13} />
               Delete
