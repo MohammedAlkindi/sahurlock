@@ -24,6 +24,8 @@ export interface SessionConfig {
   pomodoroEnabled: boolean;
   phoneDetectionEnabled: boolean;
   tabSwitchViolationEnabled?: boolean;
+  /** Single-key B, E and H shortcuts on the session page. */
+  keyboardShortcutsEnabled?: boolean;
 }
 
 export interface CustomVideoMeta {

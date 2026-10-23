@@ -50,10 +50,15 @@ const BUILTIN_TEMPLATES: SessionPreset[] = [
 
 const SHORTCUTS = [
   { keys: ['Ctrl', 'K'], action: 'Open command palette' },
-  { keys: ['Esc'],       action: 'Close palette / dialogs' },
+  { keys: ['Esc'],       action: 'Close the palette or a dialog' },
   { keys: ['↑', '↓'],   action: 'Navigate palette' },
   { keys: ['Enter'],     action: 'Select item' },
-  { keys: ['Space'],     action: 'Reveal flashcard answer' },
+];
+
+const SESSION_SHORTCUTS = [
+  { keys: ['B'], action: 'Take a break' },
+  { keys: ['E'], action: 'End the session' },
+  { keys: ['H'], action: 'Hide or show the camera' },
 ];
 
 const CATS = [
@@ -472,13 +477,13 @@ function TemplatesPanel({
 
 // ── Panel: Shortcuts ───────────────────────────────────────────────────────────
 
-function ShortcutsPanel() {
+function ShortcutList({ items }: { items: { keys: string[]; action: string }[] }) {
   return (
     <div className="space-y-px">
-      {SHORTCUTS.map(({ keys, action }, i) => (
+      {items.map(({ keys, action }, i) => (
         <div
           key={action}
-          className={`flex items-center justify-between py-3 ${i < SHORTCUTS.length - 1 ? 'border-b border-border/20' : ''}`}
+          className={`flex items-center justify-between py-3 ${i < items.length - 1 ? 'border-b border-border/20' : ''}`}
         >
           <span className="text-sm text-foreground">{action}</span>
           <div className="flex items-center gap-1">
@@ -494,6 +499,24 @@ function ShortcutsPanel() {
         </div>
       ))}
     </div>
+  );
+}
+
+function ShortcutsPanel({ config, update }: { config: SessionConfig; update: (p: Partial<SessionConfig>) => void }) {
+  const sessionKeysOn = config.keyboardShortcutsEnabled !== false;
+  return (
+    <>
+      <ShortcutList items={SHORTCUTS} />
+      <SectionHeading title="Session" />
+      <Row
+        label="Single-key shortcuts"
+        description="B, E and H work during a session. Turn off if they clash with a screen reader or other key commands."
+        last={!sessionKeysOn}
+      >
+        <Toggle label="Single-key shortcuts" checked={sessionKeysOn} onChange={(v) => update({ keyboardShortcutsEnabled: v })} />
+      </Row>
+      {sessionKeysOn && <ShortcutList items={SESSION_SHORTCUTS} />}
+    </>
   );
 }
 
@@ -656,7 +679,7 @@ export default function SettingsPage() {
           {active === 'templates' && (
             <TemplatesPanel config={config} update={update} />
           )}
-          {active === 'shortcuts' && <ShortcutsPanel />}
+          {active === 'shortcuts' && <ShortcutsPanel config={config} update={update} />}
           {active === 'data'      && <DataPanel />}
 
         </div>

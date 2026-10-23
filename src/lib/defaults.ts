@@ -12,4 +12,5 @@ export const DEFAULT_CONFIG: SessionConfig = {
   pomodoroEnabled:           true,
   phoneDetectionEnabled:     false,
   tabSwitchViolationEnabled: false,
+  keyboardShortcutsEnabled:  true,
 };

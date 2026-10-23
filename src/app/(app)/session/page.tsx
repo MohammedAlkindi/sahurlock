@@ -205,6 +205,8 @@ export default function SessionPage() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (configRef.current.keyboardShortcutsEnabled === false) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       // An open modal (break flashcards, summary) owns the keyboard.
@@ -1033,11 +1035,13 @@ export default function SessionPage() {
                   </ul>
                 ) : null}
 
-                <div className="mt-3 flex gap-3 text-[10px] text-muted-foreground">
-                  <span><kbd className="rounded bg-muted px-1 py-0.5">B</kbd> break</span>
-                  <span><kbd className="rounded bg-muted px-1 py-0.5">E</kbd> end</span>
-                  <span><kbd className="rounded bg-muted px-1 py-0.5">H</kbd> camera</span>
-                </div>
+                {config.keyboardShortcutsEnabled !== false && (
+                  <div className="mt-3 flex gap-3 text-[10px] text-muted-foreground">
+                    <span><kbd className="rounded bg-muted px-1 py-0.5">B</kbd> break</span>
+                    <span><kbd className="rounded bg-muted px-1 py-0.5">E</kbd> end</span>
+                    <span><kbd className="rounded bg-muted px-1 py-0.5">H</kbd> camera</span>
+                  </div>
+                )}
               </div>
             )}
 
