@@ -11,9 +11,9 @@ import {
   loadCustomVideoMeta, saveCustomVideoMeta, clearCustomVideoMeta, setCustomVideoBlobUrl,
   loadTemplates, saveTemplate, deleteTemplate,
   loadGoals, saveGoals,
-  loadHistory, loadAggregate, loadTasks,
   clearAllData,
 } from '@/lib/storage';
+import { collectExport } from '@/lib/data-management';
 import { getVideoBlob, saveVideoBlob, deleteVideoBlob } from '@/lib/video-storage';
 import { SessionConfig, CustomVideoMeta, SessionPreset } from '@/lib/types';
 import { DEFAULT_CONFIG } from '@/lib/defaults';
@@ -502,12 +502,7 @@ function DataPanel() {
   const [confirming, setConfirming] = useState(false);
 
   const handleExport = () => {
-    const data = {
-      exportedAt: new Date().toISOString(),
-      aggregate: loadAggregate(),
-      sessions: loadHistory(),
-      tasks: loadTasks(),
-    };
+    const data = collectExport(localStorage, new Date());
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -522,7 +517,7 @@ function DataPanel() {
       <SectionHeading title="Export" />
       <Row
         label="Download data"
-        description="All sessions, stats, and tasks as a JSON file."
+        description="Sessions, stats, tasks, notes, flashcards, templates, goals, schedules and settings as a JSON file. Spotify sign-in is not included."
         last
       >
         <button
@@ -537,11 +532,11 @@ function DataPanel() {
       {confirming ? (
         <div className="flex items-center justify-between gap-3 rounded-md border border-red-200/60 bg-red-50/40 px-4 py-3 dark:border-red-900/30 dark:bg-red-950/20">
           <p className="text-xs text-red-700 dark:text-red-400">
-            This permanently deletes all sessions, stats, and settings.
+            This permanently deletes everything SahurLock keeps in this browser, including notes, flashcards, the uploaded video and the Spotify connection.
           </p>
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => { clearAllData(); setConfirming(false); }}
+              onClick={async () => { await clearAllData(); window.location.reload(); }}
               className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500"
             >
               Clear everything
@@ -552,7 +547,7 @@ function DataPanel() {
           </div>
         </div>
       ) : (
-        <Row label="Clear all data" description="Permanently remove all sessions, stats, and settings." last>
+        <Row label="Clear all data" description="Permanently remove everything SahurLock keeps in this browser." last>
           <button
             onClick={() => setConfirming(true)}
             className="rounded-md border border-border/60 px-4 py-2 text-sm text-muted-foreground transition hover:border-red-200 hover:text-red-600"
