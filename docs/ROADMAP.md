@@ -58,6 +58,9 @@ that shipped it.
 - [x] Move to Next.js 15.5.28 (React 19) to clear the advisories 14.2 will not get
       fixes for. The unused image optimizer stays off
 - [ ] Replace `next lint` with the ESLint CLI before Next.js 16, which removes it
+- [ ] Upgrade the dev tools that still carry advisories, each a major version: Vitest 5
+      (critical, through tinypool), Tailwind CSS 4 (braces, micromatch) and the ESLint
+      setup above (fast-glob). None of them ship to the browser
 - [ ] Split the app into `tools/` and `core/` with a tool registry that drives the
       sidebar and command palette, with no behaviour change
 
