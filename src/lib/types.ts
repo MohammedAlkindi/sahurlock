@@ -23,7 +23,6 @@ export interface SessionConfig {
   punishmentMedia: string;
   pomodoroEnabled: boolean;
   phoneDetectionEnabled: boolean;
-  advancedEyeTrackingEnabled?: boolean;
   tabSwitchViolationEnabled?: boolean;
 }
 

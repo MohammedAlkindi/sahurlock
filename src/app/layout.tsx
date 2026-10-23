@@ -8,7 +8,7 @@ import { Analytics } from '@vercel/analytics/next';
 export const metadata: Metadata = {
   title: 'SahurLock',
   description:
-    'Real-time eye gaze tracking via MediaPipe. Configurable grace period, punishment clips on violation. 100% local, no cloud.',
+    'Webcam focus enforcement with in-browser face and gaze tracking. Configurable grace period, punishment clips on violation. Camera frames never leave your browser.',
   icons: {
     icon: '/icon.svg',
     shortcut: '/icon.svg',

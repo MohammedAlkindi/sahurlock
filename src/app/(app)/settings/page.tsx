@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Upload, Trash2, Play, RefreshCw,
-  CheckCircle2, AlertCircle, ChevronDown, Eye, Video,
+  CheckCircle2, AlertCircle, ChevronDown, Video,
   Download, Plus,
 } from 'lucide-react';
 import {
@@ -30,7 +30,6 @@ const DEFAULTS: SessionConfig = {
   punishmentMedia: '/media/sahur.mp4',
   pomodoroEnabled: false,
   phoneDetectionEnabled: false,
-  advancedEyeTrackingEnabled: false,
   tabSwitchViolationEnabled: false,
 };
 
@@ -368,44 +367,10 @@ function DetectionPanel({
       <Row
         label="Tab switch violation"
         description="Triggers a violation when you leave the tab."
+        last
       >
         <Toggle checked={!!config.tabSwitchViolationEnabled} onChange={(v) => update({ tabSwitchViolationEnabled: v })} />
       </Row>
-      <Row
-        label="Iris gaze tracking"
-        description="Monitors eye direction, not just face position. More sensitive."
-        last
-      >
-        <Toggle checked={!!config.advancedEyeTrackingEnabled} onChange={(v) => update({ advancedEyeTrackingEnabled: v })} />
-      </Row>
-
-      {config.advancedEyeTrackingEnabled && (
-        <div className="pb-4">
-          <InlineDisclosure label="How iris tracking works">
-            <div className="space-y-3 text-xs text-muted-foreground/70 leading-relaxed">
-              <p>
-                Standard mode passes as long as your face is detected. Iris mode also checks
-                that your eyes are directed at the screen — you can fail even with your head
-                forward if your gaze drifts.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-md border border-border/30 bg-muted/20 p-3">
-                  <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40">Standard</p>
-                  <p className="text-[11px]">Face present → pass</p>
-                  <p className="text-[11px] text-muted-foreground/40">Eyes not checked</p>
-                </div>
-                <div className="rounded-md border border-border/30 bg-muted/20 p-3">
-                  <p className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40">
-                    <Eye size={9} />Iris
-                  </p>
-                  <p className="text-[11px]">Face present → pass</p>
-                  <p className="text-[11px]">Eyes on screen → pass</p>
-                </div>
-              </div>
-            </div>
-          </InlineDisclosure>
-        </div>
-      )}
     </>
   );
 }
