@@ -27,7 +27,8 @@ that shipped it.
 - [x] Stop counting uncertain frames as focused time (708dc35)
 - [ ] Scale head-pose thresholds by face size, with recorded-landmark test fixtures
 - [x] Self-host a pinned MediaPipe build, so no third-party script sees camera frames
-- [ ] Add a Content Security Policy that keeps it that way
+      (2d29870)
+- [x] Add a Content Security Policy that keeps it that way
 - [ ] Harden the scheduler: feature-detect `Notification`, split timeouts longer than
       2^31 ms, use an icon that exists, arm new schedules without a reload
 - [ ] Move Spotify to PKCE and remove the server-side refresh route
