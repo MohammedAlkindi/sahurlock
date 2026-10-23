@@ -115,7 +115,7 @@ export default function TasksPage() {
                 </span>
               )}
 
-              <div className="flex items-center gap-3 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+              <div className="flex items-center gap-3 transition [@media(hover:hover)]:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                 {task.sessionCount > 0 && (
                   <span className="text-[10px] text-muted-foreground">
                     {task.sessionCount} session{task.sessionCount !== 1 ? 's' : ''}
@@ -153,7 +153,7 @@ export default function TasksPage() {
                     <Check size={12} />
                   </div>
                   <span className="flex-1 text-sm text-muted-foreground line-through">{task.title}</span>
-                  <div className="flex items-center gap-3 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+                  <div className="flex items-center gap-3 transition [@media(hover:hover)]:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                     {task.completedAt && (
                       <span className="text-[10px] text-muted-foreground">{formatDate(task.completedAt)}</span>
                     )}

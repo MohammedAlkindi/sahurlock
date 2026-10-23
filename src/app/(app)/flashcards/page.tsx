@@ -162,7 +162,7 @@ function CardRow({
           <p className="text-sm font-medium text-foreground leading-snug">{card.front}</p>
           <p className="mt-1.5 text-xs text-muted-foreground leading-snug">{card.back}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+        <div className="flex shrink-0 items-center gap-1.5 transition [@media(hover:hover)]:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
           <button
             onClick={() => setEditing(true)}
             aria-label="Edit card"

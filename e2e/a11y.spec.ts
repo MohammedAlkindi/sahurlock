@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { devices, expect, test, type Page } from '@playwright/test';
 
 const ROUTES = ['/', '/session', '/timer', '/stats', '/schedule', '/tasks', '/notes', '/flashcards', '/sounds', '/settings'];
 
@@ -188,4 +188,37 @@ test('single-key session shortcuts can be turned off', async ({ page }) => {
   await page.keyboard.press('h');
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   await expect(page.getByText('Camera hidden')).toHaveCount(0);
+});
+
+test('row actions stay out of the way until hover on a desktop', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('sahurlock.tasks', JSON.stringify([{ id: 't1', title: 'Read', createdAt: new Date().toISOString(), sessionCount: 0, status: 'active' }]));
+  });
+  await page.goto('/tasks', { waitUntil: 'networkidle' });
+  const actions = page.getByRole('button', { name: 'Delete' }).first().locator('..');
+  await expect(actions).toHaveCSS('opacity', '0');
+  await page.getByText('Read').hover();
+  await expect(actions).toHaveCSS('opacity', '1');
+});
+
+test.describe('on a touch screen', () => {
+  const { defaultBrowserType: _, ...pixel } = devices['Pixel 7'];
+  test.use(pixel);
+
+  test('row actions are visible without hover', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('sahurlock.tasks', JSON.stringify([{ id: 't1', title: 'Read', createdAt: new Date().toISOString(), sessionCount: 0, status: 'active' }]));
+      localStorage.setItem('sahurlock.flashcards', JSON.stringify([{ id: 'c1', front: 'Q', back: 'A', difficulty: 2, interval: 1, easeFactor: 2.5, nextReview: '2026-01-01', reviewCount: 0, correctCount: 0 }]));
+    });
+    const opacity = (name: string) => page.getByRole('button', { name }).first().evaluate((el) => {
+      let o = 1;
+      for (let e: Element | null = el; e; e = e.parentElement) o *= Number(getComputedStyle(e).opacity);
+      return o;
+    });
+    await page.goto('/tasks', { waitUntil: 'networkidle' });
+    expect(await opacity('Delete')).toBe(1);
+    await page.goto('/flashcards', { waitUntil: 'networkidle' });
+    expect(await opacity('Delete card')).toBe(1);
+    expect(await opacity('Edit card')).toBe(1);
+  });
 });
