@@ -55,7 +55,8 @@ that shipped it.
 - [x] Browser tests for the camera lifecycle (start, hide and show, retry, leave the
       page), the detector, the security policy and the scheduler (6b05d93)
 - [ ] Run the browser tests in CI (a CI change, so it needs the owner's OK)
-- [ ] A synthetic-face fixture so browser tests can reach the focused state
+- [x] A synthetic-face fixture so browser tests can reach the focused state: MediaPipe's
+      canonical face, posed and projected, stands in for the face mesh model in tests
 - [x] Remove dead code and keep a single default configuration (6ede0dd)
 - [x] Upgrade Next.js to the latest 14.2 release and pin the Node version (b457065)
 - [x] Move to Next.js 15.5.28 (React 19) to clear the advisories 14.2 will not get
