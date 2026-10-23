@@ -523,8 +523,13 @@ export default function SessionPage() {
       }
 
       // ── Attention ─────────────────────────────────────────────────────────
+      const video = videoRef.current;
+      if (!video) {
+        rafRef.current = requestAnimationFrame(loop);
+        return;
+      }
       const reading = detectorRef.current
-        ? await detectorRef.current.estimate(videoRef.current!, baselineRef.current)
+        ? await detectorRef.current.estimate(video, baselineRef.current)
         : null;
       // cleanupMedia ran while the estimate was in flight: stay stopped.
       if (rafRef.current === null) return;
@@ -1018,10 +1023,11 @@ export default function SessionPage() {
             <SpotifyPanel compact />
           </div>
 
-          {/* Right: camera */}
-          <div className="lg:col-span-3">
-            {cameraHidden ? (
-              <div className="flex h-full min-h-[300px] items-center justify-center rounded-2xl border border-border bg-muted/30">
+          {/* Right: camera. Hiding covers the panel instead of unmounting it, because
+              the tracking loop reads frames from its <video>. */}
+          <div className="relative lg:col-span-3">
+            {cameraHidden && (
+              <div className="absolute inset-0 z-10 flex min-h-[300px] items-center justify-center rounded-2xl border border-border bg-muted">
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground">Camera hidden</p>
                   <button
@@ -1032,23 +1038,22 @@ export default function SessionPage() {
                   </button>
                 </div>
               </div>
-            ) : (
-              <CameraPanel
-                videoRef={videoRef}
-                attention={attention}
-                calibrating={appState === 'calibrating'}
-                calibrationGoodSamples={calibrationGoodSamples}
-                calibrationNeeded={CALIBRATION_NEEDED}
-                calibrationStalled={calibStalled}
-                countdownLeft={countdownLeft}
-                zoomLevel={manualZoom}
-                onZoomIn={() => { const n = Math.min(2, manualZoom + 0.1); setManualZoom(n); detectorRef.current?.setManualZoom(n); }}
-                onZoomOut={() => { const n = Math.max(1, manualZoom - 0.1); setManualZoom(n); detectorRef.current?.setManualZoom(n); }}
-                phoneReading={phoneReading}
-                phoneCheckMs={phoneCheckMs}
-                phoneCheckThresholdMs={PHONE_CHECK_THRESHOLD_MS}
-              />
             )}
+            <CameraPanel
+              videoRef={videoRef}
+              attention={attention}
+              calibrating={appState === 'calibrating'}
+              calibrationGoodSamples={calibrationGoodSamples}
+              calibrationNeeded={CALIBRATION_NEEDED}
+              calibrationStalled={calibStalled}
+              countdownLeft={countdownLeft}
+              zoomLevel={manualZoom}
+              onZoomIn={() => { const n = Math.min(2, manualZoom + 0.1); setManualZoom(n); detectorRef.current?.setManualZoom(n); }}
+              onZoomOut={() => { const n = Math.max(1, manualZoom - 0.1); setManualZoom(n); detectorRef.current?.setManualZoom(n); }}
+              phoneReading={phoneReading}
+              phoneCheckMs={phoneCheckMs}
+              phoneCheckThresholdMs={PHONE_CHECK_THRESHOLD_MS}
+            />
           </div>
         </div>
       )}
