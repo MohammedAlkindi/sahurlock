@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
-import { Download, FileDown, ImageUp, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
+import { Download, FileDown, ImageUp, Plus, RotateCcw, Save, X } from 'lucide-react';
+import { SavedScans } from '@/components/saved-scans';
 import type { LineRemoval } from '@/lib/scan/clean';
 import { buildPdf, type Paper } from '@/lib/scan/pdf';
 import { isPdf, MAX_PDF_PAGES, pdfToImages } from '@/lib/scan/pdf-pages';
@@ -59,16 +59,11 @@ export default function ScanPage() {
   const [exporting, setExporting] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'reading' | 'error' | 'info'; text: string } | null>(null);
   const [library, setLibrary] = useState<SavedScan[]>([]);
-  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const [title, setTitle] = useState('');
   /** The library entry these pages were saved as, and what they looked like then. */
   const [savedAs, setSavedAs] = useState<{ id: string; key: string } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
-  const deleteButtons = useRef(new Map<string, HTMLButtonElement>());
-  const keepButton = useRef<HTMLButtonElement | null>(null);
-  const libraryHeading = useRef<HTMLHeadingElement | null>(null);
   const pageHeading = useRef<HTMLHeadingElement | null>(null);
 
   const reloadLibrary = async () => {
@@ -78,12 +73,6 @@ export default function ScanPage() {
     return next;
   };
   useEffect(() => { reloadLibrary(); }, []);
-  useEffect(() => { if (confirmingDelete) keepButton.current?.focus(); }, [confirmingDelete]);
-  useEffect(() => {
-    const urls = Object.fromEntries(library.map((scan) => [scan.id, URL.createObjectURL(scan.pages[0].jpeg)]));
-    setThumbnails(urls);
-    return () => Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
-  }, [library]);
 
   useEffect(() => { pagesRef.current = pages; }, [pages]);
   useEffect(() => { setPaper(defaultPaper()); }, []);
@@ -229,25 +218,20 @@ export default function ScanPage() {
     }
   };
 
-  const keepSaved = (id: string) => {
-    flushSync(() => setConfirmingDelete(null));
-    deleteButtons.current.get(id)?.focus();
-  };
-
   const removeSaved = async (scan: SavedScan) => {
     const idb = scanStore();
-    if (!idb) return;
+    if (!idb) return null;
     try {
       await deleteScan(idb, scan.id);
     } catch {
       setNotice({ kind: 'error', text: `${scan.title} could not be deleted.` });
-      return;
+      return null;
     }
     if (savedAs?.id === scan.id) setSavedAs(null);
-    setConfirmingDelete(null);
     setAnnouncement(`Deleted ${scan.title}.`);
     const rest = await reloadLibrary();
-    (rest.length > 0 ? libraryHeading.current : pageHeading.current)?.focus();
+    if (rest.length === 0) pageHeading.current?.focus();
+    return rest.length;
   };
 
   const selected = pages.find((p) => p.id === selectedId) ?? null;
@@ -413,51 +397,12 @@ export default function ScanPage() {
       <p role="status" className="sr-only">{announcement}</p>
 
       {library.length > 0 && (
-        <section aria-labelledby="saved-scans" className="mt-10">
-          <h2 id="saved-scans" ref={libraryHeading} tabIndex={-1} className="mb-1 text-base font-semibold focus:outline-none">Saved scans</h2>
-          <p className="mb-4 text-xs text-muted-foreground">Kept in this browser only. Settings &gt; Data &gt; Clear everything removes them.</p>
-          <ul className="space-y-2">
-            {library.map((scan) => (
-              <li key={scan.id} className="flex items-center gap-3 rounded-xl border border-border bg-card p-2.5">
-                {/* eslint-disable-next-line @next/next/no-img-element -- a local blob URL, which next/image cannot optimise */}
-                {thumbnails[scan.id] && <img src={thumbnails[scan.id]} alt="" className="h-14 w-11 shrink-0 rounded border border-border bg-white object-contain" />}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{scan.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(scan.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                    {' · '}{scan.pages.length} {scan.pages.length === 1 ? 'page' : 'pages'}
-                  </p>
-                </div>
-                {confirmingDelete === scan.id ? (
-                  <div role="group" aria-label={`Delete ${scan.title}?`} className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground" aria-hidden="true">Delete?</span>
-                    <button onClick={() => removeSaved(scan)} className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-red-700">Delete</button>
-                    <button ref={keepButton} onClick={() => keepSaved(scan.id)} className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground">Keep</button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => savePdf(scan.pages.map((pg) => pg.jpeg), scanFileName(scan.title))}
-                      disabled={exporting}
-                      aria-label={`Download ${scan.title} as PDF`}
-                      className="rounded-md p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-40"
-                    >
-                      <FileDown size={16} />
-                    </button>
-                    <button
-                      ref={(el) => { if (el) deleteButtons.current.set(scan.id, el); else deleteButtons.current.delete(scan.id); }}
-                      onClick={() => setConfirmingDelete(scan.id)}
-                      aria-label={`Delete ${scan.title}`}
-                      className="rounded-md p-2 text-muted-foreground transition hover:bg-muted hover:text-danger"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
+        <SavedScans
+          scans={library}
+          exporting={exporting}
+          onDownload={(scan) => savePdf(scan.pages.map((pg) => pg.jpeg), scanFileName(scan.title))}
+          onDelete={removeSaved}
+        />
       )}
     </div>
   );
