@@ -17,20 +17,20 @@ The session screen is the core, but the app also carries Pomodoro sessions, flas
 during breaks, tasks, notes, session scheduling, a four-component focus score, stats
 history, ambient sound, and optional Spotify playback.
 
+Settings, history and stats persist locally (`localStorage` under `sahurlock.*`, plus
+IndexedDB for custom videos). The only network traffic is Vercel Analytics page views and,
+if you connect it, Spotify.
+
+Built with Next.js App Router, TypeScript and Tailwind CSS.
+
 ## Scan notes
 
 Photograph a page of handwritten notes and the Scan tool cleans it up: it finds the page
 edges and corrects the perspective, evens out shadows and uneven light, levels tilted
 writing and removes ruled or grid lines while keeping strokes that cross them. The
 result downloads as a PNG. It runs in a Web Worker on your device, so the photo is never
-uploaded. This is the first step of the notes converter; recognising the handwriting
+uploaded. This is the first step of the notes converter. Recognising the handwriting
 comes later.
-
-Settings, history and stats persist locally (`localStorage` under `sahurlock.*`, plus
-IndexedDB for custom videos). The only network traffic is Vercel Analytics page views and,
-if you connect it, Spotify.
-
-Built with Next.js App Router, TypeScript and Tailwind CSS.
 
 ## Install
 
