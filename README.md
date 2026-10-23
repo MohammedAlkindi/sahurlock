@@ -48,3 +48,7 @@ in the repo.
 - MediaPipe FaceMesh is loaded from a CDN at runtime rather than bundled, so first calibration needs a network round trip and the app will not detect attention offline.
 - Browsers require user interaction for media playback. SahurLock primes playback after **Start Session** but still gracefully falls back to visual-only alert if playback is blocked.
 - Landmark quality can drop in low light, extreme camera angles, or lower-end devices.
+
+## Roadmap
+
+SahurLock is becoming a student toolkit, with a handwritten-notes converter as the next major tool. The plan, in shippable steps, is in [docs/ROADMAP.md](docs/ROADMAP.md), and the converter design is in [docs/notes-converter.md](docs/notes-converter.md).
