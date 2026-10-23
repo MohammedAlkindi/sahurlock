@@ -10,38 +10,36 @@ export async function GET(request: NextRequest) {
   const error = searchParams.get('error');
 
   const storedState = request.cookies.get('spotify_auth_state')?.value;
+  const verifier    = request.cookies.get('spotify_code_verifier')?.value;
 
   // ── Guard: OAuth error or state mismatch ──────────────────────────────────
   if (error) {
     return redirectToSession(origin, null, 'access_denied');
   }
-  if (!code || !state || state !== storedState) {
+  if (!code || !state || state !== storedState || !verifier) {
     return redirectToSession(origin, null, 'state_mismatch');
   }
 
   // ── Exchange code for tokens ──────────────────────────────────────────────
-  const clientId     = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-  const redirectUri  = process.env.SPOTIFY_REDIRECT_URI ?? `${origin}/api/spotify/callback`;
+  // PKCE: the verifier stands in for a client secret, so none is configured.
+  const clientId    = process.env.SPOTIFY_CLIENT_ID;
+  const redirectUri = process.env.SPOTIFY_REDIRECT_URI ?? `${origin}/api/spotify/callback`;
 
-  if (!clientId || !clientSecret) {
+  if (!clientId) {
     return redirectToSession(origin, null, 'server_misconfigured');
   }
-
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
   let tokenData: { access_token: string; refresh_token: string; expires_in: number };
   try {
     const res = await fetch(TOKEN_URL, {
       method:  'POST',
-      headers: {
-        Authorization:  `Basic ${credentials}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        grant_type:   'authorization_code',
+        grant_type:    'authorization_code',
         code,
-        redirect_uri: redirectUri,
+        redirect_uri:  redirectUri,
+        client_id:     clientId,
+        code_verifier: verifier,
       }),
     });
 
@@ -62,6 +60,7 @@ export async function GET(request: NextRequest) {
   // access logs, making this a safe transport for short-lived tokens.
   const response = redirectToSession(origin, tokenData);
   response.cookies.delete('spotify_auth_state');
+  response.cookies.delete('spotify_code_verifier');
   return response;
 }
 
