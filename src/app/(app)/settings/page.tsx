@@ -179,7 +179,7 @@ function PunishmentMediaPicker({
       }).catch(() => {});
     }
     return () => { if (previewRef.current) URL.revokeObjectURL(previewRef.current); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleFile = async (file: File) => {
     setErrorMsg('');
