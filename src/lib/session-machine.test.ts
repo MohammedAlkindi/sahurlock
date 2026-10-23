@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getDerivedState } from '@/lib/session-machine';
+import { frameCountsAsFocused, getDerivedState } from '@/lib/session-machine';
 import type { AttentionLevel, AttentionReading } from '@/lib/types';
 
 const reading = (attention: AttentionLevel): AttentionReading => ({
@@ -60,5 +60,25 @@ describe('getDerivedState', () => {
     expect(
       getDerivedState({ ...base, attention: reading('offscreen'), offscreenMs: 5_000 }),
     ).toBe('warning');
+  });
+});
+
+describe('frameCountsAsFocused', () => {
+  it('counts a confident, on-screen, focused reading', () => {
+    expect(frameCountsAsFocused(reading('focused'))).toBe(true);
+  });
+
+  it('does not count an uncertain reading even with a face present', () => {
+    expect(frameCountsAsFocused({ ...reading('uncertain'), facePresent: true })).toBe(false);
+  });
+
+  it('does not count warnings, off-screen readings or a missing reading', () => {
+    expect(frameCountsAsFocused(reading('warning'))).toBe(false);
+    expect(frameCountsAsFocused(reading('offscreen'))).toBe(false);
+    expect(frameCountsAsFocused(null)).toBe(false);
+  });
+
+  it('does not count a focused label without a face', () => {
+    expect(frameCountsAsFocused({ ...reading('focused'), facePresent: false })).toBe(false);
   });
 });

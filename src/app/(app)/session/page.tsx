@@ -17,7 +17,7 @@ import {
   applyReview, loadCards, saveCards, selectSessionCards,
 } from '@/lib/flashcards';
 import { FlashcardOverlay } from '@/components/flashcard-overlay';
-import { getDerivedState } from '@/lib/session-machine';
+import { frameCountsAsFocused, getDerivedState } from '@/lib/session-machine';
 import {
   getCustomVideoBlobUrl,
   incrementTaskSessionCount,
@@ -635,6 +635,9 @@ export default function SessionPage() {
             appStateRef.current = 'warning';
             setAppState('warning');
           }
+        } else if (!frameCountsAsFocused(reading)) {
+          // A face is present but the detector cannot tell where it is looking:
+          // hold the current state and count neither focus nor distraction.
         } else {
           statsRef.current.totalFocusedMs += delta;
           offscreenMsRef.current = 0;

@@ -8,6 +8,14 @@ interface TransitionInput {
   violationActive: boolean;
 }
 
+/**
+ * Whether a frame may add to focused time. Only a confident, on-screen,
+ * focused reading counts. An uncertain reading with a face present is neither
+ * focused nor a distraction.
+ */
+export const frameCountsAsFocused = (reading: AttentionReading | null): boolean =>
+  !!reading && reading.facePresent && reading.attention === 'focused';
+
 export const getDerivedState = ({
   attention,
   offscreenMs,
