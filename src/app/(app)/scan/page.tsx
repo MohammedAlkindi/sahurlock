@@ -84,6 +84,11 @@ export default function ScanPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const pageHeading = useRef<HTMLHeadingElement | null>(null);
+  // Async work checks these when it finishes, so it lands only where it started.
+  /** Changes when the pages are replaced as a whole (Open, Start over). Imports in flight are dropped. */
+  const pageSet = useRef(0);
+  /** Changes whenever the editor stops editing the scan it had. A save in flight then leaves the editor alone. */
+  const editing = useRef(0);
 
   const reloadLibrary = async () => {
     const idb = scanStore();
@@ -135,12 +140,16 @@ export default function ScanPage() {
 
   const addFiles = async (list: FileList | null) => {
     const files = Array.from(list ?? []);
+    const set = pageSet.current;
     setNotice(null);
     for (const file of files) {
+      if (pageSet.current !== set) return;
       if (!isPdf(file)) { addImages([file]); continue; }
       setNotice({ kind: 'reading', text: `Reading ${file.name}…` });
       try {
         const { images, skipped } = await pdfToImages(file);
+        // Another scan was opened, or Start over pressed, while this PDF was read.
+        if (pageSet.current !== set) return;
         addImages(images);
         setNotice(skipped > 0
           ? { kind: 'info', text: `${file.name} has more than ${MAX_PDF_PAGES} pages, so only the first ${MAX_PDF_PAGES} were added.` }
@@ -178,6 +187,7 @@ export default function ScanPage() {
   };
 
   const forgetSavedScan = () => {
+    editing.current += 1;
     setTitle('');
     setCourse('');
     setSavedAs(null);
@@ -185,6 +195,7 @@ export default function ScanPage() {
   };
 
   const startOver = () => {
+    pageSet.current += 1;
     pages.forEach(release);
     setPages([]);
     setSelectedId(null);
@@ -237,6 +248,7 @@ export default function ScanPage() {
     // An untitled scan is named when it is saved, and the name shows in the field.
     const name = title.trim() || `Notes ${localDate()} ${localTime()}`;
     const key = keyOf(name, course, pages);
+    const scan = editing.current;
     setSaving(true);
     setSaveError(null);
     try {
@@ -247,20 +259,31 @@ export default function ScanPage() {
         createdAt: new Date().toISOString(),
         pages: pages.map((p) => ({ jpeg: p.cleaned!.jpeg, width: p.cleaned!.width, height: p.cleaned!.height })),
       });
-      setTitle(name);
-      setSavedAs({ id, key });
+      // The editor may hold another scan by now. Linking it to this save would let
+      // its next save overwrite this one.
+      if (editing.current === scan) {
+        setTitle(name);
+        setSavedAs({ id, key });
+      }
       announce(replacing ? `Saved the changes to ${name}.` : `Saved ${name} to this device.`);
       await reloadLibrary();
     } catch (error) {
-      setSaveError(error instanceof DOMException && error.name === 'QuotaExceededError'
-        ? 'This browser is out of room for saved scans. Delete an older one, or download this one as a PDF.'
-        : 'This scan could not be saved. Download it as a PDF instead.');
+      const full = error instanceof DOMException && error.name === 'QuotaExceededError';
+      if (editing.current === scan) {
+        setSaveError(full
+          ? 'This browser is out of room for saved scans. Delete an older one, or download this one as a PDF.'
+          : 'This scan could not be saved. Download it as a PDF instead.');
+      } else {
+        setNotice({ kind: 'error', text: full ? `${name} was not saved, because this browser is out of room for saved scans.` : `${name} could not be saved.` });
+      }
     } finally {
       setSaving(false);
     }
   };
 
   const openSaved = (scan: SavedScan) => {
+    pageSet.current += 1;
+    editing.current += 1;
     pages.forEach(release);
     const opened: ScanPage[] = scan.pages.map((p) => ({
       id: uid(), file: null, originalUrl: null, request: null, error: null,
@@ -496,8 +519,8 @@ export default function ScanPage() {
           exporting={exporting}
           // The editor has its own paper control. Without it open, the list shows one.
           paper={pages.length === 0 ? { value: paper, onChange: setPaper } : null}
-          // Opening over pages that are not saved as they are asks first.
-          openNeedsConfirm={pages.length > 0 && !upToDate}
+          // Opening over pages that are not saved as they are, or while a PDF is still being read, asks first.
+          openNeedsConfirm={(pages.length > 0 && !upToDate) || notice?.kind === 'reading'}
           onOpen={openSaved}
           onDownload={(scan) => savePdf(scan.pages.map((pg) => pg.jpeg), scanFileName(scan.title))}
           onDelete={removeSaved}
