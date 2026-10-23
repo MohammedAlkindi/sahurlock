@@ -39,10 +39,12 @@ that shipped it.
 - [ ] Accessibility pass: dialog semantics and focus traps, an alert role on the
       violation overlay, reduced motion, one `<main>`, modifier-free shortcuts made
       optional, contrast
-- [ ] Browser tests for the camera lifecycle (start, hide and show, retry, leave the
-      page) with a fake camera and a stubbed detector
+- [x] Browser tests for the camera lifecycle (start, hide and show, retry, leave the
+      page), the detector, the security policy and the scheduler
+- [ ] Run the browser tests in CI (a CI change, so it needs the owner's OK)
+- [ ] A synthetic-face fixture so browser tests can reach the focused state
 - [ ] Remove dead code and keep a single default configuration
-- [x] Upgrade Next.js to the latest 14.2 release and pin the Node version
+- [x] Upgrade Next.js to the latest 14.2 release and pin the Node version (b457065)
 - [ ] Move to Next.js 15.5.28 or later (React 19) to clear the advisories 14.2 will not
       get fixes for; the unused image optimizer is switched off until then
 - [ ] Split the app into `tools/` and `core/` with a tool registry that drives the

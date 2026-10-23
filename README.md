@@ -45,7 +45,7 @@ in the repo.
 
 ## Known limitations
 
-- Unit tests cover the pure modules (session state machine, focus score, flashcard scheduling, formatting). The camera loop and pages have no automated tests yet.
+- Unit tests cover the pure modules, and Playwright browser tests (`npm run test:e2e`, after a build) cover the camera lifecycle, the detector, the security policy and the scheduler using Chromium's fake camera. That camera never shows a face, so focused-state behaviour is not covered by browser tests yet.
 - MediaPipe FaceMesh (about 10 MB of WebAssembly and model data) is served from the app itself, pinned through npm and copied into `public/vendor` by `scripts/copy-mediapipe.mjs` before dev and build. The first calibration downloads it, so expect a short wait on a slow connection.
 - Browsers require user interaction for media playback. SahurLock primes playback after **Start Session** but still gracefully falls back to visual-only alert if playback is blocked.
 - Landmark quality can drop in low light, extreme camera angles, or lower-end devices.

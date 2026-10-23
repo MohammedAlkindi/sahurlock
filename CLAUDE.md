@@ -14,6 +14,7 @@ npm run lint
 npx tsc --noEmit
 npm test        # Vitest, unit tests next to the code as src/**/*.test.ts
 npm run build
+npm run test:e2e  # Playwright, browser tests in e2e/, run after a build
 ```
 
 ## Conventions
