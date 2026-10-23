@@ -1,9 +1,10 @@
-# Notes converter: design notes
+# Scan: design notes
 
-Goal: a student uploads handwritten or tablet notes, picks a layout, and gets
-clean notes to print or keep as a PDF and as a format most devices open. Text,
-math, diagrams and graphs are recognized by models the project controls. No
-third-party API and no hosted language model.
+Goal: Scan is a notes app for handwritten and tablet notes. A student captures
+pages, and they come back clean, recognized, organized and ready to plan with,
+printable as a PDF and exportable to a format most devices open. Text, math,
+diagrams and graphs are recognized by models the project fine-tunes itself. No
+third-party API and no hosted model.
 
 These notes record the constraints found while planning. Re-check every licence
 and platform limit before shipping the step that depends on it.
@@ -42,8 +43,8 @@ that fails to parse is low confidence by definition. Low-confidence spans are
 highlighted next to the source crop with alternatives and an edit box. A span
 the user skips keeps the original crop in the output, so nothing is guessed and
 nothing is dropped. Each correction is stored on the device as crop, prediction,
-label, model version and confidence, and becomes training data only if the user
-donates it.
+label, model version and confidence, and leaves the device only when the user
+exports or donates it.
 
 ## Candidate models
 
@@ -57,9 +58,10 @@ donates it.
 Avoid: Surya (non-commercial weights, GPL code), potrace and Pandoc builds (GPL)
 in the shipped app.
 
-The recognizers above have small task-specific decoders. They are not general
-language models, but where to draw that line is a product decision to make
-explicitly.
+Where the line sits is decided: small task-specific models that run on the device
+are allowed, such as text and line detectors, layout detectors, TrOCR-style
+handwriting recognizers and TexTeller-style math recognizers. General-purpose or
+chat language models are not, and no model runs on a hosted service.
 
 ## Training data
 
@@ -81,6 +83,31 @@ explicitly.
 - Word: the `docx` package. Converting LaTeX to Word's native equations is the hard
   part.
 - GoodNotes and Notability formats are proprietary, so import the PDF instead.
+
+## Training plan
+
+- Fine-tune, never train from scratch. Every model starts from small open weights
+  whose licence has been checked, and SahurLock's fine-tuned versions replace them.
+- The maintainer's own course notes are the first training set: his handwriting,
+  equations, graphs and diagrams. Other people's pages arrive only by opt-in
+  donation (below).
+- The correction screen is the labeling tool. Fixing a misread word, drawing a box
+  around a region, or marking a region as text, math, graph or diagram saves a
+  labeled example on the device: the crop, the label, the model version and its
+  confidence. Examples export as a dataset file, which is how they reach training
+  without the app uploading anything. The screen ships with the first model at the
+  latest.
+- Order: region detector (text, math, graph, diagram, table, heading), then
+  handwriting, then math to LaTeX, then graphs and diagrams. Layout models were
+  trained on printed pages, so the region detector gains most from notes.
+  Graphs and diagrams start as cleaned, optionally vectorized crops with their
+  labels recognized. Shapes and arrows come later.
+- Measure before shipping. A held-out set of real pages never enters training.
+  Track character error rate for text, expression error rate for math, and
+  precision and recall for regions. A version ships only when it beats the current
+  one on that set.
+- Training code lives in this repository and runs on a hosted notebook GPU. Each
+  published version gets a model card and a SHA-256 in the weight manifest.
 
 ## Learning without collecting by default
 

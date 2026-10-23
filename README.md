@@ -30,8 +30,8 @@ it up: it finds the page edges and corrects the perspective, evens out shadows a
 uneven light, levels tilted writing and removes ruled or grid lines while keeping
 strokes that cross them. Several pages save as one PDF on A4 or Letter, or a single page
 as a PNG, and scans can be saved to the device to download again later. It runs in a Web
-Worker on your device, so the photos are never uploaded. This is the first step of the
-notes converter. Recognising the handwriting comes later.
+Worker on your device, so the photos are never uploaded. Cleanup is where Scan starts.
+Recognising handwriting, math and diagrams, with models that run on the device, comes next.
 
 ## Install
 
@@ -62,4 +62,4 @@ in the repo.
 
 ## Roadmap
 
-SahurLock is becoming a student toolkit, with a handwritten-notes converter as the next major tool. Scan is its first step. The plan, in shippable steps, is in [docs/ROADMAP.md](docs/ROADMAP.md), and the converter design is in [docs/notes-converter.md](docs/notes-converter.md).
+SahurLock is becoming a student toolkit, and Scan is growing into its notes app: capturing, recognizing, organizing and planning handwritten notes, with models that run on the device. The plan, in shippable steps, is in [docs/ROADMAP.md](docs/ROADMAP.md), and Scan's design is in [docs/notes-converter.md](docs/notes-converter.md).

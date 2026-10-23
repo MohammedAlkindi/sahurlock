@@ -1,10 +1,13 @@
 # Roadmap
 
 SahurLock is growing from a focus timer into a student toolkit: focus sessions,
-tasks, notes, flashcards and scheduling in one place, with a handwritten-notes
-converter as the next major tool. Everything runs in the browser. No feature
-depends on a paid API or a hosted language model, and camera frames and notes
-stay on the device unless the user opts in.
+tasks, notes, flashcards and scheduling in one place. The next major tool is Scan,
+a notes app for handwritten and tablet notes: capturing, recognizing, organizing
+and planning them all happen there, and cleanup and PDF export are only its first
+steps. Everything runs in the browser. No feature depends on a paid API or a
+hosted model. Recognition uses small task-specific models that run on the device,
+never a general-purpose or chat language model. Camera frames and notes stay on
+the device unless the user opts in.
 
 Work top to bottom. Each item is one shippable change: lint, typecheck, tests
 and build pass before it lands on `main`. Mark an item done with the commit
@@ -68,7 +71,7 @@ that shipped it.
       Neither ships to the browser
 - [x] A tool registry (`src/lib/tools.ts`) that drives the sidebar, command palette and
       breadcrumb, so a new tool is registered in one place
-- [ ] Move tool code into `tools/` and shared code into `core/` once the notes converter
+- [ ] Move tool code into `tools/` and shared code into `core/` once Scan
       shows where the seams are. Moving files before then is churn without a payoff
 
 ## Phase 2: notes import, no ML yet
@@ -78,37 +81,73 @@ that shipped it.
 - [x] Scan several pages and save them as one PDF on A4 or Letter
 - [x] Accept PDF pages too, through pdf.js (its legacy build, for older browsers)
 - [x] Save scans to an on-device library, covered by Clear everything
+- [ ] Organize saved scans: rename, reorder and regroup pages, file them by course
 - [ ] Versioned Document JSON for a converted page: blocks with bounding boxes,
       content, per-token confidence and alternatives
 - [ ] Layout styles (outline, Cornell, two-column) with print-ready PDF and
       Markdown export
 
-## Phase 3: handwriting to text
+## How the models are built
+
+Phases 3 to 7 follow one plan:
+
+- Fine-tune small open models whose licences have been checked. Never train from
+  scratch. Each release replaces the previous starting point with SahurLock's own
+  fine-tuned version.
+- The first training set is the maintainer's own course notes: handwriting,
+  equations, graphs and diagrams. Anyone else's pages arrive only by opt-in
+  donation (phase 8).
+- The correction screen is the labeling tool, so daily use builds the training set.
+- A held-out set of real pages that no model trains on decides every release: a new
+  version ships only when it beats the current one there.
+- Training code lives in this repository and runs on a hosted notebook GPU, never
+  in the app or in CI.
+
+## Phase 3: model groundwork
 
 - [ ] Web Worker model host: ONNX Runtime Web and transformers.js, WebGPU with a
-      WASM fallback, weights pinned by hash in a manifest and cached locally
-- [ ] Line detection and handwriting recognition with per-line confidence, shown as
-      a research preview
-- [ ] Review screen: low-confidence spans highlighted with the source crop and
+      WASM fallback, weights pinned by SHA-256 in a manifest and cached locally
+- [ ] Correction screen: draw a box around a region, mark it as text, math, graph,
+      diagram, table or heading, and fix a misread word. Each change saves a
+      labeled example on the device (the crop, the label, the model version and its
+      confidence), and the examples export as a dataset file. Ships with the first
+      model at the latest
+- [ ] Held-out evaluation set with character error rate for text, expression error
+      rate for math, and precision and recall for regions
+- [ ] Training code under `training/`, with a model card for every published version
+
+## Phase 4: region detection
+
+- [ ] Fine-tune a layout detector on note pages: text, math, graph, diagram, table,
+      heading. Existing layout models were trained on printed pages, so this step
+      helps most
+- [ ] Reading order across regions (XY-cut)
+
+## Phase 5: handwriting
+
+- [ ] Line detection and handwriting recognition with per-line confidence
+- [ ] Review: low-confidence spans highlighted with the source crop and
       alternatives. Anything skipped keeps the original image, so nothing is lost
 
-## Phase 4: math, diagrams and graphs
+## Phase 6: math
 
 - [ ] Math regions to LaTeX, rendered with KaTeX. A failed parse counts as low
       confidence
-- [ ] Diagrams, graphs and drawings kept as cleaned, optionally vectorized crops
-- [ ] Word (.docx) export
+- [ ] Word (.docx) export, with equations as native Word math
 
-## Phase 5: learning from corrections
+## Phase 7: graphs and diagrams
 
-- [ ] Corrections stored on the device by default
+- [ ] Graphs, diagrams and drawings kept as cleaned, optionally vectorized crops
+      with their labels recognized
+- [ ] Recognize shapes and arrows
+
+## Phase 8: learning from other users
+
 - [ ] Opt-in donation per document: crops only, location data stripped, redaction
       preview, consent record, revocation and an age gate
-- [ ] Offline fine-tuning on donated and licence-clean data, outside this repository,
-      published as versioned weights the app downloads
 
-## Phase 6: search
+## Phase 9: search
 
 - [ ] Search across converted notes with page-level citations
 
-Design notes for phases 2 to 5 are in [notes-converter.md](notes-converter.md).
+Design notes for phases 2 to 8 are in [notes-converter.md](notes-converter.md).
