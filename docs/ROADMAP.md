@@ -55,8 +55,9 @@ that shipped it.
 - [ ] A synthetic-face fixture so browser tests can reach the focused state
 - [x] Remove dead code and keep a single default configuration (6ede0dd)
 - [x] Upgrade Next.js to the latest 14.2 release and pin the Node version (b457065)
-- [ ] Move to Next.js 15.5.28 or later (React 19) to clear the advisories 14.2 will not
-      get fixes for; the unused image optimizer is switched off until then
+- [x] Move to Next.js 15.5.28 (React 19) to clear the advisories 14.2 will not get
+      fixes for. The unused image optimizer stays off
+- [ ] Replace `next lint` with the ESLint CLI before Next.js 16, which removes it
 - [ ] Split the app into `tools/` and `core/` with a tool registry that drives the
       sidebar and command palette, with no behaviour change
 
