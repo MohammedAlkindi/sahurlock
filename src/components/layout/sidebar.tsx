@@ -3,21 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  Timer,
-  CheckSquare,
-  BarChart2,
-  NotebookPen,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Sun,
-  Moon,
-  Layers,
-  Settings2,
-  Clock,
-  Music2,
-  CalendarClock,
-} from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, Sun, Moon, Settings2 } from 'lucide-react';
+import { TOOLS, toolHref } from '@/lib/tools';
 
 function SahurLockMark({ size = 18 }: { size?: number }) {
   return (
@@ -35,17 +22,6 @@ function SahurLockMark({ size = 18 }: { size?: number }) {
 }
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/cn';
-
-const NAV = [
-  { href: '/session',    icon: Timer,         label: 'Session'    },
-  { href: '/tasks',      icon: CheckSquare,   label: 'Tasks'      },
-  { href: '/stats',      icon: BarChart2,     label: 'Stats'      },
-  { href: '/schedule',   icon: CalendarClock, label: 'Schedule'   },
-  { href: '/notes',      icon: NotebookPen,   label: 'Notes'      },
-  { href: '/flashcards', icon: Layers,        label: 'Flashcards' },
-  { href: '/timer',      icon: Clock,         label: 'Timer'      },
-  { href: '/sounds',     icon: Music2,        label: 'Sounds'     },
-];
 
 const COLLAPSED_KEY = 'sahurlock.sidebar.collapsed';
 
@@ -92,14 +68,17 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-0.5 p-2 pt-3">
-        {NAV.map(({ href, icon: Icon, label }) => {
+      <nav aria-label="Tools" className="flex-1 space-y-0.5 p-2 pt-3">
+        {TOOLS.map((tool) => {
+          const { icon: Icon, label } = tool;
+          const href = toolHref(tool);
           const active = pathname.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
               title={collapsed ? label : undefined}
+              aria-current={active ? 'page' : undefined}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors',
                 collapsed && 'justify-center',
@@ -121,6 +100,7 @@ export function Sidebar() {
         <Link
           href="/settings"
           title={collapsed ? 'Settings' : undefined}
+          aria-current={settingsActive ? 'page' : undefined}
           className={cn(
             'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors',
             collapsed && 'justify-center',
