@@ -63,10 +63,10 @@ export default function LandingPage() {
             <span className="h-3 w-3 rounded-full bg-zinc-700" />
             <span className="h-3 w-3 rounded-full bg-zinc-700" />
           </div>
-          <p className="text-zinc-600">attention-detector v1</p>
+          <p className="text-zinc-400">attention-detector v1</p>
           <p className="mt-3 text-green-400">face_detected   <span className="text-green-300">true</span></p>
           <p className="text-green-400">confidence      <span className="text-green-300">0.94</span></p>
-          <p className="mt-3 text-zinc-600">— 4.2s elapsed —</p>
+          <p className="mt-3 text-zinc-400">— 4.2s elapsed —</p>
           <p className="text-red-400">attention       <span className="text-red-300">offscreen</span></p>
           <p className="text-red-400">alert           <span className="text-red-300">triggered</span></p>
         </div>
