@@ -16,22 +16,13 @@ import {
 } from '@/lib/storage';
 import { getVideoBlob, saveVideoBlob, deleteVideoBlob } from '@/lib/video-storage';
 import { SessionConfig, CustomVideoMeta, SessionPreset } from '@/lib/types';
+import { DEFAULT_CONFIG } from '@/lib/defaults';
+import { CUSTOM_PUNISHMENT_MEDIA, DEFAULT_PUNISHMENT_MEDIA } from '@/lib/punishment-media';
 import { PUNISHMENT_CLIPS } from '@/components/session-config';
 import { uid } from '@/lib/utils';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const DEFAULTS: SessionConfig = {
-  durationMinutes: 25,
-  offscreenThresholdSec: 6,
-  breakLimit: 3,
-  breakDurationSec: 300,
-  punishmentEnabled: false,
-  punishmentMedia: '/media/sahur.mp4',
-  pomodoroEnabled: false,
-  phoneDetectionEnabled: false,
-  tabSwitchViolationEnabled: false,
-};
 
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 const ALLOWED_TYPES   = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
@@ -198,7 +189,7 @@ function PunishmentMediaPicker({
       setMeta(newMeta);
       const u = URL.createObjectURL(file);
       setUrl(u); setCustomVideoBlobUrl(u);
-      update({ punishmentMedia: 'custom' });
+      update({ punishmentMedia: CUSTOM_PUNISHMENT_MEDIA });
       setUploadStatus('success');
       setTimeout(() => setUploadStatus('idle'), 2000);
     } catch { setUploadStatus('error'); setErrorMsg('Failed to save.'); }
@@ -210,16 +201,16 @@ function PunishmentMediaPicker({
     if (previewRef.current) { URL.revokeObjectURL(previewRef.current); previewRef.current = null; }
     clearCustomVideoMeta(); setCustomVideoBlobUrl(null);
     setMeta(null); setUrl(null); setShowPreview(false);
-    if (config.punishmentMedia === 'custom') update({ punishmentMedia: '/media/sahur.mp4' });
+    if (config.punishmentMedia === CUSTOM_PUNISHMENT_MEDIA) update({ punishmentMedia: DEFAULT_PUNISHMENT_MEDIA });
   };
 
-  const hasCustom = !!meta && config.punishmentMedia === 'custom';
+  const hasCustom = !!meta && config.punishmentMedia === CUSTOM_PUNISHMENT_MEDIA;
 
   return (
     <div className="space-y-2.5">
       {!hasCustom && (
         <select
-          value={config.punishmentMedia === 'custom' ? '/media/sahur.mp4' : config.punishmentMedia}
+          value={config.punishmentMedia === CUSTOM_PUNISHMENT_MEDIA ? DEFAULT_PUNISHMENT_MEDIA : config.punishmentMedia}
           onChange={(e) => update({ punishmentMedia: e.target.value })}
           className="w-full rounded-md border border-border/60 bg-background px-3 py-1.5 text-sm text-foreground focus:border-foreground/40 focus:outline-none"
         >
@@ -257,10 +248,10 @@ function PunishmentMediaPicker({
           <div className="mt-2 flex items-center justify-between">
             {hasCustom
               ? <span className="flex items-center gap-1 text-[10px] text-green-600 dark:text-green-500"><CheckCircle2 size={9} />Active</span>
-              : <button onClick={() => update({ punishmentMedia: 'custom' })} className="text-[11px] text-foreground/70 underline underline-offset-2 hover:text-foreground transition">Use this video</button>
+              : <button onClick={() => update({ punishmentMedia: CUSTOM_PUNISHMENT_MEDIA })} className="text-[11px] text-foreground/70 underline underline-offset-2 hover:text-foreground transition">Use this video</button>
             }
             {hasCustom && (
-              <button onClick={() => update({ punishmentMedia: '/media/sahur.mp4' })} className="text-[11px] text-muted-foreground/60 hover:text-foreground transition">
+              <button onClick={() => update({ punishmentMedia: DEFAULT_PUNISHMENT_MEDIA })} className="text-[11px] text-muted-foreground/60 hover:text-foreground transition">
                 Switch to built-in
               </button>
             )}
@@ -577,13 +568,13 @@ function DataPanel() {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const [config,  setConfig]  = useState<SessionConfig>(DEFAULTS);
+  const [config,  setConfig]  = useState<SessionConfig>(DEFAULT_CONFIG);
   const [goals,   setGoals]   = useState({ dailyGoalMinutes: 0 });
   const [active,  setActive]  = useState<CatId>('focus');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setConfig(loadSettings(DEFAULTS));
+    setConfig(loadSettings(DEFAULT_CONFIG));
     setGoals(loadGoals());
     setMounted(true);
   }, []);

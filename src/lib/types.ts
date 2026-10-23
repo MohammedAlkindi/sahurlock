@@ -143,14 +143,6 @@ export interface CalibrationReport {
   detectionRate: number;
 }
 
-export interface RuntimeState {
-  appState: AppState;
-  attention: AttentionReading | null;
-  remainingMs: number;
-  offscreenMs: number;
-  violationActive: boolean;
-}
-
 // ── Scheduled sessions ────────────────────────────────────────────────────────
 
 export interface ScheduledSession {

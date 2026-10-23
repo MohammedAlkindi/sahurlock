@@ -43,15 +43,6 @@ body {
   50% { opacity: 0.85; }
 }
 
-@keyframes violation-shake {
-  0%, 100% { transform: translateX(0) rotate(0deg); }
-  15%       { transform: translateX(-6px) rotate(-0.5deg); }
-  30%       { transform: translateX(6px) rotate(0.5deg); }
-  45%       { transform: translateX(-4px) rotate(-0.3deg); }
-  60%       { transform: translateX(4px) rotate(0.3deg); }
-  75%       { transform: translateX(-2px); }
-}
-
 @keyframes border-glow {
   0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7), inset 0 0 80px rgba(239, 68, 68, 0.15); }
   50%       { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0), inset 0 0 80px rgba(239, 68, 68, 0.3); }
@@ -64,10 +55,6 @@ body {
 
 .animate-violation-pulse {
   animation: violation-pulse 1.2s ease-in-out infinite;
-}
-
-.animate-violation-shake {
-  animation: violation-shake 0.5s ease-in-out;
 }
 
 .animate-border-glow {
@@ -83,13 +70,4 @@ body {
   transition: stroke-dasharray 1s linear;
 }
 
-/* ── Focus score display ─────────────────────────────────────────────────── */
-@keyframes score-pop {
-  0%   { transform: scale(0.7); opacity: 0; }
-  60%  { transform: scale(1.12); }
-  100% { transform: scale(1); opacity: 1; }
-}
 
-.animate-score-pop {
-  animation: score-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
