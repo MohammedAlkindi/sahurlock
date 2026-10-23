@@ -73,9 +73,9 @@ that shipped it.
 
 ## Phase 2: notes import, no ML yet
 
-- [ ] Upload a photo or PDF page and see it cleaned: page detection, perspective
-      correction, illumination flattening, deskew, ruled-line removal, before and
-      after view
+- [x] Upload a photo and see it cleaned: page detection, perspective correction,
+      illumination flattening, deskew, ruled-line removal, before and after view
+- [ ] Accept PDF pages too, through pdf.js
 - [ ] Versioned Document JSON for a converted page: blocks with bounding boxes,
       content, per-token confidence and alternatives
 - [ ] Layout styles (outline, Cornell, two-column) with print-ready PDF and

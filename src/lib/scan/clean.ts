@@ -55,8 +55,17 @@ export function detectPage(g: Gray): Quad | null {
   }
   if (Object.values(touches).filter(Boolean).length >= 3) return null;
 
-  const scale = (p: { x: number; y: number }): Point => ({ x: (p.x + 0.5) * factor, y: (p.y + 0.5) * factor });
-  return [scale(tl), scale(tr), scale(br), scale(bl)];
+  // Corners are only as precise as the shrunk image, so pull each one in by a
+  // pixel and a half of it. Otherwise a sliver of desk can line the page edge.
+  const corners = [tl, tr, br, bl].map((p) => ({ x: (p.x + 0.5) * factor, y: (p.y + 0.5) * factor }));
+  const cx = corners.reduce((sum, p) => sum + p.x, 0) / 4;
+  const cy = corners.reduce((sum, p) => sum + p.y, 0) / 4;
+  const inset = (p: Point): Point => {
+    const d = Math.hypot(p.x - cx, p.y - cy) || 1;
+    const by = 1.5 * factor;
+    return { x: p.x + ((cx - p.x) / d) * by, y: p.y + ((cy - p.y) / d) * by };
+  };
+  return corners.map(inset) as Quad;
 }
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
