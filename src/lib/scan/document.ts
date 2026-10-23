@@ -8,6 +8,9 @@
  *
  * This is version 1. A later version adds a migration to `decodeDocument`, so
  * stored labels are never silently reinterpreted.
+ *
+ * Training data numbers kinds by their place in BLOCK_KINDS plus one (text is 1,
+ * diagram is 6), so kinds are only ever added at the end, never reordered.
  */
 
 export const DOCUMENT_VERSION = 1;
@@ -17,6 +20,8 @@ export type BlockKind = (typeof BLOCK_KINDS)[number];
 
 /** Kinds whose content is read as text or LaTeX. Tables, graphs and diagrams are kept as crops for now. */
 const READ_KINDS: readonly BlockKind[] = ['text', 'heading', 'math'];
+
+export const isReadKind = (kind: BlockKind) => READ_KINDS.includes(kind);
 
 /** A rectangle in the cleaned page's pixels, measured from its top-left corner. */
 export interface Box {
@@ -61,7 +66,9 @@ export interface DocumentPage {
   /** The cleaned page's size in pixels, which every box is measured against. */
   width: number;
   height: number;
-  /** In reading order. */
+  /** Set when the user says every region on the page is marked, so a detector can learn from what is not marked too. */
+  regionsComplete: boolean;
+  /** In the order they were marked. Nothing may rely on that order until reading order arrives (phase 4). */
   blocks: Block[];
 }
 
@@ -73,8 +80,28 @@ export interface ScanDocument {
 /** A document for pages of these sizes, with nothing marked on them yet. */
 export const emptyDocument = (sizes: { width: number; height: number }[]): ScanDocument => ({
   version: DOCUMENT_VERSION,
-  pages: sizes.map(({ width, height }) => ({ width, height, blocks: [] })),
+  pages: sizes.map(({ width, height }) => ({ width, height, regionsComplete: false, blocks: [] })),
 });
+
+/** A region the user has just drawn: nothing typed in it yet, and theirs, so already reviewed. */
+export const userBlock = (id: string, kind: BlockKind, box: Box): Block => ({
+  id, kind, box, content: null, tokens: [], origin: { by: 'user' }, reviewed: true,
+});
+
+/** The block as another kind. A kind kept as an image has no content, so anything typed is dropped. */
+export const withKind = (block: Block, kind: BlockKind): Block =>
+  isReadKind(kind) ? { ...block, kind } : { ...block, kind, content: null, tokens: [] };
+
+/**
+ * The block with what the user typed for it, trimmed. Typing makes the content
+ * theirs: the recognizer's tokens go and the block counts as reviewed. Blank
+ * text clears it. Kinds kept as images take no content.
+ */
+export function withContent(block: Block, text: string): Block {
+  if (!isReadKind(block.kind)) return block;
+  const content = text.trim() || null;
+  return { ...block, content, tokens: [], origin: { by: 'user' }, reviewed: true };
+}
 
 /** Below this a token counts as unsure. To be calibrated on held-out pages once a recognizer exists. */
 export const REVIEW_CONFIDENCE = 0.8;
@@ -85,7 +112,7 @@ export const REVIEW_CONFIDENCE = 0.8;
  * of. A block the user has reviewed is never flagged again.
  */
 export function needsReview(block: Block, threshold = REVIEW_CONFIDENCE): boolean {
-  if (block.reviewed || !READ_KINDS.includes(block.kind)) return false;
+  if (block.reviewed || !isReadKind(block.kind)) return false;
   return block.content === null || block.tokens.some((t) => t.confidence < threshold);
 }
 
@@ -163,7 +190,7 @@ export function decodeDocument(value: unknown): ScanDocument | null {
       seen.add(block.id);
       blocks.push(block);
     }
-    pages.push({ ...size, blocks });
+    pages.push({ ...size, regionsComplete: p.regionsComplete === true, blocks });
   }
   return { version: DOCUMENT_VERSION, pages };
 }
