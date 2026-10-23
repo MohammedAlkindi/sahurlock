@@ -1,60 +1,67 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect } from 'react';
 import {
+  SCHEDULE_CHANGED_EVENT,
+  SCHEDULE_KEY,
   loadScheduledSessions,
   markScheduledSessionFired,
-  deleteScheduledSession,
 } from '@/lib/storage';
+import { planReminders } from '@/lib/schedule-plan';
 
+const notificationsSupported = () =>
+  typeof window !== 'undefined' && 'Notification' in window;
+
+function notify(id: string, label: string) {
+  markScheduledSessionFired(id);
+  if (!notificationsSupported() || Notification.permission !== 'granted') return;
+  const n = new Notification('Time to focus!', {
+    body: label || 'Your scheduled study session is starting now.',
+    icon: '/icon.svg',
+    tag: `sahurlock-${id}`,
+    requireInteraction: true,
+  });
+  n.onclick = () => {
+    window.focus();
+    window.location.href = '/session';
+    n.close();
+  };
+}
+
+/** Ask once for notification permission. Browsers without the API report denied. */
+export async function requestNotificationPermission(): Promise<NotificationPermission> {
+  if (!notificationsSupported()) return 'denied';
+  if (Notification.permission !== 'default') return Notification.permission;
+  return Notification.requestPermission();
+}
+
+/**
+ * Arms a timer for every upcoming scheduled session. Mount it once, in the app
+ * layout. It re-arms when schedules change in this tab or another one.
+ */
 export function useScheduler() {
-  const fireNotification = useCallback((id: string, label: string) => {
-    markScheduledSessionFired(id);
-
-    if (typeof window === 'undefined') return;
-
-    if (Notification.permission === 'granted') {
-      const n = new Notification('Time to focus!', {
-        body: label || 'Your scheduled study session is starting now.',
-        icon: '/favicon.ico',
-        tag: `sahurlock-${id}`,
-        requireInteraction: true,
-      });
-      n.onclick = () => {
-        window.focus();
-        window.location.href = '/session';
-        n.close();
-      };
-    }
-  }, []);
-
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    let handles: ReturnType<typeof setTimeout>[] = [];
 
-    const sessions = loadScheduledSessions().filter((s) => !s.fired);
-    const handles: ReturnType<typeof setTimeout>[] = [];
-
-    for (const s of sessions) {
-      const msUntil = new Date(s.scheduledAt).getTime() - Date.now();
-      if (msUntil < 0) {
-        // Missed — fire immediately so user sees it on next open
-        fireNotification(s.id, s.label);
-      } else {
-        handles.push(setTimeout(() => fireNotification(s.id, s.label), msUntil));
+    const arm = () => {
+      handles.forEach(clearTimeout);
+      handles = [];
+      const plan = planReminders(loadScheduledSessions(), Date.now());
+      plan.expire.forEach((s) => markScheduledSessionFired(s.id));
+      plan.fireNow.forEach((s) => notify(s.id, s.label));
+      for (const { session, delayMs, final } of plan.later) {
+        handles.push(setTimeout(() => (final ? notify(session.id, session.label) : arm()), delayMs));
       }
-    }
+    };
 
-    return () => handles.forEach(clearTimeout);
-  // Re-run whenever the hook mounts (page load); the page itself re-mounts
-  // when navigating, so timers always stay fresh.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    arm();
+    const onStorage = (e: StorageEvent) => { if (e.key === null || e.key === SCHEDULE_KEY) arm(); };
+    window.addEventListener(SCHEDULE_CHANGED_EVENT, arm);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      handles.forEach(clearTimeout);
+      window.removeEventListener(SCHEDULE_CHANGED_EVENT, arm);
+      window.removeEventListener('storage', onStorage);
+    };
   }, []);
-
-  const requestPermission = useCallback(async (): Promise<NotificationPermission> => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return 'denied';
-    if (Notification.permission !== 'default') return Notification.permission;
-    return Notification.requestPermission();
-  }, []);
-
-  return { requestPermission, deleteScheduledSession };
 }

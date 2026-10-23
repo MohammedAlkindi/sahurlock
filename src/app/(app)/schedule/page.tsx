@@ -9,7 +9,7 @@ import {
   deleteScheduledSession,
 } from '@/lib/storage';
 import { ScheduledSession } from '@/lib/types';
-import { useScheduler } from '@/hooks/use-scheduler';
+import { requestNotificationPermission } from '@/hooks/use-scheduler';
 
 const DURATIONS = [25, 45, 60, 90, 120];
 
@@ -32,7 +32,6 @@ function relativeTime(iso: string): string {
 
 export default function SchedulePage() {
   const router = useRouter();
-  const { requestPermission } = useScheduler();
 
   const [sessions, setSessions]           = useState<ScheduledSession[]>([]);
   const [permission, setPermission]       = useState<NotificationPermission>('default');
@@ -67,7 +66,7 @@ export default function SchedulePage() {
   }, []);
 
   const handleEnableNotifications = async () => {
-    const p = await requestPermission();
+    const p = await requestNotificationPermission();
     setPermission(p);
   };
 
