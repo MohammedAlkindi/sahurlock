@@ -4,13 +4,15 @@ import { grayFromRGBA, rgbaFromGray } from '@/lib/scan/gray';
 // Runs the page cleanup off the main thread. The photo never leaves the device.
 
 export interface ScanRequest {
+  /** Echoed back so the page can match answers to requests. */
+  id: string;
   file: Blob;
   lines: LineRemoval;
 }
 
 export type ScanResponse =
-  | { ok: true; png: Blob; width: number; height: number; pageFound: boolean; skewDegrees: number }
-  | { ok: false; error: string };
+  | { id: string; ok: true; png: Blob; jpeg: Blob; width: number; height: number; pageFound: boolean; skewDegrees: number }
+  | { id: string; ok: false; error: string };
 
 /** Longest side to work at. A4 at this size is close to 200 dpi, plenty for handwriting. */
 const MAX_SIDE = 2400;
@@ -18,11 +20,12 @@ const MAX_SIDE = 2400;
 const reply = (response: ScanResponse) => self.postMessage(response);
 
 self.onmessage = async (event: MessageEvent<ScanRequest>) => {
+  const { id } = event.data;
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(event.data.file);
   } catch {
-    reply({ ok: false, error: 'That file could not be opened as an image. Try a JPEG or PNG photo.' });
+    reply({ id, ok: false, error: 'That file could not be opened as an image. Try a JPEG or PNG photo.' });
     return;
   }
 
@@ -43,9 +46,11 @@ self.onmessage = async (event: MessageEvent<ScanRequest>) => {
     if (!target) throw new Error('No 2D canvas in this worker.');
     target.putImageData(new ImageData(new Uint8ClampedArray(rgbaFromGray(image)), image.width, image.height), 0, 0);
     const png = await canvas.convertToBlob({ type: 'image/png' });
+    // For the PDF. Quality 0.92 keeps pen strokes crisp at a fraction of the PNG's size.
+    const jpeg = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 });
 
-    reply({ ok: true, png, width: image.width, height: image.height, pageFound: page !== null, skewDegrees });
+    reply({ id, ok: true, png, jpeg, width: image.width, height: image.height, pageFound: page !== null, skewDegrees });
   } catch {
-    reply({ ok: false, error: 'Something went wrong while cleaning this page. Try another photo.' });
+    reply({ id, ok: false, error: 'Something went wrong while cleaning this page. Try another photo.' });
   }
 };
