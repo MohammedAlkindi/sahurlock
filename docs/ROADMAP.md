@@ -16,8 +16,8 @@ that shipped it.
       flashcard scheduling, formatting (bc621ff)
 - [x] Turn the camera off and stop every loop when leaving the session page (14a9a26)
 - [x] Keep the camera feed alive when it is hidden (9690e98)
-- [x] CI on every push: lint, typecheck, test, build (this commit)
-- [ ] Retry Calibration reuses the existing stream instead of a new, empty `<video>`
+- [x] CI on every push: lint, typecheck, test, build (f0ac53a)
+- [x] Retry Calibration reuses the existing stream instead of a new, empty `<video>`
 - [ ] Play a custom punishment video from its IndexedDB copy (the session uses the
       literal string `custom` as the video source today)
 - [ ] Stop the timer double-counting while the window is blurred but visible, and make
@@ -36,6 +36,8 @@ that shipped it.
 - [ ] Accessibility pass: dialog semantics and focus traps, an alert role on the
       violation overlay, reduced motion, one `<main>`, modifier-free shortcuts made
       optional, contrast
+- [ ] Browser tests for the camera lifecycle (start, hide and show, retry, leave the
+      page) with a fake camera and a stubbed detector
 - [ ] Remove dead code and keep a single default configuration
 - [ ] Upgrade Next.js to the latest 14.2 release and pin the Node version
 - [ ] Split the app into `tools/` and `core/` with a tool registry that drives the

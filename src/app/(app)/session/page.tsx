@@ -793,6 +793,19 @@ export default function SessionPage() {
   });
 
   const isActive  = !['idle', 'session_complete', 'camera_error'].includes(appState);
+
+  // The idle/error layout and the active layout each mount their own camera
+  // panel, so switching between them leaves a fresh <video> with no stream.
+  // Re-attach the live stream so the error screen shows the feed and Retry
+  // Calibration samples real frames.
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream || video.srcObject === stream) return;
+    video.srcObject = stream;
+    video.play().catch(() => { /* autoplay may wait for a gesture */ });
+  }, [isActive]);
+
   const elapsed   = totalMs - remainingMs;
   const liveFocusPct = elapsed > 0
     ? Math.round((statsRef.current.totalFocusedMs / elapsed) * 100)
