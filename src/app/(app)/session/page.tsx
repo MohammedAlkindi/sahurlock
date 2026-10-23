@@ -180,7 +180,7 @@ export default function SessionPage() {
     const picked = selectSessionCards(all, liveScoreRef.current, 3);
     setSessionCards(picked);
     setShowFlashcards(true);
-  }, [appState]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [appState]);
 
   useEffect(() => { saveSettings(config); }, [config]);
 
@@ -229,7 +229,7 @@ export default function SessionPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Session helpers ───────────────────────────────────────────────────────────
 
@@ -495,7 +495,7 @@ export default function SessionPage() {
       window.removeEventListener('focus', handleWindowFocus);
       stopBgInterval();
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Main tracking loop ────────────────────────────────────────────────────────
 
