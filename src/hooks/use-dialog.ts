@@ -9,10 +9,17 @@ const FOCUSABLE =
  * Modal dialog behaviour for the element in `ref`: focus moves into it, Tab
  * and Shift+Tab stay inside, Escape calls `onClose`, and focus returns to
  * whatever had it before the dialog opened. Pass `active` when the component
- * stays mounted while the dialog itself is closed. Children should not use
- * `autoFocus`: it moves focus before this hook can note where to return it.
+ * stays mounted while the dialog itself is closed, and `initialFocus` to land
+ * somewhere other than the first control, such as the dialog's heading. Children
+ * should not use `autoFocus`: it moves focus before this hook can note where to
+ * return it.
  */
-export function useDialog(ref: RefObject<HTMLElement | null>, onClose: () => void, active = true) {
+export function useDialog(
+  ref: RefObject<HTMLElement | null>,
+  onClose: () => void,
+  active = true,
+  initialFocus?: RefObject<HTMLElement | null>,
+) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -21,7 +28,7 @@ export function useDialog(ref: RefObject<HTMLElement | null>, onClose: () => voi
     if (!active || !dialog) return;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const focusables = () => Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE));
-    (focusables()[0] ?? dialog).focus();
+    (initialFocus?.current ?? focusables()[0] ?? dialog).focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -43,5 +50,5 @@ export function useDialog(ref: RefObject<HTMLElement | null>, onClose: () => voi
       dialog.removeEventListener('keydown', onKeyDown);
       previous?.focus();
     };
-  }, [ref, active]);
+  }, [ref, active, initialFocus]);
 }

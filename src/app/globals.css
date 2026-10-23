@@ -20,6 +20,14 @@
   --success: 22 101 52;
   --warning: 146 64 14;
   --danger: 153 27 27;
+  /* Region kinds in the region editor. They sit on the white page in both themes,
+     so there is no dark variant, and white tag text is at least 5:1 on each. */
+  --region-text: 29 78 216;
+  --region-heading: 109 40 217;
+  --region-math: 180 83 9;
+  --region-table: 15 118 110;
+  --region-graph: 190 18 60;
+  --region-diagram: 162 28 175;
   color-scheme: light;
 }
 
@@ -39,6 +47,21 @@
   --warning: 251 191 36;
   --danger: 252 165 165;
   color-scheme: dark;
+}
+
+/* Focus on the white page reads in both themes: a black line with a white halo. */
+.region-focus:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px #fff;
+}
+
+/* Region editor controls grow to a finger's size on touch screens. */
+@media (pointer: coarse) {
+  .tap-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 body {

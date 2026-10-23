@@ -30,9 +30,11 @@ it up: it finds the page edges and corrects the perspective, evens out shadows a
 uneven light, levels tilted writing and removes ruled or grid lines while keeping
 strokes that cross them. Several pages save as one PDF on A4 or Letter, or a single page
 as a PNG. Scans can be saved to the device, filed by course, and opened again later to
-rename them, reorder their pages or add more. It runs in a Web Worker on your device, so
-the photos are never uploaded. Cleanup is where Scan starts. Recognising handwriting,
-math and diagrams, with models that run on the device, comes next.
+rename them, reorder their pages or add more. Regions can be marked on a page too: a box
+for each piece of text, heading, equation, table, graph or diagram, with what it says. Those
+labels are what SahurLock's own recognizers will learn from. The cleanup runs in a Web
+Worker on your device, so the photos are never uploaded. Cleanup is where Scan starts.
+Recognising handwriting, math and diagrams, with models that run on the device, comes next.
 
 ## Install
 

@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { ChevronLeft, ChevronRight, Download, FileDown, ImageUp, Plus, RotateCcw, Save, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Download, FileDown, ImageUp, Plus, RotateCcw, Save, SquareDashed, X } from 'lucide-react';
 import { PaperSelect } from '@/components/paper-select';
+import { RegionEditor } from '@/components/region-editor';
 import { SavedScans } from '@/components/saved-scans';
 import type { LineRemoval } from '@/lib/scan/clean';
 import { type Block, DOCUMENT_VERSION } from '@/lib/scan/document';
@@ -88,6 +89,8 @@ export default function ScanPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
+  /** The page the region editor opened on, while it is open. */
+  const [markingFrom, setMarkingFrom] = useState<string | null>(null);
   const pageHeading = useRef<HTMLHeadingElement | null>(null);
   // Async work checks these when it finishes, so it lands only where it started.
   /** Changes when the pages are replaced as a whole (Open, Start over). Imports in flight are dropped. */
@@ -399,7 +402,17 @@ export default function ScanPage() {
                     // eslint-disable-next-line @next/next/no-img-element -- a local blob URL, which next/image cannot optimise
                     ? <img src={page.cleaned.url} alt="" className="h-full w-full object-contain" />
                     : <span className="text-[10px] text-muted-foreground">{page.error ? 'Error' : '…'}</span>}
-                  <span className="sr-only">Page {i + 1}</span>
+                  <span className="sr-only">
+                    Page {i + 1}
+                    {page.blocks.length > 0 && `, ${page.blocks.length} ${page.blocks.length === 1 ? 'region' : 'regions'}`}
+                    {page.regionsComplete && ', every region marked'}
+                  </span>
+                  {(page.blocks.length > 0 || page.regionsComplete) && (
+                    <span aria-hidden="true" className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded bg-foreground px-1 text-[10px] font-semibold leading-4 text-background">
+                      {page.blocks.length > 0 && page.blocks.length}
+                      {page.regionsComplete && <Check size={10} />}
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={() => removePage(page.id)}
@@ -463,6 +476,21 @@ export default function ScanPage() {
                   </figcaption>
                 </figure>
               </div>
+
+              {selected.cleaned && !selected.request && !selected.error && (
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={() => setMarkingFrom(selected.id)}
+                    aria-label={`Mark regions on page ${selectedNumber}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 py-2 text-sm font-medium text-foreground transition hover:bg-muted"
+                  >
+                    <SquareDashed size={14} aria-hidden="true" /> Mark regions
+                  </button>
+                  <p className="text-xs text-muted-foreground">
+                    Optional. Box each part of the page and say what it is. Labels stay on this device, and can later train SahurLock&apos;s own recognizer.
+                  </p>
+                </div>
+              )}
             </>
           )}
 
@@ -525,6 +553,17 @@ export default function ScanPage() {
       )}
 
       <p role="status" className="sr-only">{announcement}</p>
+
+      {markingFrom && (
+        <RegionEditor
+          pages={pages.filter((p) => p.cleaned && !p.request && !p.error).map((p) => ({
+            id: p.id, url: p.cleaned!.url, width: p.cleaned!.width, height: p.cleaned!.height, blocks: p.blocks, regionsComplete: p.regionsComplete,
+          }))}
+          startId={markingFrom}
+          onChange={(id, blocks, regionsComplete) => setPages((all) => all.map((p) => (p.id === id ? { ...p, blocks, regionsComplete } : p)))}
+          onClose={(id) => { setMarkingFrom(null); setSelectedId(id); }}
+        />
+      )}
 
       {library.length > 0 && (
         <SavedScans
