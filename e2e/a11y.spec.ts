@@ -41,3 +41,23 @@ test('the command palette traps focus and gives it back on Escape', async ({ pag
   await expect(dialog).toHaveCount(0);
   await expect(opener).toBeFocused();
 });
+
+test('single-key session shortcuts can be turned off', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Shortcuts' }).click();
+  const toggle = page.getByRole('switch', { name: 'Single-key shortcuts' });
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('sahurlock.settings') ?? '{}'));
+  expect(saved.keyboardShortcutsEnabled).toBe(false);
+
+  // H normally hides the camera (see camera.spec.ts). With shortcuts off it does nothing.
+  await page.goto('/session');
+  await page.getByRole('button', { name: /start session/i }).first().click();
+  await expect(page.locator('section video')).toBeVisible();
+  await page.keyboard.press('h');
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await expect(page.getByText('Camera hidden')).toHaveCount(0);
+});
