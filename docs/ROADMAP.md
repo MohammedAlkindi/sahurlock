@@ -47,7 +47,7 @@ that shipped it.
       selected states render as written (5ffce14)
 - [x] Give form fields a border that meets 3:1 against the page (WCAG 1.4.11). The
       shared `border-border` is about 1.3:1
-- [ ] Show row actions (edit, delete) on touch screens, where there is no hover
+- [x] Show row actions (edit, delete) on touch screens, where there is no hover
 - [x] Browser tests for the camera lifecycle (start, hide and show, retry, leave the
       page), the detector, the security policy and the scheduler (6b05d93)
 - [ ] Run the browser tests in CI (a CI change, so it needs the owner's OK)
