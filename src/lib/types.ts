@@ -167,3 +167,17 @@ export interface Task {
   sessionCount: number;
   status: TaskStatus;
 }
+
+// ── Goals and notes ────────────────────────────────────────────────────────────
+
+export interface Goals {
+  dailyGoalMinutes: number;
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}

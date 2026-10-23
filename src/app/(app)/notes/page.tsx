@@ -4,21 +4,15 @@ import { useEffect, useRef, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { uid } from '@/lib/utils';
+import { decodeNote, listOf, parseStored } from '@/lib/decode';
+import type { Note } from '@/lib/types';
 
-// ── Types & storage ────────────────────────────────────────────────────────────
-
-interface Note {
-  id: string;
-  title: string;
-  body: string;
-  createdAt: string;
-  updatedAt: string;
-}
+// ── Storage ────────────────────────────────────────────────────────────────────
 
 const KEY = 'sahurlock.notes';
 
 function load(): Note[] {
-  try { return JSON.parse(localStorage.getItem(KEY) ?? '[]'); } catch { return []; }
+  return listOf(parseStored(localStorage.getItem(KEY)), decodeNote);
 }
 
 function persist(notes: Note[]) {
