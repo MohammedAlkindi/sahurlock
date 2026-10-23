@@ -13,5 +13,5 @@ Implement features, fix bugs, and refactor within this repo.
 Destructive git ops (force-push, history rewrite), deploys/publishing, secret or CI changes, and data deletion.
 
 ## Before done
-Run `npm run lint`, `npx tsc --noEmit`, `npm test` and `npm run build` and confirm all four pass.
+Run `npm run lint`, `npx tsc --noEmit`, `npm test` and `npm run build` and confirm all four pass. For any change to the session page, camera, detector, scheduler or security headers, also run `npm run test:e2e` after the build.
 
