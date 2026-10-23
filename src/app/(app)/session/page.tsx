@@ -19,13 +19,18 @@ import {
 import { FlashcardOverlay } from '@/components/flashcard-overlay';
 import { getDerivedState } from '@/lib/session-machine';
 import {
+  getCustomVideoBlobUrl,
   incrementTaskSessionCount,
+  loadCustomVideoMeta,
   loadSettings,
   loadTasks,
   saveSessionHistory,
   saveSettings,
+  setCustomVideoBlobUrl,
   updateAggregate,
 } from '@/lib/storage';
+import { DEFAULT_PUNISHMENT_MEDIA, resolvePunishmentMedia } from '@/lib/punishment-media';
+import { getVideoBlob } from '@/lib/video-storage';
 import { sounds } from '@/lib/sound';
 import {
   AppState,
@@ -187,6 +192,23 @@ export default function SessionPage() {
   }, [appState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { saveSettings(config); }, [config]);
+
+  // "custom" in settings means the uploaded video kept in IndexedDB, which a
+  // <video> cannot load by name. Resolve it to a blob URL.
+  const [punishmentSrc, setPunishmentSrc] = useState(DEFAULT_PUNISHMENT_MEDIA);
+  useEffect(() => {
+    let cancelled = false;
+    resolvePunishmentMedia(config.punishmentMedia, {
+      cachedUrl:     getCustomVideoBlobUrl,
+      customVideoId: () => loadCustomVideoMeta()?.id ?? null,
+      loadBlob:      getVideoBlob,
+      createUrl:     (blob) => URL.createObjectURL(blob),
+    }).then(({ src, createdUrl }) => {
+      if (createdUrl) setCustomVideoBlobUrl(createdUrl);
+      if (!cancelled) setPunishmentSrc(src);
+    });
+    return () => { cancelled = true; };
+  }, [config.punishmentMedia]);
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────────
 
@@ -1072,7 +1094,7 @@ export default function SessionPage() {
       )}
 
       {/* Hidden audio */}
-      <video ref={audioRef} className="hidden" src={config.punishmentMedia} preload="auto" playsInline loop />
+      <video ref={audioRef} className="hidden" src={punishmentSrc} preload="auto" playsInline loop />
 
       {/* Flashcard overlay (shown during breaks) */}
       {showFlashcards && sessionCards.length > 0 && (
