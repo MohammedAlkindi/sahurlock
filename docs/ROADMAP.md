@@ -32,7 +32,7 @@ that shipped it.
 - [x] Harden the scheduler: feature-detect `Notification`, split timeouts longer than
       2^31 ms, use an icon that exists, arm new schedules without a reload (c0652ce)
 - [ ] Move Spotify to PKCE and remove the server-side refresh route
-- [x] Make the README, landing page and settings text match the code (warning
+- [x] Make the README, landing page and settings text match the code (ccdd3f9) (warning
       threshold, recovery time, the "no backend" claim, the iris tracking toggle)
 - [ ] Versioned storage schemas, with export and "clear everything" covering every
       key and the IndexedDB video store
@@ -42,7 +42,9 @@ that shipped it.
 - [ ] Browser tests for the camera lifecycle (start, hide and show, retry, leave the
       page) with a fake camera and a stubbed detector
 - [ ] Remove dead code and keep a single default configuration
-- [ ] Upgrade Next.js to the latest 14.2 release and pin the Node version
+- [x] Upgrade Next.js to the latest 14.2 release and pin the Node version
+- [ ] Move to Next.js 15.5.28 or later (React 19) to clear the advisories 14.2 will not
+      get fixes for; the unused image optimizer is switched off until then
 - [ ] Split the app into `tools/` and `core/` with a tool registry that drives the
       sidebar and command palette, with no behaviour change
 
