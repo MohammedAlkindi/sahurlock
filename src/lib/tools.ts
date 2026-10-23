@@ -1,5 +1,5 @@
 import {
-  BarChart2, CalendarClock, CheckSquare, Clock, Layers, Music2, NotebookPen, Timer,
+  BarChart2, CalendarClock, CheckSquare, Clock, Layers, Music2, NotebookPen, ScanLine, Timer,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -23,6 +23,7 @@ export const TOOLS: readonly Tool[] = [
   { id: 'schedule',   label: 'Schedule',   icon: CalendarClock, keywords: 'plan reminder calendar later' },
   { id: 'notes',      label: 'Notes',      icon: NotebookPen,   keywords: 'scratchpad write journal' },
   { id: 'flashcards', label: 'Flashcards', icon: Layers,        keywords: 'cards review study spaced' },
+  { id: 'scan',       label: 'Scan',       icon: ScanLine,      keywords: 'notes photo handwriting clean page paper' },
   { id: 'timer',      label: 'Timer',      icon: Clock,         keywords: 'countdown stopwatch' },
   { id: 'sounds',     label: 'Sounds',     icon: Music2,        keywords: 'ambient noise rain music' },
 ];

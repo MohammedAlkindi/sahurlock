@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-const ROUTES = ['/', '/session', '/timer', '/stats', '/schedule', '/tasks', '/notes', '/flashcards', '/sounds', '/settings'];
+const ROUTES = ['/', '/session', '/timer', '/stats', '/schedule', '/tasks', '/notes', '/flashcards', '/scan', '/sounds', '/settings'];
 const LISTS = ['history', 'tasks', 'notes', 'flashcards', 'schedule', 'templates'];
 
 // Stored data that parses as JSON but is not what the app wrote: an older
