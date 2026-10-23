@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { Download, FileDown, ImageUp, Plus, RotateCcw, Save, X } from 'lucide-react';
+import { PaperSelect } from '@/components/paper-select';
 import { SavedScans } from '@/components/saved-scans';
 import type { LineRemoval } from '@/lib/scan/clean';
 import { buildPdf, type Paper } from '@/lib/scan/pdf';
@@ -12,6 +14,11 @@ import { uid } from '@/lib/utils';
 
 /** IndexedDB, or null where the browser does not offer it. */
 const scanStore = () => (typeof indexedDB === 'undefined' ? null : indexedDB);
+
+const pad = (n: number) => String(n).padStart(2, '0');
+/** The date where the user is, such as 2026-10-23. toISOString would give the date in UTC. */
+const localDate = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const localTime = (d = new Date()) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 interface Cleaned {
   pngUrl: string;
@@ -63,6 +70,7 @@ export default function ScanPage() {
   /** The library entry these pages were saved as, and what they looked like then. */
   const [savedAs, setSavedAs] = useState<{ id: string; key: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const pageHeading = useRef<HTMLHeadingElement | null>(null);
 
@@ -147,6 +155,14 @@ export default function ScanPage() {
     const rest = pages.filter((p) => p.id !== id);
     setPages(rest);
     if (selectedId === id) setSelectedId(rest[0]?.id ?? null);
+    // With no pages left, whatever comes next is a new scan, not a change to the saved one.
+    if (rest.length === 0) forgetSavedScan();
+  };
+
+  const forgetSavedScan = () => {
+    setTitle('');
+    setSavedAs(null);
+    setSaveError(null);
   };
 
   const startOver = () => {
@@ -157,18 +173,23 @@ export default function ScanPage() {
     setPages([]);
     setSelectedId(null);
     setNotice(null);
-    setTitle('');
-    setSavedAs(null);
+    forgetSavedScan();
   };
 
-  const today = new Date().toISOString().slice(0, 10);
+  /** Clear the status region first, so the same words twice are announced twice. */
+  const announce = (text: string) => {
+    flushSync(() => setAnnouncement(''));
+    setAnnouncement(text);
+  };
+
+  const today = localDate();
   const ready = pages.length > 0 && pages.every((p) => p.cleaned && !p.request && !p.error);
-  const scanTitle = title.trim() || `Notes ${today}`;
   // Each clean makes a new URL, so this changes whenever a page, the order or the title does.
-  const contentKey = [scanTitle, ...pages.map((p) => p.cleaned?.pngUrl ?? '')].join('\n');
-  const upToDate = savedAs !== null && savedAs.key === contentKey;
+  const keyFor = (name: string) => [name, ...pages.map((p) => p.cleaned?.pngUrl ?? '')].join('\n');
+  const upToDate = savedAs !== null && savedAs.key === keyFor(title.trim());
 
   const savePdf = async (jpegs: Blob[], filename: string) => {
+    if (exporting) return;
     setExporting(true);
     try {
       const bytes = buildPdf(await Promise.all(jpegs.map(async (j) => new Uint8Array(await j.arrayBuffer()))), paper);
@@ -186,33 +207,35 @@ export default function ScanPage() {
   const downloadPdf = () => savePdf(pages.map((p) => p.cleaned!.jpeg), `notes-${today}.pdf`);
 
   const saveToLibrary = async () => {
+    if (!ready || saving || upToDate) return;
     const idb = scanStore();
     if (!idb) {
-      setNotice({ kind: 'error', text: 'This browser cannot keep scans. Download them as a PDF instead.' });
+      setSaveError('This browser cannot keep scans. Download them as a PDF instead.');
       return;
     }
     // Saving again after a change replaces the earlier copy instead of adding another.
     const id = savedAs?.id ?? uid();
-    const key = contentKey;
+    const replacing = savedAs !== null;
+    // An untitled scan is named when it is saved, and the name shows in the field.
+    const name = title.trim() || `Notes ${localDate()} ${localTime()}`;
+    const key = keyFor(name);
     setSaving(true);
-    setNotice(null);
+    setSaveError(null);
     try {
       await saveScan(idb, {
         id,
-        title: scanTitle,
+        title: name,
         createdAt: new Date().toISOString(),
         pages: pages.map((p) => ({ jpeg: p.cleaned!.jpeg, width: p.cleaned!.width, height: p.cleaned!.height })),
       });
+      setTitle(name);
       setSavedAs({ id, key });
-      setAnnouncement(`Saved ${scanTitle} to this device.`);
+      announce(replacing ? `Saved the changes to ${name}.` : `Saved ${name} to this device.`);
       await reloadLibrary();
     } catch (error) {
-      setNotice({
-        kind: 'error',
-        text: error instanceof DOMException && error.name === 'QuotaExceededError'
-          ? 'This browser is out of room for saved scans. Delete an older one, or download this one as a PDF.'
-          : 'This scan could not be saved. Download it as a PDF instead.',
-      });
+      setSaveError(error instanceof DOMException && error.name === 'QuotaExceededError'
+        ? 'This browser is out of room for saved scans. Delete an older one, or download this one as a PDF.'
+        : 'This scan could not be saved. Download it as a PDF instead.');
     } finally {
       setSaving(false);
     }
@@ -224,11 +247,10 @@ export default function ScanPage() {
     try {
       await deleteScan(idb, scan.id);
     } catch {
-      setNotice({ kind: 'error', text: `${scan.title} could not be deleted.` });
       return null;
     }
     if (savedAs?.id === scan.id) setSavedAs(null);
-    setAnnouncement(`Deleted ${scan.title}.`);
+    announce(`Deleted ${scan.title}.`);
     const rest = await reloadLibrary();
     if (rest.length === 0) pageHeading.current?.focus();
     return rest.length;
@@ -350,18 +372,14 @@ export default function ScanPage() {
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <button
               onClick={downloadPdf}
-              disabled={!ready || exporting}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={!ready}
+              // aria-disabled, not disabled, while busy: a disabled button drops keyboard focus.
+              aria-disabled={exporting}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
             >
               <FileDown size={15} /> Download PDF{pages.length > 1 ? ` (${pages.length} pages)` : ''}
             </button>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              Paper
-              <select value={paper} onChange={(e) => setPaper(e.target.value as Paper)} className="rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none">
-                <option value="a4">A4</option>
-                <option value="letter">Letter</option>
-              </select>
-            </label>
+            <PaperSelect value={paper} onChange={setPaper} />
             {selected?.cleaned && (
               <a
                 href={selected.cleaned.pngUrl}
@@ -385,12 +403,14 @@ export default function ScanPage() {
             />
             <button
               onClick={saveToLibrary}
-              disabled={!ready || saving || upToDate}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 py-2 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={!ready}
+              aria-disabled={saving || upToDate}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 py-2 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
             >
               <Save size={14} /> {upToDate ? 'Saved' : savedAs ? 'Save changes' : 'Save to this device'}
             </button>
           </div>
+          {saveError && <p role="alert" className="mt-2 text-sm text-danger">{saveError}</p>}
         </>
       )}
 
@@ -400,6 +420,8 @@ export default function ScanPage() {
         <SavedScans
           scans={library}
           exporting={exporting}
+          // The editor has its own paper control. Without it open, the list shows one.
+          paper={pages.length === 0 ? { value: paper, onChange: setPaper } : null}
           onDownload={(scan) => savePdf(scan.pages.map((pg) => pg.jpeg), scanFileName(scan.title))}
           onDelete={removeSaved}
         />

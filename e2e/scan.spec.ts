@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import { buildPdf } from '../src/lib/scan/pdf';
+import { violations } from './axe';
 
 /**
  * A JPEG of a ruled page with writing, tilted 4°, under light that fades to one
@@ -179,6 +180,8 @@ test('deleting a saved scan asks first', async ({ page }) => {
   await expect(page.getByRole('region', { name: 'Saved scans' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Scan notes' })).toBeFocused();
   await expect(page.getByRole('status').filter({ hasText: `Deleted ${title}.` })).toBeAttached();
+  // The pages still open were that scan, so saving them now makes a new one.
+  await expect(page.getByRole('button', { name: 'Save to this device' })).toBeEnabled();
 });
 
 test('saving again after a change updates the saved scan instead of adding one', async ({ page }) => {
@@ -186,31 +189,111 @@ test('saving again after a change updates the saved scan instead of adding one',
   await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
   await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
   await page.getByLabel('Title').fill('Chem notes');
-  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await page.getByRole('button', { name: 'Save to this device' }).focus();
+  await page.keyboard.press('Enter');
+  // The button stays focused, so keyboard users keep their place.
   await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeFocused();
+  await expect(page.getByRole('status').filter({ hasText: 'Saved Chem notes to this device.' })).toBeAttached();
 
   await page.getByLabel('Add page').setInputFiles({ name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
   await expect(page.getByRole('button', { name: 'Download PDF (2 pages)' })).toBeEnabled({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+  await expect(page.getByRole('status').filter({ hasText: 'Saved the changes to Chem notes.' })).toBeAttached();
 
   const saved = page.getByRole('region', { name: 'Saved scans' });
   await expect(saved.getByRole('listitem')).toHaveCount(1);
   await expect(saved.getByText(/2 pages/)).toBeVisible();
 });
 
-test('a browser that is out of room says so instead of failing silently', async ({ page }) => {
-  await page.addInitScript(() => {
-    IDBObjectStore.prototype.put = () => { throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); };
-  });
+test('removing every page and adding new ones saves a new scan', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
   await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
   await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByLabel('Title').fill('Scan A');
   await page.getByRole('button', { name: 'Save to this device' }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'out of room' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+
+  await page.getByRole('button', { name: 'Remove page 1' }).click();
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await expect(page.getByLabel('Title')).toHaveValue('');
+  await page.getByLabel('Title').fill('Scan B');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await expect(saved.getByRole('listitem')).toHaveCount(2);
+  await expect(saved.getByText('Scan A')).toBeVisible();
+  await expect(saved.getByText('Scan B')).toBeVisible();
+});
+
+test.describe('in San Diego in the evening', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' });
+
+  test('an untitled scan is named with the local date and time', async ({ page }) => {
+    // 03:30 UTC on 24 October is 20:30 on 23 October in San Diego.
+    await page.clock.setFixedTime(new Date('2026-10-24T03:30:00Z'));
+    await page.goto('/scan', { waitUntil: 'networkidle' });
+    await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+    await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+    await expect(page.getByLabel('Title')).toHaveAttribute('placeholder', 'Notes 2026-10-23');
+    await page.getByRole('button', { name: 'Save to this device' }).click();
+    await expect(page.getByLabel('Title')).toHaveValue('Notes 2026-10-23 20:30');
+    await expect(page.getByRole('region', { name: 'Saved scans' }).getByText('Notes 2026-10-23 20:30')).toBeVisible();
+  });
+});
+
+test('a browser that is out of room says so next to the Save button', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  // Shrink this origin's real storage quota, so the save fails the way it would on a full device.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Storage.overrideQuotaForOrigin', { origin: new URL(page.url()).origin, quotaSize: 1024 });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  const alert = page.getByRole('alert').filter({ hasText: 'out of room' });
+  await expect(alert).toBeVisible();
+  // It sits right under the Title and Save row.
+  const row = await page.getByRole('button', { name: 'Save to this device' }).boundingBox();
+  const box = await alert.boundingBox();
+  expect(box!.y - (row!.y + row!.height)).toBeLessThan(40);
   await expect(page.getByRole('button', { name: 'Save to this device' })).toBeEnabled();
   await expect(page.getByRole('region', { name: 'Saved scans' })).toHaveCount(0);
 });
+
+test('with only the library on screen, downloads still offer a paper size', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByLabel('Title').fill('Bio');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await page.getByRole('button', { name: 'Start over' }).click();
+
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  // Letter is preselected in the test browser's en-US locale, so pick A4.
+  await saved.getByLabel('Paper').selectOption('a4');
+  const [download] = await Promise.all([page.waitForEvent('download'), saved.getByRole('button', { name: 'Download Bio as PDF' }).click()]);
+  expect((await readFile(await download.path())).toString('latin1')).toContain('/MediaBox [0 0 595.28 841.89]');
+});
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`the saved scans list passes WCAG 2.1 AA checks in the ${theme} theme`, async ({ page }) => {
+    await page.addInitScript((t) => localStorage.setItem('sahurlock-theme', t), theme);
+    await page.goto('/scan', { waitUntil: 'networkidle' });
+    await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+    await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+    await page.getByLabel('Title').fill('Physics');
+    await page.getByRole('button', { name: 'Save to this device' }).click();
+    const saved = page.getByRole('region', { name: 'Saved scans' });
+    await expect(saved).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+
+    await saved.getByRole('button', { name: 'Delete Physics' }).click();
+    await expect(saved.getByRole('group', { name: 'Delete Physics?' })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+  });
+}
 
 test('a file that is not an image gets a clear message', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
