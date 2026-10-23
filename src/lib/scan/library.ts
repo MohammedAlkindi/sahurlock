@@ -1,7 +1,7 @@
 import { SCAN_DATABASE } from '@/lib/data-management';
 
 // Saved scans live in their own IndexedDB database on this device. Nothing is
-// uploaded, and Settings > Data > Clear everything deletes the database.
+// uploaded, and Settings > Data > Clear all data deletes the database.
 
 const STORE = 'scans';
 
