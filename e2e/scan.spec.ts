@@ -324,9 +324,13 @@ test('a saved scan opens again to rename, file under a course and reorder', asyn
   await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
   await expect(page.getByText('Saved scans keep only the cleaned page, not the photo.')).toBeVisible();
 
-  // Opened pages are cleaned already, so the options leave them as they are.
+  // Opened pages are cleaned already, so the options leave them as they are: nothing is
+  // sent to be cleaned, which would disable the download at once, and the image stays.
+  const cleanedSrc = await page.getByRole('img', { name: 'The cleaned page' }).getAttribute('src');
   await page.getByLabel('Remove grid lines').check();
+  expect(await page.getByRole('button', { name: 'Download PDF (2 pages)' }).isEnabled()).toBe(true);
   await expect(page.getByText('already cleaned, so these options apply to photos you add')).toBeVisible();
+  await expect(page.getByRole('img', { name: 'The cleaned page' })).toHaveAttribute('src', cleanedSrc!);
   await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
 
   // Refiling alone is a change worth saving.
@@ -351,6 +355,37 @@ test('a saved scan opens again to rename, file under a course and reorder', asyn
   expect([...pdf.matchAll(/\/Subtype \/Image \/Width (\d+)/g)].map((m) => Number(m[1]))).toEqual([second, first]);
 });
 
+test('a photo added to an opened scan is cleaned on its own and saved with the rest', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) },
+    { name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) },
+  ]);
+  await expect(page.getByRole('button', { name: 'Download PDF (2 pages)' })).toBeEnabled({ timeout: 30_000 });
+  await page.getByLabel('Title').fill('Lab 3');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await page.getByRole('button', { name: 'Start over' }).click();
+
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Lab 3' }).click();
+  const strip = page.getByRole('list', { name: 'Pages' });
+  const firstSrc = await strip.locator('img').first().getAttribute('src');
+  await page.getByLabel('Add page').setInputFiles({ name: 'p3.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
+  const pdfButton = page.getByRole('button', { name: 'Download PDF (3 pages)' });
+  await expect(pdfButton).toBeEnabled({ timeout: 30_000 });
+
+  // An option change cleans the new photo again and leaves the opened pages alone.
+  await page.getByLabel('Remove grid lines').check();
+  expect(await pdfButton.isEnabled()).toBe(false);
+  await expect(pdfButton).toBeEnabled({ timeout: 30_000 });
+  await expect(strip.locator('img').first()).toHaveAttribute('src', firstSrc!);
+
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+  await expect(saved.getByRole('listitem')).toHaveCount(1);
+  await expect(saved.getByText(/3 pages/)).toBeVisible();
+});
+
 test('opening a saved scan over unsaved pages asks first', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
   await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
@@ -363,7 +398,7 @@ test('opening a saved scan over unsaved pages asks first', async ({ page }) => {
 
   const saved = page.getByRole('region', { name: 'Saved scans' });
   await saved.getByRole('button', { name: 'Open Scan A' }).click();
-  const confirm = saved.getByRole('group', { name: 'Replace the unsaved pages with Scan A?' });
+  const confirm = saved.getByRole('group', { name: 'Open Scan A in place of the scan you are working on? Its changes are not saved.' });
   await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(saved.getByRole('button', { name: 'Open Scan A' })).toBeFocused();
@@ -372,6 +407,97 @@ test('opening a saved scan over unsaved pages asks first', async ({ page }) => {
   await saved.getByRole('button', { name: 'Open Scan A' }).click();
   await confirm.getByRole('button', { name: 'Replace' }).click();
   await expect(page.getByLabel('Title')).toHaveValue('Scan A');
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+});
+
+test('a replace confirm goes away once the work it warned about is saved', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByLabel('Title').fill('Scan A');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Scan A' }).click();
+  await expect(saved.getByRole('group', { name: /^Open Scan A in place/ })).toBeVisible();
+  await page.getByLabel('Title').fill('Scan B');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await expect(saved.getByRole('group', { name: /^Open Scan A in place/ })).toHaveCount(0);
+
+  // Nothing is left to lose, so Open goes straight through.
+  await saved.getByRole('button', { name: 'Open Scan A' }).click();
+  await expect(page.getByLabel('Title')).toHaveValue('Scan A');
+});
+
+test('a PDF still being read does not end up in a scan opened meanwhile', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByLabel('Title').fill('Scan A');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await page.getByRole('button', { name: 'Start over' }).click();
+
+  // Six pages at full size take a few seconds to read, which leaves time to open a scan.
+  const photos = [];
+  for (let i = 0; i < 6; i++) photos.push(new Uint8Array(await notebookPhoto(page, i % 2 === 1)));
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'big.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) });
+  await expect(page.getByRole('status').filter({ hasText: 'Reading big.pdf' })).toBeVisible();
+
+  // A PDF being read counts as unsaved work, so opening asks first.
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Scan A' }).click();
+  await saved.getByRole('group', { name: /^Open Scan A in place/ }).getByRole('button', { name: 'Replace' }).click();
+  await expect(page.getByLabel('Title')).toHaveValue('Scan A');
+
+  // There is no sign when a dropped import finishes, so wait out the read and then
+  // check that none of its pages arrived.
+  await page.waitForTimeout(8_000);
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+});
+
+test('a save still running when another scan is opened leaves the opened scan alone', async ({ page }) => {
+  // Lets the test hold a save open: while the flag is set, opening the scans database
+  // answers 1.5 s late, so the save is still running when the next click lands.
+  await page.addInitScript(() => {
+    const flagged = window as unknown as { __slowScans?: boolean };
+    const open = IDBFactory.prototype.open;
+    const onsuccess = Object.getOwnPropertyDescriptor(IDBRequest.prototype, 'onsuccess')!;
+    IDBFactory.prototype.open = function (name: string, version?: number) {
+      const request = open.call(this, name, version);
+      if (name === 'sahurlock-scans' && flagged.__slowScans) {
+        Object.defineProperty(request, 'onsuccess', {
+          set(handler: (event: Event) => void) {
+            onsuccess.set!.call(this, (event: Event) => setTimeout(() => handler.call(this, event), 1_500));
+          },
+        });
+      }
+      return request;
+    };
+  });
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByLabel('Title').fill('Scan B');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByLabel('Title').fill('Scan X');
+
+  await page.evaluate(() => { (window as unknown as { __slowScans?: boolean }).__slowScans = true; });
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Scan B' }).click();
+  await saved.getByRole('group', { name: /^Open Scan B in place/ }).getByRole('button', { name: 'Replace' }).click();
+  await expect(page.getByLabel('Title')).toHaveValue('Scan B');
+
+  // Once Scan X's save lands, the editor still holds Scan B, unchanged and saved.
+  await expect(saved.getByText('Scan X')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByLabel('Title')).toHaveValue('Scan B');
   await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
 });
 

@@ -15,7 +15,7 @@ interface Props {
   exporting: boolean;
   /** The paper control to show with the list, or null when the page shows its own. */
   paper: { value: Paper; onChange: (paper: Paper) => void } | null;
-  /** Opening a scan would replace pages that are not saved, so ask first. */
+  /** Opening a scan would replace work that is not saved, so ask first. */
   openNeedsConfirm: boolean;
   onOpen: (scan: SavedScan) => void;
   onDownload: (scan: SavedScan) => void;
@@ -40,6 +40,9 @@ export function SavedScans({ scans, exporting, paper, openNeedsConfirm, onOpen, 
 
   useEffect(() => { if (confirming) cancelButton.current?.focus(); }, [confirming]);
 
+  // An open confirm goes away by itself once there is nothing left to lose.
+  const shown = confirming && (confirming.action === 'delete' || openNeedsConfirm) ? confirming : null;
+
   const buttonRef = (action: Action, id: string) => (el: HTMLButtonElement | null) => {
     if (el) actionButtons.current.set(`${action}:${id}`, el);
     else actionButtons.current.delete(`${action}:${id}`);
@@ -54,7 +57,7 @@ export function SavedScans({ scans, exporting, paper, openNeedsConfirm, onOpen, 
   };
 
   const open = (scan: SavedScan) => {
-    if (openNeedsConfirm && confirming?.id !== scan.id) {
+    if (openNeedsConfirm && shown?.id !== scan.id) {
       setConfirming({ id: scan.id, action: 'open' });
       return;
     }
@@ -85,21 +88,21 @@ export function SavedScans({ scans, exporting, paper, openNeedsConfirm, onOpen, 
           {' · '}{scan.pages.length} {scan.pages.length === 1 ? 'page' : 'pages'}
         </p>
       </div>
-      {confirming?.id === scan.id ? (
+      {shown?.id === scan.id ? (
         // Keyed so React builds the confirm fresh. Reusing an icon button's element for
         // the coloured button would animate its colours through an unreadable pairing.
         <div
-          key={`confirm-${confirming.action}`}
+          key={`confirm-${shown.action}`}
           role="group"
-          aria-label={confirming.action === 'delete' ? `Delete ${scan.title}?` : `Replace the unsaved pages with ${scan.title}?`}
+          aria-label={shown.action === 'delete' ? `Delete ${scan.title}?` : `Open ${scan.title} in place of the scan you are working on? Its changes are not saved.`}
           className="flex items-center gap-2 text-sm"
         >
-          <span className="text-muted-foreground" aria-hidden="true">{confirming.action === 'delete' ? 'Delete?' : 'Replace unsaved pages?'}</span>
-          {confirming.action === 'delete'
+          <span className="text-muted-foreground" aria-hidden="true">{shown.action === 'delete' ? 'Delete?' : 'Not saved. Replace?'}</span>
+          {shown.action === 'delete'
             ? <button onClick={() => remove(scan)} className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-red-700">Delete</button>
             : <button onClick={() => open(scan)} className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground transition hover:opacity-90">Replace</button>}
           <button ref={cancelButton} onClick={cancel} className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground">
-            {confirming.action === 'delete' ? 'Keep' : 'Cancel'}
+            {shown.action === 'delete' ? 'Keep' : 'Cancel'}
           </button>
         </div>
       ) : (
