@@ -305,6 +305,10 @@ export default function SessionPage() {
   };
 
   const finishSession = () => {
+    // The rAF loop, the background interval and the End button can all land
+    // here in the same tick; only the first may write history.
+    if (appStateRef.current === 'session_complete') return;
+    appStateRef.current = 'session_complete';
     cleanupMedia();
     stopAmbient();
     const focusScore = computeDetailedScore(statsRef.current, configRef.current).total;
@@ -418,16 +422,20 @@ export default function SessionPage() {
         const delta = Math.min(now - lastBgTs, 500); // cap at 500ms
         lastBgTs = now;
 
-        // Keep the session timer ticking while rAF is throttled
-        if (bgState !== 'break') {
-          const nextR = Math.max(0, remainingMsRef.current - delta);
-          remainingMsRef.current = nextR;
-          setRemainingMs(nextR);
-          if (nextR <= 0) stableFnRef.current.finishSession();
-        } else {
-          const nextB = Math.max(0, breakRemainingMsRef.current - delta);
-          breakRemainingMsRef.current = nextB;
-          setBreakRemainingMs(nextB);
+        // Keep the session timer ticking while rAF is paused. When the window
+        // is only blurred, the tab stays visible and rAF already advances the
+        // timers, so ticking here too would count that time twice.
+        if (document.hidden) {
+          if (bgState !== 'break') {
+            const nextR = Math.max(0, remainingMsRef.current - delta);
+            remainingMsRef.current = nextR;
+            setRemainingMs(nextR);
+            if (nextR <= 0) stableFnRef.current.finishSession();
+          } else {
+            const nextB = Math.max(0, breakRemainingMsRef.current - delta);
+            breakRemainingMsRef.current = nextB;
+            setBreakRemainingMs(nextB);
+          }
         }
 
         // Accumulate distraction time while backgrounded
@@ -477,8 +485,9 @@ export default function SessionPage() {
     const handleWindowFocus = () => {
       if (document.hidden) return;
       bgHiddenAtRef.current = null;
+      // rAF kept running while the window was only blurred, so there is no
+      // background time to skip over here (visibilitychange handles that case).
       stopBgInterval();
-      skipNextRafTickRef.current = true;
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);

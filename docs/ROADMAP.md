@@ -19,9 +19,9 @@ that shipped it.
 - [x] CI on every push: lint, typecheck, test, build (f0ac53a)
 - [x] Retry Calibration reuses the existing stream instead of a new, empty `<video>`
       (6f31b68)
-- [x] Play a custom punishment video from its IndexedDB copy (the session uses the
+- [x] Play a custom punishment video from its IndexedDB copy (ae1aff0) (the session uses the
       literal string `custom` as the video source today)
-- [ ] Stop the timer double-counting while the window is blurred but visible, and make
+- [x] Stop the timer double-counting while the window is blurred but visible, and make
       `finishSession` idempotent so one session cannot write two history entries
 - [ ] Stop counting uncertain frames as focused time
 - [ ] Scale head-pose thresholds by face size, with recorded-landmark test fixtures
