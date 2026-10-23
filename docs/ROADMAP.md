@@ -62,8 +62,10 @@ that shipped it.
 - [ ] Upgrade the dev tools that still carry advisories: Tailwind CSS 4 (braces,
       micromatch), and the Next.js ESLint plugin once a release drops its old fast-glob.
       Neither ships to the browser
-- [ ] Split the app into `tools/` and `core/` with a tool registry that drives the
-      sidebar and command palette, with no behaviour change
+- [x] A tool registry (`src/lib/tools.ts`) that drives the sidebar, command palette and
+      breadcrumb, so a new tool is registered in one place
+- [ ] Move tool code into `tools/` and shared code into `core/` once the notes converter
+      shows where the seams are. Moving files before then is churn without a payoff
 
 ## Phase 2: notes import, no ML yet
 

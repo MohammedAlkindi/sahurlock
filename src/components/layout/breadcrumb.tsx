@@ -3,14 +3,9 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
+import { TOOLS } from '@/lib/tools';
 
-const LABELS: Record<string, string> = {
-  session: 'Session',
-  tasks:   'Tasks',
-  stats:   'Stats',
-  spotify: 'Spotify',
-  callback: 'Callback',
-};
+const LABELS: Record<string, string> = Object.fromEntries(TOOLS.map((tool) => [tool.id, tool.label]));
 
 export function Breadcrumb() {
   const pathname = usePathname();
@@ -25,7 +20,7 @@ export function Breadcrumb() {
   }));
 
   return (
-    <nav className="flex items-center gap-1 text-xs text-muted-foreground">
+    <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs text-muted-foreground">
       <Link href="/" className="hover:text-foreground transition-colors">Home</Link>
       {crumbs.map((crumb) => (
         <span key={crumb.href} className="flex items-center gap-1">
