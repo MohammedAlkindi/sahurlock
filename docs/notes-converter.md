@@ -33,8 +33,9 @@ documentation before relying on that comparison.
 7. Detect regions: text, math, diagram, graph, table, heading.
 8. Detect lines in text regions and run the recognizer for each region type.
 9. Order regions for reading (XY-cut).
-10. Write the Document JSON: per block, its box, crop reference, content,
-    per-token confidence and alternatives.
+10. Write the Document JSON (`src/lib/scan/document.ts`): per block, its box on
+    the cleaned page, kind, content, per-token confidence and alternatives, who
+    set it, and whether the user has reviewed it.
 
 ## Unreadable regions
 

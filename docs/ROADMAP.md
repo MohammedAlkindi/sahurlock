@@ -84,8 +84,8 @@ that shipped it.
 - [x] Open a saved scan again to rename it, file it under a course, and reorder, add or
       remove its pages. The list groups scans by course
 - [ ] Move pages from one saved scan to another
-- [ ] Versioned Document JSON for a converted page: blocks with bounding boxes,
-      content, per-token confidence and alternatives
+- [x] Versioned Document JSON for a converted page: blocks with bounding boxes,
+      content, per-token confidence and alternatives (`src/lib/scan/document.ts`)
 - [ ] Layout styles (outline, Cornell, two-column) with print-ready PDF and
       Markdown export
 
