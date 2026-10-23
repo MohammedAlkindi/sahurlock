@@ -25,12 +25,12 @@ Built with Next.js App Router, TypeScript and Tailwind CSS.
 
 ## Scan notes
 
-Photograph a page of handwritten notes and the Scan tool cleans it up: it finds the page
-edges and corrects the perspective, evens out shadows and uneven light, levels tilted
-writing and removes ruled or grid lines while keeping strokes that cross them. Several
-pages save as one PDF on A4 or Letter, or a single page as a PNG. It runs in a Web
-Worker on your device, so the photos are never uploaded. This is the first step of the
-notes converter. Recognising the handwriting comes later.
+Photograph a page of handwritten notes, or open a PDF of them, and the Scan tool cleans
+it up: it finds the page edges and corrects the perspective, evens out shadows and
+uneven light, levels tilted writing and removes ruled or grid lines while keeping
+strokes that cross them. Several pages save as one PDF on A4 or Letter, or a single page
+as a PNG. It runs in a Web Worker on your device, so the photos are never uploaded. This
+is the first step of the notes converter. Recognising the handwriting comes later.
 
 ## Install
 

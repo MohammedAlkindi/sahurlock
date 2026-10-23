@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, FileDown, ImageUp, Plus, RotateCcw, X } from 'lucide-react';
 import type { LineRemoval } from '@/lib/scan/clean';
 import { buildPdf, type Paper } from '@/lib/scan/pdf';
+import { isPdf, MAX_PDF_PAGES, pdfToImages } from '@/lib/scan/pdf-pages';
 import type { ScanRequest, ScanResponse } from '@/lib/scan/worker';
 import { uid } from '@/lib/utils';
 
@@ -51,6 +52,7 @@ export default function ScanPage() {
   const [paper, setPaper] = useState<Paper>('a4');
   const [dragging, setDragging] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [notice, setNotice] = useState<{ kind: 'reading' | 'error' | 'info'; text: string } | null>(null);
 
   useEffect(() => { pagesRef.current = pages; }, [pages]);
   useEffect(() => { setPaper(defaultPaper()); }, []);
@@ -85,12 +87,30 @@ export default function ScanPage() {
     return { ...page, request: request.id, error: null };
   };
 
-  const addFiles = (files: FileList | null) => {
-    const added = Array.from(files ?? []).map((file) =>
+  const addImages = (files: File[]) => {
+    const added = files.map((file) =>
       send({ id: uid(), file, originalUrl: URL.createObjectURL(file), request: null, cleaned: null, error: null }, lines));
     if (added.length === 0) return;
     setPages((all) => [...all, ...added]);
-    setSelectedId(added[0].id);
+    setSelectedId((current) => current ?? added[0].id);
+  };
+
+  const addFiles = async (list: FileList | null) => {
+    const files = Array.from(list ?? []);
+    setNotice(null);
+    for (const file of files) {
+      if (!isPdf(file)) { addImages([file]); continue; }
+      setNotice({ kind: 'reading', text: `Reading ${file.name}…` });
+      try {
+        const { images, skipped } = await pdfToImages(file);
+        addImages(images);
+        setNotice(skipped > 0
+          ? { kind: 'info', text: `${file.name} has more than ${MAX_PDF_PAGES} pages, so only the first ${MAX_PDF_PAGES} were added.` }
+          : null);
+      } catch {
+        setNotice({ kind: 'error', text: `${file.name} could not be read as a PDF. If it has a password, export it again without one.` });
+      }
+    }
   };
 
   const changeLines = (next: LineRemoval) => {
@@ -116,6 +136,7 @@ export default function ScanPage() {
     }
     setPages([]);
     setSelectedId(null);
+    setNotice(null);
   };
 
   const today = new Date().toISOString().slice(0, 10);
@@ -151,8 +172,9 @@ export default function ScanPage() {
         )}
       </div>
       <p className="mb-6 max-w-2xl text-sm text-muted-foreground">
-        Photograph pages of handwritten notes. SahurLock straightens each page, evens out the light, levels the
-        writing and removes ruled lines, all on this device, then saves them as one PDF. Nothing is uploaded.
+        Photograph pages of handwritten notes, or open a PDF of them. SahurLock straightens each page, evens out the
+        light, levels the writing and removes ruled lines, all on this device, then saves them as one PDF. Nothing is
+        uploaded.
       </p>
 
       {pages.length === 0 && (
@@ -163,13 +185,19 @@ export default function ScanPage() {
           className={`flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-14 text-center transition ${dragging ? 'border-accent bg-accent/5' : 'border-input'}`}
         >
           <ImageUp size={28} className="text-muted-foreground" aria-hidden="true" />
-          <p className="text-sm text-muted-foreground">Drop photos here, or</p>
+          <p className="text-sm text-muted-foreground">Drop photos or a PDF here, or</p>
           <label className="cursor-pointer rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground transition hover:opacity-90 focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-2 focus-within:ring-offset-background">
-            Choose photos
-            <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+            Choose photos or a PDF
+            <input type="file" accept="image/*,application/pdf" multiple className="sr-only" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
           </label>
-          <p className="text-xs text-muted-foreground">JPEG, PNG or WebP. Shoot from above with the whole page in view.</p>
+          <p className="text-xs text-muted-foreground">JPEG, PNG, WebP or PDF. Shoot from above with the whole page in view.</p>
         </div>
+      )}
+
+      {notice && (
+        <p role={notice.kind === 'error' ? 'alert' : 'status'} className={`mb-4 text-sm ${notice.kind === 'error' ? 'text-danger' : 'text-muted-foreground'}`}>
+          {notice.text}
+        </p>
       )}
 
       {pages.length > 0 && (
@@ -213,7 +241,7 @@ export default function ScanPage() {
               <label className="flex h-20 w-16 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-input text-xs text-muted-foreground transition hover:border-accent hover:text-foreground focus-within:ring-2 focus-within:ring-accent">
                 <Plus size={16} aria-hidden="true" />
                 Add page
-                <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+                <input type="file" accept="image/*,application/pdf" multiple className="sr-only" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
               </label>
             </li>
           </ol>
