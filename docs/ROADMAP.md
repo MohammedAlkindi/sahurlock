@@ -35,10 +35,17 @@ that shipped it.
 - [x] Make the README, landing page and settings text match the code (ccdd3f9) (warning
       threshold, recovery time, the "no backend" claim, the iris tracking toggle)
 - [x] Export and "clear everything" cover every key and the IndexedDB video store
+      (04d0371)
 - [ ] Versioned storage schemas, validated on load instead of cast
-- [ ] Accessibility pass: dialog semantics and focus traps, an alert role on the
+- [x] Accessibility pass: dialog semantics and focus traps, an alert role on the
       violation overlay, reduced motion, one `<main>`, modifier-free shortcuts made
-      optional, contrast
+      optional, contrast, checked by an axe scan of every route in both themes, empty
+      and with data (cfd2e9a, 81670b9, b89c2f9, 7c240ee)
+- [x] Make Tailwind opacity modifiers work on theme colors, so backdrops, dividers and
+      selected states render as written (5ffce14)
+- [ ] Give form fields a border that meets 3:1 against the page (WCAG 1.4.11). The
+      shared `border-border` is about 1.3:1
+- [ ] Show row actions (edit, delete) on touch screens, where there is no hover
 - [x] Browser tests for the camera lifecycle (start, hide and show, retry, leave the
       page), the detector, the security policy and the scheduler (6b05d93)
 - [ ] Run the browser tests in CI (a CI change, so it needs the owner's OK)
