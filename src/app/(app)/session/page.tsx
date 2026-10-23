@@ -134,6 +134,8 @@ export default function SessionPage() {
   const streamRef     = useRef<MediaStream | null>(null);
   const rafRef        = useRef<number | null>(null);
   const calibTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownTimeoutRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const calibReadingsRef = useRef<AttentionReading[]>([]);
 
   const appStateRef   = useRef<AppState>('idle');
@@ -214,17 +216,29 @@ export default function SessionPage() {
 
   // ── Session helpers ───────────────────────────────────────────────────────────
 
+  const clearCountdown = () => {
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    countdownIntervalRef.current = null;
+    if (countdownTimeoutRef.current) clearTimeout(countdownTimeoutRef.current);
+    countdownTimeoutRef.current = null;
+  };
+
   const cleanupMedia = () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     if (calibTimerRef.current) clearInterval(calibTimerRef.current);
     calibTimerRef.current = null;
+    clearCountdown();
     if (bgIntervalRef.current) clearInterval(bgIntervalRef.current);
     bgIntervalRef.current = null;
     bgHiddenAtRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   };
+
+  // Leaving the page mid-session must turn the camera off and stop every loop.
+  // cleanupMedia only touches refs, so the first render's copy is safe to call.
+  useEffect(() => () => cleanupMedia(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const resetSession = () => {
     cleanupMedia();
@@ -512,6 +526,8 @@ export default function SessionPage() {
       const reading = detectorRef.current
         ? await detectorRef.current.estimate(videoRef.current!, baselineRef.current)
         : null;
+      // cleanupMedia ran while the estimate was in flight: stay stopped.
+      if (rafRef.current === null) return;
       setAttention(reading);
 
       const offscreen = !reading || reading.attention === 'offscreen' || !reading.facePresent;
@@ -650,8 +666,11 @@ export default function SessionPage() {
     setCalibStalled(false);
     setAppState('countdown');
     setCountdownLeft(Math.ceil(COUNTDOWN_MS / 1000));
-    const c = setInterval(() => setCountdownLeft((p) => Math.max(0, p - 1)), 1000);
-    setTimeout(() => { clearInterval(c); setAppState('focused'); }, COUNTDOWN_MS);
+    countdownIntervalRef.current = setInterval(() => setCountdownLeft((p) => Math.max(0, p - 1)), 1000);
+    countdownTimeoutRef.current = setTimeout(() => {
+      clearCountdown();
+      setAppState('focused');
+    }, COUNTDOWN_MS);
   };
 
   const runCalibration = () => {
