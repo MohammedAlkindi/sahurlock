@@ -149,6 +149,29 @@ describe('cleanPage', () => {
     expect(dark(image)).toBeGreaterThan(dark(notebookPage()) * 0.6);
   });
 
+  it('gives the same geometry whichever lines it removes, so marked regions stay on what they marked', () => {
+    // Changing a cleanup option cleans a page again. Regions are stored in the cleaned
+    // page's pixels, so line removal must never move, resize or turn the page.
+    const photo = photograph(unevenlyLit(rotate(notebookPage(), deg(2))));
+    const runs = [false, true].flatMap((horizontal) => [false, true].map((vertical) =>
+      cleanPage(photo, { horizontal, vertical, maxSide: 2400 })));
+    // Where the ink sits pins down any move or turn, even one that keeps the size.
+    const inkBounds = (g: Gray) => {
+      let left = g.width, right = -1, top = g.height, bottom = -1;
+      for (let y = 0; y < g.height; y++) {
+        for (let x = 0; x < g.width; x++) {
+          if (g.data[y * g.width + x] >= 0.3) continue;
+          left = Math.min(left, x); right = Math.max(right, x);
+          top = Math.min(top, y); bottom = Math.max(bottom, y);
+        }
+      }
+      return { left, right, top, bottom };
+    };
+    const geometry = runs.map(({ image, page, skewDegrees }) => ({ width: image.width, height: image.height, page, skewDegrees, ink: inkBounds(image) }));
+    expect(geometry[0].ink.right).toBeGreaterThan(geometry[0].ink.left);
+    for (const g of geometry.slice(1)) expect(g).toEqual(geometry[0]);
+  });
+
   it('shrinks very large photos to the working size first', () => {
     const big = createGray(5000, 3000, 1);
     const { image } = cleanPage(big, { horizontal: false, vertical: false, maxSide: 2400 });
