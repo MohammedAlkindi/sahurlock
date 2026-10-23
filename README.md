@@ -44,7 +44,7 @@ in the repo.
 
 ## Known limitations
 
-- No automated tests. `session-machine.ts` is a pure state-transition function and is the obvious place to start.
+- Unit tests cover the pure modules (session state machine, focus score, flashcard scheduling, formatting). The camera loop and pages have no automated tests yet.
 - MediaPipe FaceMesh is loaded from a CDN at runtime rather than bundled, so first calibration needs a network round trip and the app will not detect attention offline.
 - Browsers require user interaction for media playback. SahurLock primes playback after **Start Session** but still gracefully falls back to visual-only alert if playback is blocked.
 - Landmark quality can drop in low light, extreme camera angles, or lower-end devices.

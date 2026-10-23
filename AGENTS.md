@@ -13,5 +13,5 @@ Implement features, fix bugs, and refactor within this repo.
 Destructive git ops (force-push, history rewrite), deploys/publishing, secret or CI changes, and data deletion.
 
 ## Before done
-Run `npm run lint` and `npm run build` and confirm both pass. There is no test suite yet.
+Run `npm run lint`, `npx tsc --noEmit`, `npm test` and `npm run build` and confirm all four pass.
 
