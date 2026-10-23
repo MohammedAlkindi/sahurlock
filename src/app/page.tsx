@@ -1,9 +1,9 @@
 import Link from 'next/link';
 
 const FEATURES = [
-  { index: '01', title: 'Face tracking',  description: 'MediaPipe runs in-browser. No server, no uploads.' },
+  { index: '01', title: 'Face tracking',  description: 'MediaPipe runs in your browser. Camera frames are never uploaded.' },
   { index: '02', title: 'Enforcement',    description: 'A fullscreen alert fires on violation. You cannot click it away.' },
-  { index: '03', title: 'Fully local',    description: 'No account. No backend. History stays in your browser.' },
+  { index: '03', title: 'Fully local',    description: 'No account. Sessions, notes and history stay in your browser.' },
 ];
 
 export default function LandingPage() {

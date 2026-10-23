@@ -30,9 +30,9 @@ that shipped it.
       (2d29870)
 - [x] Add a Content Security Policy that keeps it that way (103d70a)
 - [x] Harden the scheduler: feature-detect `Notification`, split timeouts longer than
-      2^31 ms, use an icon that exists, arm new schedules without a reload
+      2^31 ms, use an icon that exists, arm new schedules without a reload (c0652ce)
 - [ ] Move Spotify to PKCE and remove the server-side refresh route
-- [ ] Make the README, landing page and settings text match the code (warning
+- [x] Make the README, landing page and settings text match the code (warning
       threshold, recovery time, the "no backend" claim, the iris tracking toggle)
 - [ ] Versioned storage schemas, with export and "clear everything" covering every
       key and the IndexedDB video store

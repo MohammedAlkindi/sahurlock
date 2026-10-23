@@ -4,12 +4,12 @@ SahurLock is a browser-based focus enforcement app that uses your webcam and cli
 
 ## Attention detection
 
-- MediaPipe FaceMesh, injected at runtime and run entirely in the page — it tracks yaw, pitch, roll, gaze offset and eyelid-open ratio against a per-user calibrated baseline
+- MediaPipe FaceMesh runs entirely in the page and tracks yaw, pitch, roll, gaze offset and eyelid-open ratio against a per-user calibrated baseline
 - Explicit app states: idle, requesting permission, calibrating, countdown, focused, warning, break, violated, session complete, camera error
 - 2.5s calibration and visible 3s countdown before a session starts
-- Warning at 50% of the off-screen threshold; clearing a violation requires 2s of continuous attention
+- A warning once you have been off screen for 35% of the threshold. Clearing a violation takes 2 s of continuous attention, plus 0.5 s for each earlier violation in the session, up to 5 s
 - Configurable session duration, thresholds, break count/duration, punishment on/off
-- No frame upload — every frame stays in the browser
+- Camera frames never leave the browser
 
 ## Around the timer
 
@@ -18,7 +18,8 @@ during breaks, tasks, notes, session scheduling, a four-component focus score, s
 history, ambient sound, and optional Spotify playback.
 
 Settings, history and stats persist locally (`localStorage` under `sahurlock.*`, plus
-IndexedDB for custom videos). Nothing is sent to a server.
+IndexedDB for custom videos). The only network traffic is Vercel Analytics page views and,
+if you connect it, Spotify.
 
 Built with Next.js App Router, TypeScript and Tailwind CSS.
 
