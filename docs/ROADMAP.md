@@ -31,7 +31,8 @@ that shipped it.
 - [x] Add a Content Security Policy that keeps it that way (103d70a)
 - [x] Harden the scheduler: feature-detect `Notification`, split timeouts longer than
       2^31 ms, use an icon that exists, arm new schedules without a reload (c0652ce)
-- [ ] Move Spotify to PKCE and remove the server-side refresh route
+- [x] Move Spotify login to PKCE so no client secret is needed. The refresh route stays
+      as a secretless proxy, so the client needs no new origin in the security policy
 - [x] Make the README, landing page and settings text match the code (ccdd3f9) (warning
       threshold, recovery time, the "no backend" claim, the iris tracking toggle)
 - [x] Export and "clear everything" cover every key and the IndexedDB video store

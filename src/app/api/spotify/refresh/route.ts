@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 const TOKEN_URL = 'https://accounts.spotify.com/api/token';
 
 export async function POST(request: NextRequest) {
-  const clientId     = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+  // Tokens from a PKCE login refresh with the client ID alone, no secret.
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
 
-  if (!clientId || !clientSecret) {
+  if (!clientId) {
     return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
   }
 
@@ -22,17 +22,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'refresh_token is required' }, { status: 400 });
   }
 
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-
   const res = await fetch(TOKEN_URL, {
     method:  'POST',
-    headers: {
-      Authorization:  `Basic ${credentials}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type:    'refresh_token',
       refresh_token: refreshToken,
+      client_id:     clientId,
     }),
   });
 

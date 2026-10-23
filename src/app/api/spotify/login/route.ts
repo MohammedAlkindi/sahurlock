@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
+import { codeChallenge, createCodeVerifier } from '@/lib/pkce';
 
 const SCOPES = [
   'streaming',
@@ -24,26 +25,27 @@ export function GET(request: NextRequest) {
   const origin      = new URL(request.url).origin;
   const redirectUri = process.env.SPOTIFY_REDIRECT_URI ?? `${origin}/api/spotify/callback`;
   const state       = randomBytes(16).toString('hex');
+  const verifier    = createCodeVerifier();
 
   const params = new URLSearchParams({
-    client_id:     clientId,
-    response_type: 'code',
-    redirect_uri:  redirectUri,
-    scope:         SCOPES,
+    client_id:             clientId,
+    response_type:         'code',
+    redirect_uri:          redirectUri,
+    scope:                 SCOPES,
     state,
+    code_challenge_method: 'S256',
+    code_challenge:        codeChallenge(verifier),
   });
 
   const response = NextResponse.redirect(
     `https://accounts.spotify.com/authorize?${params}`
   );
 
-  // Store state in an httpOnly cookie for CSRF verification in the callback
-  response.cookies.set('spotify_auth_state', state, {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge:   600, // 10 minutes
-    path:     '/',
-  });
+  // State checks the callback against CSRF. The verifier finishes the PKCE
+  // exchange. Both stay in httpOnly cookies for the 10 minutes a login may take.
+  const cookie = { httpOnly: true, sameSite: 'lax', maxAge: 600, path: '/' } as const;
+  response.cookies.set('spotify_auth_state', state, cookie);
+  response.cookies.set('spotify_code_verifier', verifier, cookie);
 
   return response;
 }
