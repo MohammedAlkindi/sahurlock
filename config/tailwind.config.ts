@@ -24,6 +24,14 @@ export default {
         success: 'rgb(var(--success) / <alpha-value>)',
         warning: 'rgb(var(--warning) / <alpha-value>)',
         danger: 'rgb(var(--danger) / <alpha-value>)',
+        region: {
+          text: 'rgb(var(--region-text) / <alpha-value>)',
+          heading: 'rgb(var(--region-heading) / <alpha-value>)',
+          math: 'rgb(var(--region-math) / <alpha-value>)',
+          table: 'rgb(var(--region-table) / <alpha-value>)',
+          graph: 'rgb(var(--region-graph) / <alpha-value>)',
+          diagram: 'rgb(var(--region-diagram) / <alpha-value>)',
+        },
       },
       fontFamily: {
         sans: ['var(--font-geist-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],

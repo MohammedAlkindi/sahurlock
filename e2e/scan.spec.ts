@@ -612,6 +612,134 @@ test('a scan whose labels do not line up with its pages opens without them and s
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(2);
 });
 
+/** One cleaned page in the editor, and the dialog it opens in. */
+async function openEditor(page: Page) {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Mark regions on page 1' }).click();
+  const editor = page.getByRole('dialog', { name: 'Mark regions on page 1 of 1' });
+  await expect(editor.getByRole('heading', { name: 'Mark regions on page 1 of 1' })).toBeFocused();
+  return editor;
+}
+
+test('a region can be added, moved, resized, marked as math and typed from the keyboard', async ({ page }) => {
+  const editor = await openEditor(page);
+  await editor.getByRole('radio', { name: 'Math' }).check({ force: true });
+  await editor.getByRole('button', { name: 'Add region' }).focus();
+  await page.keyboard.press('Enter');
+
+  const box = editor.getByRole('region', { name: 'Page' }).getByRole('button', { name: /^Region 1, math, / });
+  await expect(box).toBeFocused();
+  const before = await box.boundingBox();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Shift+ArrowRight');
+  await expect(box).toBeFocused();
+  const after = await box.boundingBox();
+  expect(after!.y).toBeGreaterThan(before!.y);
+  expect(after!.width).toBeGreaterThan(before!.width);
+  await expect(editor.getByRole('status')).toContainText('Region 1, math,', { timeout: 2_000 });
+
+  // Enter goes on to the region's kind, and Tab from there to what it says.
+  await page.keyboard.press('Enter');
+  await expect(editor.getByLabel('Kind')).toBeFocused();
+  await editor.getByLabel('LaTeX').fill('F = ma');
+  await expect(editor.getByRole('list', { name: 'Regions on this page' }).getByRole('button')).toContainText('F = ma');
+  await expect(editor.getByText('1 region: 1 math.')).toBeVisible();
+
+  // Something is typed, so deleting asks first, with focus on Keep.
+  await box.focus();
+  await page.keyboard.press('Delete');
+  await expect(editor.getByRole('button', { name: 'Keep' })).toBeFocused();
+  await editor.getByRole('group', { name: /^Delete region 1\?/ }).getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(editor.getByRole('button', { name: 'Add region' })).toBeFocused();
+  await expect(editor.getByText('No regions yet.')).toBeVisible();
+
+  await editor.getByRole('button', { name: 'Done' }).click();
+  await expect(editor).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Mark regions on page 1' })).toBeFocused();
+});
+
+test('Escape closes the delete confirm before it closes the editor', async ({ page }) => {
+  const editor = await openEditor(page);
+  await editor.getByRole('button', { name: 'Add region' }).click();
+  await editor.getByLabel('What it says').fill('Kinematics');
+  await editor.getByRole('button', { name: 'Delete region' }).click();
+  await expect(editor.getByRole('button', { name: 'Keep' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(editor).toBeVisible();
+  await expect(editor.getByRole('button', { name: 'Delete region' })).toBeFocused();
+  await expect(editor.getByText('1 region: 1 text.')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(editor).toHaveCount(0);
+});
+
+test('switching a region to a kind kept as an image and back keeps what was typed', async ({ page }) => {
+  const editor = await openEditor(page);
+  await editor.getByRole('button', { name: 'Add region' }).click();
+  await editor.getByLabel('What it says').fill('Lecture 5');
+  await editor.getByLabel('Kind').selectOption('diagram');
+  await expect(editor.getByText('Kept as an image. Only its box and kind are saved.')).toBeVisible();
+  await editor.getByLabel('Kind').selectOption('heading');
+  await expect(editor.getByLabel('What it says')).toHaveValue('Lecture 5');
+  // The region itself has the text again, not just the field.
+  await expect(editor.getByRole('list', { name: 'Regions on this page' }).getByRole('button')).toContainText('Lecture 5');
+});
+
+test('marked regions are saved with the scan, come back after a reload, and alone make it unsaved', async ({ page }) => {
+  const editor = await openEditor(page);
+  await editor.getByRole('button', { name: 'Add region' }).click();
+  await editor.getByLabel('What it says').fill('Kinematics');
+  await editor.getByRole('checkbox', { name: 'Every region on this page is marked' }).check();
+  await editor.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByRole('button', { name: 'Page 1, 1 region, every region marked' })).toBeVisible();
+  await page.getByLabel('Title').fill('Physics 1');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+
+  // A change to labels alone is a change worth saving.
+  await page.getByRole('button', { name: 'Mark regions on page 1' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Move down' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByRole('button', { name: 'Save changes' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Physics 1' }).click();
+  await page.getByRole('button', { name: 'Mark regions on page 1' }).click();
+  const reopened = page.getByRole('dialog');
+  await expect(reopened.getByRole('list', { name: 'Regions on this page' }).getByRole('button')).toContainText('Kinematics');
+  await expect(reopened.getByRole('checkbox', { name: 'Every region on this page is marked' })).toBeChecked();
+});
+
+test('the region editor fits a 320 px wide screen', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  const editor = await openEditor(page);
+  await editor.getByRole('button', { name: 'Add region' }).click();
+  const overflow = await editor.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+  await expect(editor.getByRole('button', { name: 'Done' })).toBeInViewport();
+});
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`the region editor passes WCAG 2.2 AA checks in the ${theme} theme`, async ({ page }) => {
+    await page.addInitScript((t) => localStorage.setItem('sahurlock-theme', t), theme);
+    const editor = await openEditor(page);
+    for (const kind of ['Text', 'Heading', 'Math', 'Table', 'Graph', 'Diagram']) {
+      await editor.getByRole('radio', { name: kind }).check({ force: true });
+      await editor.getByRole('button', { name: 'Add region' }).click();
+    }
+    await editor.getByRole('list', { name: 'Regions on this page' }).getByRole('button').first().click();
+    await editor.getByLabel('What it says').fill('Kinematics');
+    expect(await violations(page, ['wcag22aa'])).toEqual([]);
+    await editor.getByRole('button', { name: 'Delete region' }).click();
+    await expect(editor.getByRole('group', { name: /^Delete region 1\?/ })).toBeVisible();
+    expect(await violations(page, ['wcag22aa'])).toEqual([]);
+  });
+}
+
 test('a file that is not an image gets a clear message', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
   await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('not an image') });
