@@ -1,4 +1,5 @@
 import { AttentionReading, BaselinePose, CalibrationReport, EyeData, PixelBox } from '@/lib/types';
+import { clamp } from '@/lib/utils';
 
 interface Landmark {
   x: number;
@@ -57,10 +58,6 @@ const MIN_CONFIDENCE   = 0.35;
 // Served from this app's origin, copied from the pinned npm package by
 // scripts/copy-mediapipe.mjs, so no third-party script runs next to the camera.
 const FACE_MESH_ASSETS = '/vendor/mediapipe/face_mesh';
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
 
 function loadScript(src: string) {
   return new Promise<void>((resolve, reject) => {

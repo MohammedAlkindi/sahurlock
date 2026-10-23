@@ -19,21 +19,6 @@ export const formatFocusTime = (ms: number): string => {
 
 export const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-/**
- * Compute a 0–100 focus score for a session.
- * Base = focused% of total session time, penalized 5 pts per violation (max –30).
- */
-export const calculateFocusScore = (
-  totalFocusedMs: number,
-  sessionDurationMs: number,
-  violationCount: number
-): number => {
-  if (sessionDurationMs <= 0) return 0;
-  const base = (totalFocusedMs / sessionDurationMs) * 100;
-  const penalty = Math.min(30, violationCount * 5);
-  return Math.round(Math.max(0, Math.min(100, base - penalty)));
-};
-
 export interface FocusGrade {
   label: string;
   color: string;

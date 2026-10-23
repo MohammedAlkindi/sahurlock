@@ -29,6 +29,7 @@ import {
   setCustomVideoBlobUrl,
   updateAggregate,
 } from '@/lib/storage';
+import { DEFAULT_CONFIG } from '@/lib/defaults';
 import { DEFAULT_PUNISHMENT_MEDIA, resolvePunishmentMedia } from '@/lib/punishment-media';
 import { getVideoBlob } from '@/lib/video-storage';
 import { sounds } from '@/lib/sound';
@@ -47,16 +48,6 @@ import { stopAmbient } from '@/lib/ambient-sound';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const DEFAULTS: SessionConfig = {
-  durationMinutes:       25,
-  offscreenThresholdSec: 6,
-  breakLimit:            3,
-  breakDurationSec:      300,
-  punishmentEnabled:     true,
-  punishmentMedia:       '/media/sahur.mp4',
-  pomodoroEnabled:       true,
-  phoneDetectionEnabled: false,
-};
 
 // How long (ms) a hand must be near the face before triggering a violation
 const PHONE_CHECK_THRESHOLD_MS = 2500;
@@ -84,11 +75,11 @@ function LiveStat({ label, value, accent }: { label: string; value: string | num
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function SessionPage() {
-  const [config, setConfig]                   = useState<SessionConfig>(DEFAULTS);
+  const [config, setConfig]                   = useState<SessionConfig>(DEFAULT_CONFIG);
   const [appState, setAppState]               = useState<AppState>('idle');
   const [attention, setAttention]             = useState<AttentionReading | null>(null);
   const [baseline, setBaseline]               = useState<BaselinePose | null>(null);
-  const [remainingMs, setRemainingMs]         = useState(DEFAULTS.durationMinutes * 60_000);
+  const [remainingMs, setRemainingMs]         = useState(DEFAULT_CONFIG.durationMinutes * 60_000);
   const [offscreenMs, setOffscreenMs]         = useState(0);
   const [stabilizeMs, setStabilizeMs]         = useState(0);
   const [calibrationGoodSamples, setCalibrationGoodSamples] = useState(0);
@@ -145,7 +136,7 @@ export default function SessionPage() {
 
   const appStateRef   = useRef<AppState>('idle');
   const baselineRef   = useRef<BaselinePose | null>(null);
-  const configRef     = useRef<SessionConfig>(DEFAULTS);
+  const configRef     = useRef<SessionConfig>(DEFAULT_CONFIG);
   const breakUsedRef  = useRef(0);
   const violationRef  = useRef(0);
   const pomodoroRef   = useRef(1); // current round
@@ -159,7 +150,7 @@ export default function SessionPage() {
   // Mutable mirrors of the timer/accumulator states used as the source of truth
   // inside the rAF and bgInterval loops. setState is called separately for UI
   // updates; these refs keep values current across async frames without stale closures.
-  const remainingMsRef      = useRef(DEFAULTS.durationMinutes * 60_000);
+  const remainingMsRef      = useRef(DEFAULT_CONFIG.durationMinutes * 60_000);
   const breakRemainingMsRef = useRef(0);
   const offscreenMsRef      = useRef(0);
   const stabilizeMsRef      = useRef(0);
@@ -175,7 +166,7 @@ export default function SessionPage() {
 
   // Bootstrap
   useEffect(() => {
-    const saved = loadSettings(DEFAULTS);
+    const saved = loadSettings(DEFAULT_CONFIG);
     setConfig(saved);
     setRemainingMs(saved.durationMinutes * 60_000);
     setAvailableTasks(loadTasks().filter((t) => t.status === 'active'));
