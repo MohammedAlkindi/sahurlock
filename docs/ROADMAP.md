@@ -25,7 +25,10 @@ that shipped it.
       `finishSession` idempotent so one session cannot write two history entries
       (bc88013)
 - [x] Stop counting uncertain frames as focused time (708dc35)
-- [ ] Scale head-pose thresholds by face size, with recorded-landmark test fixtures
+- [x] Measure head pose in units that hold at any distance, with fixtures projected from
+      MediaPipe's canonical face model
+- [ ] Try the head-pose limits in a real webcam session and adjust them if turning or
+      nodding is flagged too early or too late (needs a person at a camera)
 - [x] Self-host a pinned MediaPipe build, so no third-party script sees camera frames
       (2d29870)
 - [x] Add a Content Security Policy that keeps it that way (103d70a)
