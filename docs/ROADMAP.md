@@ -18,7 +18,8 @@ that shipped it.
 - [x] Keep the camera feed alive when it is hidden (9690e98)
 - [x] CI on every push: lint, typecheck, test, build (f0ac53a)
 - [x] Retry Calibration reuses the existing stream instead of a new, empty `<video>`
-- [ ] Play a custom punishment video from its IndexedDB copy (the session uses the
+      (6f31b68)
+- [x] Play a custom punishment video from its IndexedDB copy (the session uses the
       literal string `custom` as the video source today)
 - [ ] Stop the timer double-counting while the window is blurred but visible, and make
       `finishSession` idempotent so one session cannot write two history entries
