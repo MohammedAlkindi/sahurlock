@@ -81,14 +81,14 @@ function CardForm({ initial, onSave, onCancel }: CardFormProps) {
         onChange={(e) => setFront(e.target.value)}
         placeholder="Front — question or term"
         rows={2}
-        className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-ring"
+        className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-ring"
       />
       <textarea
         value={back}
         onChange={(e) => setBack(e.target.value)}
         placeholder="Back — answer or definition"
         rows={2}
-        className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-ring"
+        className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-ring"
       />
       <div className="flex items-center justify-between">
         <DifficultyPicker value={diff} onChange={setDiff} />

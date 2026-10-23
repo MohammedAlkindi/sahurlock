@@ -62,7 +62,7 @@ export default function TasksPage() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && addTask()}
           placeholder="Add a task…"
-          className="flex-1 rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-ring"
+          className="flex-1 rounded-xl border border-input bg-card px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <button
           onClick={addTask}

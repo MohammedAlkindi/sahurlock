@@ -71,7 +71,7 @@ function NumInput({
           const n = Number(e.target.value);
           if (!isNaN(n)) onChange(Math.min(max, Math.max(min, n)));
         }}
-        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-ring"
+        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-ring"
       />
     </label>
   );
@@ -301,7 +301,7 @@ export function SessionConfigCard({ value, onChange, onStart, disabled, selected
                   value={value.punishmentMedia}
                   disabled={disabled}
                   onChange={(e) => onChange({ ...value, punishmentMedia: e.target.value })}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none"
                 >
                   {PUNISHMENT_CLIPS.map((clip) => (
                     <option key={clip.value} value={clip.value}>{clip.label}</option>

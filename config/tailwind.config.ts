@@ -11,6 +11,8 @@ export default {
         muted: 'rgb(var(--muted) / <alpha-value>)',
         'muted-foreground': 'rgb(var(--muted-foreground) / <alpha-value>)',
         border: 'rgb(var(--border) / <alpha-value>)',
+        // Form field borders, at 3:1 against the page (WCAG 1.4.11).
+        input: 'rgb(var(--input) / <alpha-value>)',
         card: 'rgb(var(--card) / <alpha-value>)',
         'card-foreground': 'rgb(var(--card-foreground) / <alpha-value>)',
         accent: 'rgb(var(--accent) / <alpha-value>)',

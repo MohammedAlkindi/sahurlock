@@ -258,7 +258,7 @@ export default function SoundsPage() {
               placeholder="Search…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-40 rounded-lg border border-border bg-background pl-7 pr-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none"
+              className="w-40 rounded-lg border border-input bg-background pl-7 pr-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none"
             />
           </div>
         </div>

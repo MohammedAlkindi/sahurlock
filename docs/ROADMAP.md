@@ -45,7 +45,7 @@ that shipped it.
       and with data (cfd2e9a, 81670b9, b89c2f9, 7c240ee)
 - [x] Make Tailwind opacity modifiers work on theme colors, so backdrops, dividers and
       selected states render as written (5ffce14)
-- [ ] Give form fields a border that meets 3:1 against the page (WCAG 1.4.11). The
+- [x] Give form fields a border that meets 3:1 against the page (WCAG 1.4.11). The
       shared `border-border` is about 1.3:1
 - [ ] Show row actions (edit, delete) on touch screens, where there is no hover
 - [x] Browser tests for the camera lifecycle (start, hide and show, retry, leave the
