@@ -9,3 +9,4 @@ tsconfig.tsbuildinfo
 .env.local
 
 
+public/vendor

@@ -24,10 +24,10 @@ that shipped it.
 - [x] Stop the timer double-counting while the window is blurred but visible, and make
       `finishSession` idempotent so one session cannot write two history entries
       (bc88013)
-- [x] Stop counting uncertain frames as focused time
+- [x] Stop counting uncertain frames as focused time (708dc35)
 - [ ] Scale head-pose thresholds by face size, with recorded-landmark test fixtures
-- [ ] Self-host a pinned MediaPipe build and add a Content Security Policy, so
-      detection works offline and no third-party script sees camera frames
+- [x] Self-host a pinned MediaPipe build, so no third-party script sees camera frames
+- [ ] Add a Content Security Policy that keeps it that way
 - [ ] Harden the scheduler: feature-detect `Notification`, split timeouts longer than
       2^31 ms, use an icon that exists, arm new schedules without a reload
 - [ ] Move Spotify to PKCE and remove the server-side refresh route
