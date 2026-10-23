@@ -11,6 +11,8 @@ Next.js 14 App Router, React 18, TypeScript, Tailwind CSS. Everything runs in th
 npm ci
 npm run dev
 npm run lint
+npx tsc --noEmit
+npm test        # Vitest, unit tests next to the code as src/**/*.test.ts
 npm run build
 ```
 
