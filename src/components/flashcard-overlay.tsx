@@ -17,9 +17,9 @@ type Phase = 'front' | 'back';
 
 const DIFFICULTY_LABEL: Record<number, string> = { 1: 'Easy', 2: 'Medium', 3: 'Hard' };
 const DIFFICULTY_COLOR: Record<number, string> = {
-  1: 'text-green-700 bg-green-500/10',
-  2: 'text-amber-700 bg-amber-500/10',
-  3: 'text-red-700 bg-red-500/10',
+  1: 'text-success bg-success/10',
+  2: 'text-warning bg-warning/10',
+  3: 'text-danger bg-danger/10',
 };
 
 export function FlashcardOverlay({ cards, focusScore, onComplete, onDismiss }: Props) {
@@ -75,10 +75,10 @@ export function FlashcardOverlay({ cards, focusScore, onComplete, onDismiss }: P
           <div className="flex items-center gap-2">
             <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
               focusScore >= 80
-                ? 'bg-red-500/10 text-red-600'
+                ? 'bg-danger/10 text-danger'
                 : focusScore >= 60
-                  ? 'bg-amber-500/10 text-amber-600'
-                  : 'bg-green-500/10 text-green-600'
+                  ? 'bg-warning/10 text-warning'
+                  : 'bg-success/10 text-success'
             }`}>
               {focusScore >= 80 ? 'Challenging mix' : focusScore >= 60 ? 'Balanced review' : 'Reinforcing basics'}
             </span>
@@ -142,21 +142,21 @@ export function FlashcardOverlay({ cards, focusScore, onComplete, onDismiss }: P
           <div className="grid grid-cols-3 gap-2 border-t border-border px-5 py-4">
             <button
               onClick={() => handleGrade(1)}
-              className="flex flex-col items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-2 py-2.5 text-xs text-red-700 transition hover:border-red-300 hover:bg-red-100"
+              className="flex flex-col items-center gap-1 rounded-xl border border-danger/30 bg-danger/10 px-2 py-2.5 text-xs text-danger transition hover:border-danger/50 hover:bg-danger/20"
             >
               <RotateCcw size={14} />
               <span>Missed</span>
             </button>
             <button
               onClick={() => handleGrade(3)}
-              className="flex flex-col items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-2 py-2.5 text-xs text-amber-700 transition hover:border-amber-300 hover:bg-amber-100"
+              className="flex flex-col items-center gap-1 rounded-xl border border-warning/30 bg-warning/10 px-2 py-2.5 text-xs text-warning transition hover:border-warning/50 hover:bg-warning/20"
             >
               <Check size={14} />
               <span>Almost</span>
             </button>
             <button
               onClick={() => handleGrade(5)}
-              className="flex flex-col items-center gap-1 rounded-xl border border-green-200 bg-green-50 px-2 py-2.5 text-xs text-green-700 transition hover:border-green-300 hover:bg-green-100"
+              className="flex flex-col items-center gap-1 rounded-xl border border-success/30 bg-success/10 px-2 py-2.5 text-xs text-success transition hover:border-success/50 hover:bg-success/20"
             >
               <Check size={14} strokeWidth={2.5} />
               <span>Got it</span>

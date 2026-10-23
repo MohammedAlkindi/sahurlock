@@ -241,7 +241,7 @@ function PunishmentMediaPicker({
               <button onClick={() => fileRef.current?.click()} className="text-[11px] text-muted-foreground hover:text-foreground transition">
                 <RefreshCw size={10} className="inline mr-0.5" />replace
               </button>
-              <button onClick={handleDelete} className="text-[11px] text-muted-foreground hover:text-red-500 transition">
+              <button onClick={handleDelete} className="text-[11px] text-muted-foreground hover:text-danger transition">
                 <Trash2 size={10} />
               </button>
             </div>
@@ -253,7 +253,7 @@ function PunishmentMediaPicker({
           )}
           <div className="mt-2 flex items-center justify-between">
             {hasCustom
-              ? <span className="flex items-center gap-1 text-[10px] text-green-600 dark:text-green-500"><CheckCircle2 size={9} />Active</span>
+              ? <span className="flex items-center gap-1 text-[10px] text-success"><CheckCircle2 size={9} />Active</span>
               : <button onClick={() => update({ punishmentMedia: CUSTOM_PUNISHMENT_MEDIA })} className="text-[11px] text-foreground underline underline-offset-2 hover:text-foreground transition">Use this video</button>
             }
             {hasCustom && (
@@ -276,8 +276,8 @@ function PunishmentMediaPicker({
         </button>
       )}
 
-      {uploadStatus === 'success' && <p className="flex items-center gap-1 text-[11px] text-green-600"><CheckCircle2 size={9} />Saved</p>}
-      {(uploadStatus === 'error' || errorMsg) && <p className="flex items-center gap-1 text-[11px] text-red-500"><AlertCircle size={9} />{errorMsg || 'Error'}</p>}
+      {uploadStatus === 'success' && <p className="flex items-center gap-1 text-[11px] text-success"><CheckCircle2 size={9} />Saved</p>}
+      {(uploadStatus === 'error' || errorMsg) && <p className="flex items-center gap-1 text-[11px] text-danger"><AlertCircle size={9} />{errorMsg || 'Error'}</p>}
       <input ref={fileRef} type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
     </div>
@@ -434,7 +434,7 @@ function TemplatesPanel({
               {!t.id.startsWith('builtin_') && (
                 <button
                   onClick={() => handleDelete(t.id)}
-                  className="text-muted-foreground transition hover:text-red-500"
+                  className="text-muted-foreground transition hover:text-danger"
                 >
                   <Trash2 size={13} />
                 </button>
@@ -554,14 +554,14 @@ function DataPanel() {
 
       <SectionHeading title="Danger zone" />
       {confirming ? (
-        <div className="flex items-center justify-between gap-3 rounded-md border border-red-200/60 bg-red-50/40 px-4 py-3 dark:border-red-900/30 dark:bg-red-950/20">
-          <p className="text-xs text-red-700 dark:text-red-400">
+        <div className="flex items-center justify-between gap-3 rounded-md border border-danger/30 bg-danger/10 px-4 py-3">
+          <p className="text-xs text-danger">
             This permanently deletes everything SahurLock keeps in this browser, including notes, flashcards, the uploaded video and the Spotify connection.
           </p>
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={async () => { await clearAllData(); window.location.reload(); }}
-              className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500"
+              className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700"
             >
               Clear everything
             </button>
@@ -574,7 +574,7 @@ function DataPanel() {
         <Row label="Clear all data" description="Permanently remove everything SahurLock keeps in this browser." last>
           <button
             onClick={() => setConfirming(true)}
-            className="rounded-md border border-border/60 px-4 py-2 text-sm text-muted-foreground transition hover:border-red-200 hover:text-red-600"
+            className="rounded-md border border-border/60 px-4 py-2 text-sm text-muted-foreground transition hover:border-danger/30 hover:text-danger"
           >
             Clear
           </button>

@@ -24,11 +24,11 @@ export function StatusBadge({ state }: { state: AppState }) {
         'rounded-full px-3.5 py-1.5 text-xs font-bold tracking-wide',
         ['requesting_permission', 'countdown'].includes(state) && 'bg-muted text-muted-foreground',
         state === 'calibrating'     && 'bg-blue-500/15 text-blue-700',
-        state === 'focused'         && 'bg-green-500/15 text-green-700',
-        state === 'warning'         && 'bg-amber-500/15 text-amber-700',
-        state === 'break'           && 'bg-amber-500/15 text-amber-700',
-        state === 'violated'        && 'bg-red-500/15 text-red-700',
-        state === 'camera_error'    && 'bg-red-500/15 text-red-700',
+        state === 'focused'         && 'bg-success/15 text-success',
+        state === 'warning'         && 'bg-warning/15 text-warning',
+        state === 'break'           && 'bg-warning/15 text-warning',
+        state === 'violated'        && 'bg-danger/15 text-danger',
+        state === 'camera_error'    && 'bg-danger/15 text-danger',
         state === 'session_complete' && 'bg-purple-500/15 text-purple-700',
       )}
     >

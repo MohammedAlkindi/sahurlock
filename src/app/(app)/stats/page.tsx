@@ -50,8 +50,8 @@ function StreakBanner({ agg }: { agg: AggregateStats }) {
   const bannerClass = streak === 0
     ? 'border-border bg-card'
     : doneToday
-      ? 'border-orange-200 bg-gradient-to-r from-orange-50/60 to-amber-50/40 dark:border-orange-900/40 dark:from-orange-950/20 dark:to-amber-950/10'
-      : 'border-yellow-200/80 bg-yellow-50/40 dark:border-yellow-900/40 dark:bg-yellow-950/10';
+      ? 'border-warning/30 bg-gradient-to-r from-orange-50/60 to-amber-50/40 dark:from-orange-950/20 dark:to-amber-950/10'
+      : 'border-warning/30 bg-warning/10';
 
   return (
     <div className={`mb-5 rounded-2xl border p-5 ${bannerClass}`}>
@@ -60,7 +60,7 @@ function StreakBanner({ agg }: { agg: AggregateStats }) {
           <span className={`text-5xl leading-none select-none ${streak === 0 ? 'grayscale opacity-25' : ''}`}>🔥</span>
           <div>
             <div className="flex items-baseline gap-2">
-              <span className={`text-5xl font-black tabular-nums ${streak > 0 ? 'text-orange-600' : 'text-muted-foreground'}`}>
+              <span className={`text-5xl font-black tabular-nums ${streak > 0 ? 'text-warning' : 'text-muted-foreground'}`}>
                 {streak}
               </span>
               <span className="text-base font-semibold text-muted-foreground">day streak</span>
@@ -73,11 +73,11 @@ function StreakBanner({ agg }: { agg: AggregateStats }) {
 
         {streak > 0 && (
           doneToday ? (
-            <span className="shrink-0 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-400">
+            <span className="shrink-0 rounded-lg border border-success/30 bg-success/10 px-3 py-1.5 text-xs font-semibold text-success">
               Locked in today ✓
             </span>
           ) : (
-            <span className="shrink-0 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-1.5 text-xs font-semibold text-yellow-700 dark:border-yellow-900/50 dark:bg-yellow-950/30 dark:text-yellow-400">
+            <span className="shrink-0 rounded-lg border border-warning/30 bg-warning/10 px-3 py-1.5 text-xs font-semibold text-warning">
               At risk — no session today
             </span>
           )
@@ -111,9 +111,9 @@ function StreakBanner({ agg }: { agg: AggregateStats }) {
               title={`${m}-day milestone`}
               className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition ${
                 active
-                  ? 'bg-orange-500 text-white shadow-sm'
+                  ? 'bg-orange-700 text-white shadow-sm'
                   : achieved
-                    ? 'bg-orange-100 text-orange-500 dark:bg-orange-950/40 dark:text-orange-400'
+                    ? 'bg-warning/20 text-warning'
                     : 'bg-muted/50 text-muted-foreground'
               }`}
             >
@@ -171,7 +171,7 @@ function ScoreTrendChart({ items }: { items: ChartPoint[] }) {
     <div>
       {trendDelta !== null && (
         <div className="mb-3 flex items-center gap-2">
-          <span className={`text-xs font-semibold ${trendDelta > 0 ? 'text-green-600' : trendDelta < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+          <span className={`text-xs font-semibold ${trendDelta > 0 ? 'text-success' : trendDelta < 0 ? 'text-danger' : 'text-muted-foreground'}`}>
             {trendDelta > 0 ? `+${trendDelta}` : trendDelta} pts
           </span>
           <span className="text-[11px] text-muted-foreground">vs previous 3 sessions</span>
@@ -296,8 +296,8 @@ function WeeklyReport({ history, tasks }: { history: SessionHistoryItem[]; tasks
 
   const TrendIcon = ({ delta }: { delta: number | null }) => {
     if (delta === null) return <Minus size={12} className="text-muted-foreground" />;
-    if (delta > 0)  return <TrendingUp  size={12} className="text-green-600" />;
-    if (delta < 0)  return <TrendingDown size={12} className="text-red-600" />;
+    if (delta > 0)  return <TrendingUp  size={12} className="text-success" />;
+    if (delta < 0)  return <TrendingDown size={12} className="text-danger" />;
     return <Minus size={12} className="text-muted-foreground" />;
   };
 
@@ -327,9 +327,9 @@ function WeeklyReport({ history, tasks }: { history: SessionHistoryItem[]; tasks
         {/* Focus time */}
         <div className="rounded-xl bg-muted/30 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Focus time</p>
-          <p className="mt-1 text-2xl font-black tabular-nums text-green-600">{formatFocusTime(thisFocusMs)}</p>
+          <p className="mt-1 text-2xl font-black tabular-nums text-success">{formatFocusTime(thisFocusMs)}</p>
           {focusDelta !== null && (
-            <p className={`mt-0.5 flex items-center gap-1 text-[10px] ${focusDelta >= 0 ? 'text-green-500/60' : 'text-red-500/60'}`}>
+            <p className={`mt-0.5 flex items-center gap-1 text-[10px] ${focusDelta >= 0 ? 'text-success' : 'text-danger'}`}>
               <TrendIcon delta={focusDelta} />
               {focusDelta >= 0 ? '+' : ''}{focusDelta}% vs last week
             </p>
@@ -341,7 +341,7 @@ function WeeklyReport({ history, tasks }: { history: SessionHistoryItem[]; tasks
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Avg score</p>
           <p className={`mt-1 text-2xl font-black tabular-nums ${getFocusGrade(thisAvgScore).color}`}>{thisAvgScore}</p>
           {scoreDelta !== null && (
-            <p className={`mt-0.5 flex items-center gap-1 text-[10px] ${scoreDelta >= 0 ? 'text-green-500/60' : 'text-red-500/60'}`}>
+            <p className={`mt-0.5 flex items-center gap-1 text-[10px] ${scoreDelta >= 0 ? 'text-success' : 'text-danger'}`}>
               <TrendIcon delta={scoreDelta} />
               {scoreDelta >= 0 ? '+' : ''}{scoreDelta} pts vs last week
             </p>
@@ -534,9 +534,9 @@ export default function StatsPage() {
         <div className="flex items-center gap-2">
           {hasData && (
             confirming ? (
-              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 dark:border-red-900/40 dark:bg-red-950/20">
-                <span className="text-xs text-red-700 dark:text-red-400">Delete everything?</span>
-                <button onClick={handleClearAll} className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-500 transition">Yes, clear</button>
+              <div className="flex items-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2">
+                <span className="text-xs text-danger">Delete everything?</span>
+                <button onClick={handleClearAll} className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700 transition">Yes, clear</button>
                 <button onClick={() => setConfirming(false)} className="text-xs text-muted-foreground hover:text-foreground transition">Cancel</button>
               </div>
             ) : (
@@ -547,7 +547,7 @@ export default function StatsPage() {
                 >
                   <Download size={12} />Export
                 </button>
-                <button onClick={() => setConfirming(true)} className="rounded-xl border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:border-red-200 hover:text-red-600 transition">
+                <button onClick={() => setConfirming(true)} className="rounded-xl border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:border-danger/30 hover:text-danger transition">
                   Clear data
                 </button>
               </div>
@@ -577,7 +577,7 @@ export default function StatsPage() {
           {/* Stat cards */}
           <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <StatCard label="Sessions"   value={String(agg.sessions)} />
-            <StatCard label="Focus time" value={formatFocusTime(agg.totalFocusedMs)} accent="text-green-600" />
+            <StatCard label="Focus time" value={formatFocusTime(agg.totalFocusedMs)} accent="text-success" />
             <StatCard label="Avg score"  value={String(avgScore)}  accent={getFocusGrade(avgScore).color} />
             <StatCard label="Best score" value={String(bestScore)} accent={getFocusGrade(bestScore).color} />
             <StatCard
@@ -668,7 +668,7 @@ export default function StatsPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <span className={item.stats.violationCount === 0 ? 'text-green-600' : 'text-foreground'}>
+                            <span className={item.stats.violationCount === 0 ? 'text-success' : 'text-foreground'}>
                               {item.stats.violationCount}
                             </span>
                           </td>
@@ -683,7 +683,7 @@ export default function StatsPage() {
                               />
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
-                                className="rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-red-600"
+                                className="rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-danger"
                                 aria-label="Delete session"
                               >
                                 <Trash2 size={14} />

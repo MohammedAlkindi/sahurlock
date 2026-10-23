@@ -106,12 +106,12 @@ export function SessionSummary({ sessionId, stats, config, onReset }: Props) {
 
           {/* Streak */}
           {agg && agg.currentStreak > 0 && (
-            <div className="mb-4 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50/60 px-4 py-3 dark:border-orange-900/40 dark:bg-orange-950/20">
-              <span className="flex items-center gap-2 text-sm font-semibold text-orange-700 dark:text-orange-400">
+            <div className="mb-4 flex items-center justify-between rounded-lg border border-warning/30 bg-warning/10 px-4 py-3">
+              <span className="flex items-center gap-2 text-sm font-semibold text-warning">
                 🔥 {agg.currentStreak} day streak
               </span>
               {agg.currentStreak > 1 && (
-                <span className="text-xs text-orange-500/70 dark:text-orange-400/60">
+                <span className="text-xs text-warning">
                   {agg.currentStreak === agg.longestStreak ? 'Personal best!' : `Best: ${agg.longestStreak}d`}
                 </span>
               )}

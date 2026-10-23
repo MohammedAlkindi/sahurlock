@@ -278,9 +278,9 @@ export function SpotifyPanel({ compact = false }: Props) {
         </div>
 
         {error && (
-          <div className="mb-3 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+          <div className="mb-3 flex items-start gap-2 rounded-lg bg-danger/10 border border-danger/30 px-3 py-2 text-xs text-danger">
             <span className="flex-1">{error}</span>
-            <button onClick={clearError} className="shrink-0 text-red-500 hover:text-red-700 transition">
+            <button onClick={clearError} className="shrink-0 text-danger hover:text-danger transition">
               <Icon d={ICONS.close} size={12} />
             </button>
           </div>
@@ -398,9 +398,9 @@ export function SpotifyPanel({ compact = false }: Props) {
       <div className="p-4 space-y-4">
         {/* Error banner */}
         {error && (
-          <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+          <div className="flex items-start gap-2 rounded-lg bg-danger/10 border border-danger/30 px-3 py-2 text-xs text-danger">
             <span className="flex-1">{error}</span>
-            <button onClick={clearError} className="shrink-0 text-red-500 hover:text-red-700 transition">
+            <button onClick={clearError} className="shrink-0 text-danger hover:text-danger transition">
               <Icon d={ICONS.close} size={12} />
             </button>
           </div>

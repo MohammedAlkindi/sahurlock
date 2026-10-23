@@ -114,10 +114,10 @@ export default function SchedulePage() {
 
       {/* Notification permission banner */}
       {permission !== 'granted' && (
-        <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-yellow-200 bg-yellow-50/60 px-5 py-4 dark:border-yellow-900/40 dark:bg-yellow-950/20">
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-warning/30 bg-warning/10 px-5 py-4">
           <div className="flex items-center gap-3">
-            <BellOff size={16} className="shrink-0 text-yellow-600 dark:text-yellow-400" />
-            <p className="text-sm text-yellow-800 dark:text-yellow-300">
+            <BellOff size={16} className="shrink-0 text-warning" />
+            <p className="text-sm text-warning">
               {permission === 'denied'
                 ? 'Notifications are blocked. Enable them in browser settings to get alerts.'
                 : 'Enable notifications to get alerted when your session starts.'}
@@ -126,7 +126,7 @@ export default function SchedulePage() {
           {permission !== 'denied' && (
             <button
               onClick={handleEnableNotifications}
-              className="shrink-0 flex items-center gap-1.5 rounded-lg bg-yellow-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-yellow-400 transition"
+              className="shrink-0 flex items-center gap-1.5 rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 transition"
             >
               <Bell size={12} /> Enable
             </button>
@@ -211,7 +211,7 @@ export default function SchedulePage() {
             )}
           </div>
 
-          {error && <p className="text-xs text-red-500">{error}</p>}
+          {error && <p className="text-xs text-danger">{error}</p>}
 
           <button
             onClick={handleAdd}
@@ -257,8 +257,8 @@ export default function SchedulePage() {
                   </button>
                   <button
                     onClick={() => handleDelete(s.id)}
-                    title="Delete"
-                    className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-red-600"
+                    aria-label="Delete schedule"
+                    className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-danger"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -291,7 +291,8 @@ export default function SchedulePage() {
                 </div>
                 <button
                   onClick={() => handleDelete(s.id)}
-                  className="shrink-0 rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-red-600"
+                  aria-label="Delete schedule"
+                  className="shrink-0 rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-danger"
                 >
                   <Trash2 size={14} />
                 </button>

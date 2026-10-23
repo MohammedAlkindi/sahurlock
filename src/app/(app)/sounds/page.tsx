@@ -84,7 +84,7 @@ function SoundTile({
       <span className={`text-xs font-semibold leading-tight ${isActive ? 'text-accent' : 'text-foreground'}`}>
         {sound.label}
       </span>
-      {sound.headphones && <Headphones size={9} className="text-amber-500" />}
+      {sound.headphones && <Headphones size={9} className="text-warning" />}
       {isActive && <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-accent" />}
     </button>
   );
@@ -220,7 +220,7 @@ export default function SoundsPage() {
             <p className="text-[10px] text-muted-foreground mt-0.5">{activeSound.category}</p>
           </div>
           {activeSound.headphones && (
-            <span className="hidden sm:flex items-center gap-1 text-[10px] text-amber-600 shrink-0">
+            <span className="hidden sm:flex items-center gap-1 text-[10px] text-warning shrink-0">
               <Headphones size={10} />headphones
             </span>
           )}
@@ -235,7 +235,7 @@ export default function SoundsPage() {
           </div>
           <button
             onClick={stop}
-            className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:border-red-300 hover:text-red-600 transition"
+            className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:border-danger/50 hover:text-danger transition"
           >
             <Square size={9} className="fill-current" />Stop
           </button>

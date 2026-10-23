@@ -294,7 +294,7 @@ export function CameraPanel({
 
         {/* ── Phone detection badge ─────────────────────────────────────── */}
         {phoneReading?.detected && (
-          <div className="absolute right-2 top-2 rounded bg-orange-500/90 px-2 py-0.5 text-xs font-bold text-white">
+          <div className="absolute right-2 top-2 rounded bg-warning/90 px-2 py-0.5 text-xs font-bold text-white">
             PHONE?
           </div>
         )}
@@ -337,7 +337,7 @@ export function CameraPanel({
       {!calibrating && countdownLeft === 0 && phoneReading !== undefined && phoneReading !== null && (
         <div className="mt-3">
           <div className="mb-1 flex justify-between text-xs text-muted-foreground">
-            <span className={phoneReading.detected ? 'text-orange-500' : ''}>
+            <span className={phoneReading.detected ? 'text-warning' : ''}>
               {phoneReading.detected ? 'Hand detected' : 'Phone zone'}
             </span>
             <span>{Math.round(phoneReading.skinDensity * 100)}% skin</span>
@@ -370,10 +370,10 @@ export function CameraPanel({
 
       {/* Active session guidance hints */}
       {!calibrating && attention?.guidance?.length ? (
-        <ul className="mt-3 space-y-0.5 text-xs text-amber-600">
+        <ul className="mt-3 space-y-0.5 text-xs text-warning">
           {attention.guidance.slice(0, 2).map((hint) => (
             <li key={hint} className="flex gap-1.5">
-              <span className="text-amber-500">!</span>
+              <span className="text-warning">!</span>
               <span>{hint}</span>
             </li>
           ))}

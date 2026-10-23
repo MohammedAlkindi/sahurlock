@@ -27,9 +27,9 @@ export interface FocusGrade {
 }
 
 export const getFocusGrade = (score: number): FocusGrade => {
-  if (score >= 90) return { label: 'S', color: 'text-amber-600', bg: 'bg-amber-500/15', ring: 'ring-amber-400/40' };
-  if (score >= 80) return { label: 'A', color: 'text-green-600', bg: 'bg-green-500/15', ring: 'ring-green-500/40' };
-  if (score >= 70) return { label: 'B', color: 'text-blue-600', bg: 'bg-blue-500/15', ring: 'ring-blue-500/40' };
-  if (score >= 60) return { label: 'C', color: 'text-orange-600', bg: 'bg-orange-500/15', ring: 'ring-orange-500/40' };
-  return { label: 'D', color: 'text-red-600', bg: 'bg-red-500/15', ring: 'ring-red-500/40' };
+  if (score >= 90) return { label: 'S', color: 'text-amber-800 dark:text-amber-400',   bg: 'bg-amber-500/15',  ring: 'ring-amber-400/40' };
+  if (score >= 80) return { label: 'A', color: 'text-green-800 dark:text-green-400',   bg: 'bg-green-500/15',  ring: 'ring-green-500/40' };
+  if (score >= 70) return { label: 'B', color: 'text-blue-700 dark:text-blue-400',     bg: 'bg-blue-500/15',   ring: 'ring-blue-500/40' };
+  if (score >= 60) return { label: 'C', color: 'text-orange-800 dark:text-orange-400', bg: 'bg-orange-500/15', ring: 'ring-orange-500/40' };
+  return { label: 'D', color: 'text-red-800 dark:text-red-300', bg: 'bg-red-500/15', ring: 'ring-red-500/40' };
 };

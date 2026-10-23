@@ -115,14 +115,14 @@ export default function TasksPage() {
                 </span>
               )}
 
-              <div className="flex items-center gap-3 opacity-0 transition group-hover:opacity-100">
+              <div className="flex items-center gap-3 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
                 {task.sessionCount > 0 && (
                   <span className="text-[10px] text-muted-foreground">
                     {task.sessionCount} session{task.sessionCount !== 1 ? 's' : ''}
                   </span>
                 )}
                 <span className="text-[10px] text-muted-foreground">{formatDate(task.createdAt)}</span>
-                <button onClick={() => removeTask(task.id)} className="text-muted-foreground transition hover:text-red-600" aria-label="Delete">
+                <button onClick={() => removeTask(task.id)} className="text-muted-foreground transition hover:text-danger" aria-label="Delete">
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -153,14 +153,14 @@ export default function TasksPage() {
                     <Check size={12} />
                   </div>
                   <span className="flex-1 text-sm text-muted-foreground line-through">{task.title}</span>
-                  <div className="flex items-center gap-3 opacity-0 transition group-hover:opacity-100">
+                  <div className="flex items-center gap-3 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
                     {task.completedAt && (
                       <span className="text-[10px] text-muted-foreground">{formatDate(task.completedAt)}</span>
                     )}
                     <button onClick={() => restoreTask(task.id)} className="text-muted-foreground transition hover:text-foreground" aria-label="Restore">
                       <RotateCcw size={13} />
                     </button>
-                    <button onClick={() => removeTask(task.id)} className="text-muted-foreground transition hover:text-red-600" aria-label="Delete">
+                    <button onClick={() => removeTask(task.id)} className="text-muted-foreground transition hover:text-danger" aria-label="Delete">
                       <Trash2 size={13} />
                     </button>
                   </div>

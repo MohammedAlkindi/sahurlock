@@ -921,8 +921,8 @@ export default function SessionPage() {
               onTaskChange={setSelectedTaskId}
             />
             {appState === 'camera_error' && (
-              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-                <p className="text-sm text-red-700">{cameraError}</p>
+              <div className="mt-3 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3">
+                <p className="text-sm text-danger">{cameraError}</p>
                 <div className="mt-3 flex gap-2">
                   {streamActive ? (
                     <button onClick={retryCalibration} className="rounded-lg bg-muted px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted/70 transition">
@@ -983,23 +983,23 @@ export default function SessionPage() {
                   <LiveStat
                     label="Focus"
                     value={`${liveFocusPct}%`}
-                    accent={liveFocusPct >= 80 ? 'text-green-600' : liveFocusPct >= 60 ? 'text-amber-600' : 'text-red-600'}
+                    accent={liveFocusPct >= 80 ? 'text-success' : liveFocusPct >= 60 ? 'text-warning' : 'text-danger'}
                   />
                   <LiveStat
                     label="Score"
                     value={liveScore}
-                    accent={liveScore >= 80 ? 'text-green-600' : liveScore >= 60 ? 'text-amber-600' : 'text-red-600'}
+                    accent={liveScore >= 80 ? 'text-success' : liveScore >= 60 ? 'text-warning' : 'text-danger'}
                   />
                   <LiveStat
                     label="Violations"
                     value={violationCount}
-                    accent={violationCount === 0 ? 'text-green-600' : 'text-red-600'}
+                    accent={violationCount === 0 ? 'text-success' : 'text-danger'}
                   />
                   {config.phoneDetectionEnabled && (
                     <LiveStat
                       label="Phone checks"
                       value={phoneCheckCount}
-                      accent={phoneCheckCount === 0 ? 'text-green-600' : 'text-orange-600'}
+                      accent={phoneCheckCount === 0 ? 'text-success' : 'text-warning'}
                     />
                   )}
                 </div>
@@ -1022,15 +1022,15 @@ export default function SessionPage() {
                   <p className="mt-3 text-xs text-muted-foreground">
                     Confidence: <span className="text-muted-foreground">{Math.round(attention.confidence * 100)}%</span>
                     {' · '}
-                    <span className={derivedState === 'focused' ? 'text-green-600' : derivedState === 'warning' ? 'text-amber-600' : 'text-red-600'}>
+                    <span className={derivedState === 'focused' ? 'text-success' : derivedState === 'warning' ? 'text-warning' : 'text-danger'}>
                       {derivedState}
                     </span>
                   </p>
                 )}
                 {attention?.guidance?.length ? (
-                  <ul className="mt-2 space-y-0.5 text-xs text-amber-600">
+                  <ul className="mt-2 space-y-0.5 text-xs text-warning">
                     {attention.guidance.slice(0, 2).map((h) => (
-                      <li key={h} className="flex gap-1.5"><span className="text-amber-500">!</span><span>{h}</span></li>
+                      <li key={h} className="flex gap-1.5"><span className="text-warning">!</span><span>{h}</span></li>
                     ))}
                   </ul>
                 ) : null}
