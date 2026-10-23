@@ -91,6 +91,64 @@ for (const theme of ['light', 'dark'] as const) for (const data of ['empty', 'a 
   });
 }
 
+/**
+ * Form fields whose border is under 3:1 against the page behind them (WCAG
+ * 1.4.11). axe does not check this. Borderless inline fields are skipped.
+ */
+async function weakFieldBorders(page: Page) {
+  return page.evaluate(() => {
+    type Rgba = { r: number; g: number; b: number; a: number };
+    const parse = (css: string): Rgba => {
+      const [r = 0, g = 0, b = 0, a = 1] = (css.match(/[\d.]+/g) ?? []).map(Number);
+      return { r, g, b, a };
+    };
+    const over = (top: Rgba, below: Rgba): Rgba => ({
+      r: top.r * top.a + below.r * (1 - top.a),
+      g: top.g * top.a + below.g * (1 - top.a),
+      b: top.b * top.a + below.b * (1 - top.a),
+      a: 1,
+    });
+    const backdrop = (el: Element | null): Rgba => {
+      const layers: Rgba[] = [];
+      for (let e = el; e; e = e.parentElement) layers.unshift(parse(getComputedStyle(e).backgroundColor));
+      return layers.reduce((acc, layer) => over(layer, acc), { r: 255, g: 255, b: 255, a: 1 });
+    };
+    const lum = ({ r, g, b }: Rgba) => {
+      const ch = (v: number) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+      return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
+    };
+    const contrast = (x: Rgba, y: Rgba) => {
+      const [hi, lo] = [lum(x), lum(y)].sort((m, n) => n - m);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    const weak: string[] = [];
+    for (const el of Array.from(document.querySelectorAll('input, textarea, select'))) {
+      const style = getComputedStyle(el);
+      if (!el.getClientRects().length || style.visibility === 'hidden' || parseFloat(style.borderTopWidth) === 0) continue;
+      const outside = backdrop(el.parentElement);
+      const ratio = contrast(over(parse(style.borderTopColor), outside), outside);
+      if (ratio < 3) weak.push(`${el.tagName.toLowerCase()} "${el.getAttribute('placeholder') ?? el.getAttribute('type') ?? ''}" ${ratio.toFixed(2)}:1`);
+    }
+    return weak;
+  });
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`form field borders stand out from the page in the ${theme} theme`, async ({ page }) => {
+    await page.addInitScript((t) => localStorage.setItem('sahurlock-theme', t), theme);
+    const found: Record<string, string[]> = {};
+    let fields = 0;
+    for (const route of ROUTES) {
+      await page.goto(route, { waitUntil: 'networkidle' });
+      fields += await page.locator('input:visible, textarea:visible, select:visible').count();
+      const weak = await weakFieldBorders(page);
+      if (weak.length) found[route] = weak;
+    }
+    expect(fields).toBeGreaterThan(0);
+    expect(found).toEqual({});
+  });
+}
+
 test('the command palette traps focus and gives it back on Escape', async ({ page }) => {
   await page.goto('/tasks', { waitUntil: 'networkidle' });
   const opener = page.getByPlaceholder(/add a task/i);

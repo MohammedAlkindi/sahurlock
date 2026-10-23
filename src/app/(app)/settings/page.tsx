@@ -218,7 +218,7 @@ function PunishmentMediaPicker({
         <select
           value={config.punishmentMedia === CUSTOM_PUNISHMENT_MEDIA ? DEFAULT_PUNISHMENT_MEDIA : config.punishmentMedia}
           onChange={(e) => update({ punishmentMedia: e.target.value })}
-          className="w-full rounded-md border border-border/60 bg-background px-3 py-1.5 text-sm text-foreground focus:border-foreground/40 focus:outline-none"
+          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
         >
           {PUNISHMENT_CLIPS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
@@ -308,7 +308,7 @@ function FocusPanel({
             value={goals.dailyGoalMinutes || ''}
             onChange={(e) => updateGoal(Math.max(0, Math.min(480, Number(e.target.value) || 0)))}
             placeholder="—"
-            className="w-14 rounded-md border border-border/60 bg-background px-2 py-1 text-center text-sm text-foreground focus:border-foreground/40 focus:outline-none"
+            className="w-14 rounded-md border border-input bg-background px-2 py-1 text-center text-sm text-foreground focus:border-accent focus:outline-none"
           />
           <span className="text-xs text-muted-foreground">min</span>
         </div>
@@ -453,7 +453,7 @@ function TemplatesPanel({
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setSaving(false); }}
               placeholder="Template name…"
               autoFocus
-              className="flex-1 rounded-md border border-border/60 bg-background px-3 py-1.5 text-sm text-foreground placeholder-muted-foreground focus:border-foreground/40 focus:outline-none"
+              className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none"
             />
             <button onClick={handleSave} className="rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition hover:opacity-80">
               Save
