@@ -35,7 +35,7 @@ export function ViolationOverlay({ visible, stabilizeMs, maxStabilizeMs, violati
       <div className="animate-scan absolute inset-x-0 h-24 bg-gradient-to-b from-transparent via-red-400/10 to-transparent" />
 
       {/* Content */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-4 text-center">
+      <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-4 text-center">
 
         {/* Source badge */}
         <span className="rounded-full border border-red-800 bg-red-950/80 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-red-400">

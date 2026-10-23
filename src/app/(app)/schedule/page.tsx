@@ -156,10 +156,11 @@ export default function SchedulePage() {
 
           {/* Date/time */}
           <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+            <label htmlFor="schedule-datetime" className="mb-1 block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
               Date & time
             </label>
             <input
+              id="schedule-datetime"
               type="datetime-local"
               value={datetime}
               onChange={(e) => setDatetime(e.target.value)}

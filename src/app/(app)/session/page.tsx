@@ -844,7 +844,7 @@ export default function SessionPage() {
   const stabilizeRequired   = Math.min(5000, BASE_STABILIZE_MS + (violationCount - 1) * 500);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <div className="mx-auto max-w-6xl px-4 py-8">
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -1031,7 +1031,7 @@ export default function SessionPage() {
                   </ul>
                 ) : null}
 
-                <div className="mt-3 flex gap-3 text-[10px] text-muted-foreground/50">
+                <div className="mt-3 flex gap-3 text-[10px] text-muted-foreground">
                   <span><kbd className="rounded bg-muted px-1 py-0.5">B</kbd> break</span>
                   <span><kbd className="rounded bg-muted px-1 py-0.5">E</kbd> end</span>
                   <span><kbd className="rounded bg-muted px-1 py-0.5">H</kbd> camera</span>
@@ -1127,6 +1127,6 @@ export default function SessionPage() {
           onReset={resetSession}
         />
       )}
-    </main>
+    </div>
   );
 }

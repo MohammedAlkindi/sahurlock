@@ -74,14 +74,15 @@ function formatFileSize(bytes: number) {
 
 // ── Design primitives ──────────────────────────────────────────────────────────
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={label}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150 focus:outline-none ${
+      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
         checked ? 'bg-foreground' : 'bg-border'
       }`}
     >
@@ -291,7 +292,7 @@ function FocusPanel({
   return (
     <>
       <Row label="Pomodoro mode" description="Enforces structured work-break intervals automatically.">
-        <Toggle checked={config.pomodoroEnabled} onChange={(v) => update({ pomodoroEnabled: v })} />
+        <Toggle label="Pomodoro mode" checked={config.pomodoroEnabled} onChange={(v) => update({ pomodoroEnabled: v })} />
       </Row>
       <Row label="Daily goal" description="Target focus minutes per day. Tracked in your stats." last>
         <div className="flex items-center gap-2">
@@ -326,7 +327,7 @@ function EnforcementPanel({
         description="Plays a video clip when a violation is detected."
         last={!config.punishmentEnabled}
       >
-        <Toggle checked={config.punishmentEnabled} onChange={(v) => update({ punishmentEnabled: v })} />
+        <Toggle label="Punishment clip" checked={config.punishmentEnabled} onChange={(v) => update({ punishmentEnabled: v })} />
       </Row>
 
       {config.punishmentEnabled && (
@@ -353,14 +354,14 @@ function DetectionPanel({
         label="Phone detection"
         description="Flags hand-to-face posture as a distraction."
       >
-        <Toggle checked={config.phoneDetectionEnabled} onChange={(v) => update({ phoneDetectionEnabled: v })} />
+        <Toggle label="Phone detection" checked={config.phoneDetectionEnabled} onChange={(v) => update({ phoneDetectionEnabled: v })} />
       </Row>
       <Row
         label="Tab switch violation"
         description="Triggers a violation when you leave the tab."
         last
       >
-        <Toggle checked={!!config.tabSwitchViolationEnabled} onChange={(v) => update({ tabSwitchViolationEnabled: v })} />
+        <Toggle label="Tab switch violation" checked={!!config.tabSwitchViolationEnabled} onChange={(v) => update({ tabSwitchViolationEnabled: v })} />
       </Row>
     </>
   );

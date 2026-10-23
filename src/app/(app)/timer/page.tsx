@@ -80,6 +80,7 @@ function Stopwatch() {
       <div className="flex items-center gap-3">
         <button
           onClick={reset}
+          aria-label="Reset"
           className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition hover:border-foreground/20 hover:text-foreground"
         >
           <RotateCcw size={16} />
@@ -87,6 +88,7 @@ function Stopwatch() {
 
         <button
           onClick={running ? pause : start}
+          aria-label={running ? 'Pause' : 'Start'}
           className={cn(
             'flex h-14 w-14 items-center justify-center rounded-full text-black transition',
             running ? 'bg-yellow-400 hover:bg-yellow-300' : 'bg-green-500 hover:bg-green-400'
@@ -97,6 +99,7 @@ function Stopwatch() {
 
         <button
           onClick={lap}
+          aria-label="Lap"
           disabled={!running && elapsed === 0}
           className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition hover:border-foreground/20 hover:text-foreground disabled:opacity-30"
         >
@@ -234,6 +237,7 @@ function Countdown() {
       <div className="flex items-center gap-3">
         <button
           onClick={reset}
+          aria-label="Reset"
           disabled={!hasStarted}
           className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition hover:border-foreground/20 hover:text-foreground disabled:opacity-30"
         >
@@ -242,6 +246,7 @@ function Countdown() {
 
         <button
           onClick={running ? pause : start}
+          aria-label={running ? 'Pause' : 'Start'}
           disabled={totalMs === 0 && !hasStarted}
           className={cn(
             'flex h-14 w-14 items-center justify-center rounded-full text-black transition disabled:opacity-30',
