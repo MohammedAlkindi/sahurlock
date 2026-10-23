@@ -34,8 +34,8 @@ that shipped it.
 - [ ] Move Spotify to PKCE and remove the server-side refresh route
 - [x] Make the README, landing page and settings text match the code (ccdd3f9) (warning
       threshold, recovery time, the "no backend" claim, the iris tracking toggle)
-- [ ] Versioned storage schemas, with export and "clear everything" covering every
-      key and the IndexedDB video store
+- [x] Export and "clear everything" cover every key and the IndexedDB video store
+- [ ] Versioned storage schemas, validated on load instead of cast
 - [ ] Accessibility pass: dialog semantics and focus traps, an alert role on the
       violation overlay, reduced motion, one `<main>`, modifier-free shortcuts made
       optional, contrast
@@ -43,7 +43,7 @@ that shipped it.
       page), the detector, the security policy and the scheduler (6b05d93)
 - [ ] Run the browser tests in CI (a CI change, so it needs the owner's OK)
 - [ ] A synthetic-face fixture so browser tests can reach the focused state
-- [x] Remove dead code and keep a single default configuration
+- [x] Remove dead code and keep a single default configuration (6ede0dd)
 - [x] Upgrade Next.js to the latest 14.2 release and pin the Node version (b457065)
 - [ ] Move to Next.js 15.5.28 or later (React 19) to clear the advisories 14.2 will not
       get fixes for; the unused image optimizer is switched off until then

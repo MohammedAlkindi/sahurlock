@@ -1,4 +1,6 @@
-const DB_NAME = 'sahurlock';
+import { VIDEO_DATABASE } from '@/lib/data-management';
+
+const DB_NAME = VIDEO_DATABASE;
 const STORE_NAME = 'videos';
 const DB_VERSION = 1;
 
