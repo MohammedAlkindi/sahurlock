@@ -77,6 +77,7 @@ that shipped it.
       illumination flattening, deskew, ruled-line removal, before and after view
 - [x] Scan several pages and save them as one PDF on A4 or Letter
 - [x] Accept PDF pages too, through pdf.js (its legacy build, for older browsers)
+- [x] Save scans to an on-device library, covered by Clear everything
 - [ ] Versioned Document JSON for a converted page: blocks with bounding boxes,
       content, per-token confidence and alternatives
 - [ ] Layout styles (outline, Cornell, two-column) with print-ready PDF and

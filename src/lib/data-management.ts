@@ -3,6 +3,8 @@ export const STORAGE_PREFIX = 'sahurlock.';
 export const THEME_STORAGE_KEY = 'sahurlock-theme';
 /** IndexedDB database that holds uploaded punishment videos. */
 export const VIDEO_DATABASE = 'sahurlock';
+/** IndexedDB database that holds scans saved from the Scan tool. */
+export const SCAN_DATABASE = 'sahurlock-scans';
 
 /** What the user authored or chose, keyed by the name it gets in an export file. */
 const EXPORTED_KEYS: Record<string, string> = {
@@ -49,12 +51,16 @@ export function clearAppStorage(storage: Storage): number {
   return keys.length;
 }
 
-/** Delete the uploaded-video database. Resolves even if another tab holds it open. */
-export function deleteVideoDatabase(idb: IDBFactory): Promise<void> {
+/** Delete an IndexedDB database. Resolves even if another tab holds it open. */
+function deleteDatabase(idb: IDBFactory, name: string): Promise<void> {
   return new Promise((resolve) => {
-    const request = idb.deleteDatabase(VIDEO_DATABASE);
+    const request = idb.deleteDatabase(name);
     request.onsuccess = () => resolve();
     request.onerror = () => resolve();
     request.onblocked = () => resolve();
   });
 }
+
+/** Delete every IndexedDB database the app owns: uploaded videos and saved scans. */
+export const deleteAppDatabases = (idb: IDBFactory) =>
+  Promise.all([VIDEO_DATABASE, SCAN_DATABASE].map((name) => deleteDatabase(idb, name))).then(() => undefined);

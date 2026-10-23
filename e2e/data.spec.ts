@@ -19,6 +19,17 @@ async function seedEverything(page: Page) {
         tx.oncomplete = () => { open.result.close(); resolve(); };
       };
     });
+    await new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open('sahurlock-scans', 1);
+      open.onupgradeneeded = () => open.result.createObjectStore('scans', { keyPath: 'id' });
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const tx = open.result.transaction('scans', 'readwrite');
+        const jpeg = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], { type: 'image/jpeg' });
+        tx.objectStore('scans').put({ id: 's1', title: 'Lecture', createdAt: new Date().toISOString(), pages: [{ jpeg, width: 1, height: 1 }] });
+        tx.oncomplete = () => { open.result.close(); resolve(); };
+      };
+    });
   });
 }
 
@@ -56,4 +67,5 @@ test('Clear everything leaves nothing behind', async ({ page }) => {
   // The settings page saves its defaults again on load; nothing the user created survives.
   expect(keys.filter((k) => k !== 'sahurlock.settings')).toEqual([]);
   expect(databases).not.toContain('sahurlock');
+  expect(databases).not.toContain('sahurlock-scans');
 });

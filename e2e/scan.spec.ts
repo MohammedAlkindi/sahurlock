@@ -49,7 +49,7 @@ test('a photographed page comes back cleaned, on the device', async ({ page }) =
   await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
 
   // Straightening to the page edges also removes the tilt, so there is nothing left to level.
-  await expect(page.getByRole('status')).toHaveText('Page 1: Found the page edges and straightened it.', { timeout: 30_000 });
+  await expect(page.getByRole('status').filter({ hasText: 'Page 1:' })).toHaveText('Page 1: Found the page edges and straightened it.', { timeout: 30_000 });
   const cleaned = page.getByRole('img', { name: 'The cleaned page' });
   await expect(cleaned).toBeVisible();
   expect(await cleaned.evaluate((img: HTMLImageElement) => img.naturalWidth / img.naturalHeight)).toBeCloseTo(840 / 1120, 1);
@@ -79,8 +79,8 @@ test('a photographed page comes back cleaned, on the device', async ({ page }) =
 test('writing on a page that fills the photo is levelled', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
   await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
-  await expect(page.getByRole('status')).toContainText('No page edge stood out', { timeout: 30_000 });
-  await expect(page.getByRole('status')).toContainText(/Levelled the writing by (3\.[6-9]|4\.[0-4])°/);
+  await expect(page.getByRole('status').filter({ hasText: 'Page 1:' })).toContainText('No page edge stood out', { timeout: 30_000 });
+  await expect(page.getByRole('status').filter({ hasText: 'Page 1:' })).toContainText(/Levelled the writing by (3\.[6-9]|4\.[0-4])°/);
 });
 
 test('changing an option cleans the page again', async ({ page }) => {
@@ -137,6 +137,79 @@ test('a PDF that cannot be read gets a clear message', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
   await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'broken.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 not really') });
   await expect(page.getByRole('alert').filter({ hasText: 'could not be read as a PDF' })).toBeVisible({ timeout: 30_000 });
+});
+
+test('a saved scan survives a reload and downloads from the library', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) },
+    { name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) },
+  ]);
+  await expect(page.getByRole('button', { name: 'Download PDF (2 pages)' })).toBeEnabled({ timeout: 30_000 });
+  await page.getByLabel('Title').fill('Week 4 lecture');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+
+  await page.reload({ waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await expect(saved.getByText('Week 4 lecture')).toBeVisible();
+  await expect(saved.getByText(/2 pages/)).toBeVisible();
+
+  const [download] = await Promise.all([page.waitForEvent('download'), saved.getByRole('button', { name: 'Download Week 4 lecture as PDF' }).click()]);
+  expect(download.suggestedFilename()).toBe('Week-4-lecture.pdf');
+  expect((await readFile(await download.path())).toString('latin1')).toContain('/Count 2');
+});
+
+test('deleting a saved scan asks first', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  const title = await saved.locator('li p').first().innerText();
+
+  await saved.getByRole('button', { name: `Delete ${title}` }).click();
+  await expect(saved.getByRole('button', { name: 'Keep' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(saved.getByText(title)).toBeVisible();
+  await expect(saved.getByRole('button', { name: `Delete ${title}` })).toBeFocused();
+
+  await page.keyboard.press('Enter');
+  await saved.getByRole('group', { name: `Delete ${title}?` }).getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Saved scans' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Scan notes' })).toBeFocused();
+  await expect(page.getByRole('status').filter({ hasText: `Deleted ${title}.` })).toBeAttached();
+});
+
+test('saving again after a change updates the saved scan instead of adding one', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByLabel('Title').fill('Chem notes');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+
+  await page.getByLabel('Add page').setInputFiles({ name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
+  await expect(page.getByRole('button', { name: 'Download PDF (2 pages)' })).toBeEnabled({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await expect(saved.getByRole('listitem')).toHaveCount(1);
+  await expect(saved.getByText(/2 pages/)).toBeVisible();
+});
+
+test('a browser that is out of room says so instead of failing silently', async ({ page }) => {
+  await page.addInitScript(() => {
+    IDBObjectStore.prototype.put = () => { throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); };
+  });
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'out of room' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save to this device' })).toBeEnabled();
+  await expect(page.getByRole('region', { name: 'Saved scans' })).toHaveCount(0);
 });
 
 test('a file that is not an image gets a clear message', async ({ page }) => {
