@@ -56,6 +56,14 @@
   box-shadow: 0 0 0 4px #fff;
 }
 
+/* The region editor's page takes drags itself instead of scrolling, keeps two-finger
+   zoom where browsers allow it, and does not open the long-press menu. */
+.region-surface {
+  touch-action: none;
+  touch-action: pinch-zoom;
+  -webkit-touch-callout: none;
+}
+
 /* Region editor controls grow to a finger's size on touch screens. */
 @media (pointer: coarse) {
   .tap-target {

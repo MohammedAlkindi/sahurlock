@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChartLine, ChevronLeft, ChevronRight, Heading, Plus, Sigma, Table, Trash2, Type, Workflow,
 } from 'lucide-react';
 import { useDialog } from '@/hooks/use-dialog';
-import { type Block, BLOCK_KINDS, type BlockKind, isReadKind, userBlock, withContent, withKind } from '@/lib/scan/document';
-import { KIND_LABELS, moveBox, newBoxBelow, position, resizeBox, stepSize, summary } from '@/lib/scan/regions';
+import { type Block, BLOCK_KINDS, type BlockKind, type Box, isReadKind, userBlock, withContent, withKind } from '@/lib/scan/document';
+import {
+  boxAt, boxFromPoints, KIND_LABELS, moveBox, newBoxBelow, type Point, position, resizeBox, stepSize, summary, toPagePoint,
+} from '@/lib/scan/regions';
 import { uid } from '@/lib/utils';
 
 export interface EditorPage {
@@ -67,6 +69,14 @@ export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
   const [newKind, setNewKind] = useState<BlockKind>('text');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [announcement, setAnnouncement] = useState('');
+  /** A visible line about drawing: a corner waiting for its opposite, or a box too small to keep. */
+  const [hint, setHint] = useState('');
+  /** The first corner of a box drawn by two taps, waiting for the second. */
+  const [corner, setCorner] = useState<Point | null>(null);
+  /** The box being dragged out, before it is kept. */
+  const [draft, setDraft] = useState<Box | null>(null);
+  const drag = useRef<{ id: number; touch: boolean; start: Point; startX: number; startY: number; dragging: boolean } | null>(null);
+  const surface = useRef<HTMLDivElement | null>(null);
   // What was typed for each region this session, so switching a region to a kind
   // kept as an image and back again does not lose it.
   const drafts = useRef(new Map<string, string>());
@@ -88,9 +98,10 @@ export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
   };
 
   const close = () => onClose(page.id);
-  // Escape closes the delete confirm first, and only then the editor.
+  // Escape drops a waiting corner first, then closes the delete confirm, and only then the editor.
   useDialog(dialog, () => {
-    if (confirmingDelete) {
+    if (corner) cancelCorner();
+    else if (confirmingDelete) {
       flushSync(() => setConfirmingDelete(false));
       deleteButton.current?.focus();
     } else close();
@@ -103,19 +114,33 @@ export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
   const replace = (block: Block) => update(page.blocks.map((b) => (b.id === block.id ? block : b)));
   const describe = (b: Block, n: number) => `Region ${n}, ${KIND_LABELS[b.kind].toLowerCase()}, ${position(b.box, page)}`;
 
+  const say = (text: string) => {
+    setHint(text);
+    announce(text);
+  };
+
+  const cancelCorner = () => {
+    setCorner(null);
+    setHint('');
+    announce('Corner cancelled.');
+  };
+
   const goTo = (next: number) => {
     if (next < 0 || next >= pages.length) return;
+    setCorner(null);
+    setHint('');
     setIndex(next);
     setSelectedId(pages[next].blocks[0]?.id ?? null);
     setConfirmingDelete(false);
     announce(`Page ${next + 1} of ${pages.length}.`);
   };
 
-  const addRegion = () => {
+  const addRegion = (box: Box = newBoxBelow(page.blocks, page)) => {
     const taken = new Set(pages.flatMap((p) => p.blocks.map((b) => b.id)));
     let id = uid();
     while (taken.has(id)) id = uid();
-    const block = userBlock(id, newKind, newBoxBelow(page.blocks, page));
+    const block = userBlock(id, newKind, box);
+    setHint('');
     flushSync(() => {
       update([...page.blocks, block]);
       setSelectedId(id);
@@ -140,6 +165,67 @@ export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
   const resize = (dw: number, dh: number) => reshape((box) => resizeBox(box, dw, dh, page));
 
   const typed = (b: Block) => drafts.current.get(b.id) ?? b.content ?? '';
+
+  // Drawing. A press that moves more than a few pixels draws a box. One that does
+  // not is a tap: on a box it selects that box, elsewhere it places a corner, and
+  // a second tap places the opposite corner. Two taps need no dragging at all.
+  const pagePoint = (e: PointerEvent) => toPagePoint({ x: e.clientX, y: e.clientY }, surface.current!.getBoundingClientRect(), page);
+  const finishBox = (a: Point, b: Point) => {
+    const box = boxFromPoints(a, b, page);
+    if (box) addRegion(box);
+    else say('That box is too small to be a region. Make it larger.');
+  };
+
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    // Only the main finger, the left mouse button and the pen tip draw. The pen's eraser end is button 5.
+    if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0) || e.button === 5) return;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* capture is a nicety, drawing works without it */ }
+    drag.current = { id: e.pointerId, touch: e.pointerType === 'touch', start: pagePoint(e), startX: e.clientX, startY: e.clientY, dragging: false };
+  };
+
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    if (!d.dragging) {
+      if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) <= (d.touch ? 8 : 4)) return;
+      d.dragging = true;
+      setCorner(null);
+    }
+    const now = pagePoint(e);
+    setDraft({ x: Math.min(d.start.x, now.x), y: Math.min(d.start.y, now.y), width: Math.abs(now.x - d.start.x), height: Math.abs(now.y - d.start.y) });
+  };
+
+  const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    drag.current = null;
+    setDraft(null);
+    const point = pagePoint(e);
+    if (d.dragging) return finishBox(d.start, point);
+    if (corner) {
+      setCorner(null);
+      return finishBox(corner, point);
+    }
+    // A finger covers more than a cursor, so taps get about 12 screen pixels of room.
+    const slop = d.touch ? (12 * page.width) / surface.current!.getBoundingClientRect().width : 0;
+    const hit = boxAt(page.blocks, point, slop);
+    if (hit) {
+      flushSync(() => {
+        setSelectedId(hit.id);
+        setConfirmingDelete(false);
+      });
+      // So the arrow keys work on it straight away.
+      selectedBox.current?.focus();
+      return;
+    }
+    setCorner(point);
+    say('First corner placed. Tap the opposite corner.');
+  };
+
+  const dropDrag = () => {
+    drag.current = null;
+    setDraft(null);
+  };
 
   const deleteSelected = () => {
     if (!selected) return;
@@ -238,16 +324,33 @@ export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
             })}
           </fieldset>
           <div className="flex flex-wrap items-center gap-3">
-            <button ref={addButton} onClick={addRegion} className={control}>
+            <button ref={addButton} onClick={() => addRegion()} className={control}>
               <Plus size={14} aria-hidden="true" /> Add region
             </button>
-            <p id="region-keys" className="text-xs text-muted-foreground">
-              On a selected region, the arrow keys move it, Shift and the arrow keys resize it, and Delete removes it.
+            <p className="text-xs text-muted-foreground">
+              Drag on the page to draw a region, or tap two opposite corners.{' '}
+              <span id="region-keys">On a selected region, the arrow keys move it, Shift and the arrow keys resize it, and Delete removes it.</span>
             </p>
           </div>
+          {(hint || corner) && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              {hint && <p>{hint}</p>}
+              {corner && <button onClick={cancelCorner} className={control}>Cancel corner</button>}
+            </div>
+          )}
 
+          {/* Focusable by script and click only, so a click on the page keeps focus in the
+              dialog, where Escape and the shortcuts work, instead of dropping it to the body. */}
           <div
-            className="relative mx-auto max-w-full select-none bg-white shadow-sm"
+            ref={surface}
+            tabIndex={-1}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={dropDrag}
+            onLostPointerCapture={dropDrag}
+            onContextMenu={(e) => e.preventDefault()}
+            className="region-surface relative mx-auto max-w-full cursor-crosshair select-none bg-white shadow-sm focus:outline-none"
             style={{ aspectRatio: `${page.width} / ${page.height}`, width: `min(100%, calc((100dvh - 15rem) * ${page.width / page.height}))` }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- a local blob URL, which next/image cannot optimise */}
@@ -273,6 +376,20 @@ export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
                 <div key={b.id} aria-hidden="true" style={style} className={`absolute border-2 ${look.border}`}>{tag}</div>
               );
             })}
+            {draft && (
+              <div
+                aria-hidden="true"
+                className={`pointer-events-none absolute border-2 border-dashed ${KIND_STYLE[newKind].border}`}
+                style={{ left: pct(draft.x, page.width), top: pct(draft.y, page.height), width: pct(draft.width, page.width), height: pct(draft.height, page.height) }}
+              />
+            )}
+            {corner && (
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-black bg-white/60 shadow-[0_0_0_2px_white]"
+                style={{ left: pct(corner.x, page.width), top: pct(corner.y, page.height) }}
+              />
+            )}
           </div>
         </section>
 

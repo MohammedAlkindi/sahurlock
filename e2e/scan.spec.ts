@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { expect, test, type Page } from '@playwright/test';
+import { devices, expect, test, type Page } from '@playwright/test';
 import { buildPdf } from '../src/lib/scan/pdf';
 import { violations } from './axe';
 
@@ -739,6 +739,105 @@ for (const theme of ['light', 'dark'] as const) {
     expect(await violations(page, ['wcag22aa'])).toEqual([]);
   });
 }
+
+/** The editor's page surface and its rectangle on screen. */
+async function surfaceOf(editor: ReturnType<Page['getByRole']>) {
+  const surface = editor.getByRole('region', { name: 'Page' }).locator('.region-surface');
+  await surface.scrollIntoViewIfNeeded();
+  return { surface, rect: (await surface.boundingBox())! };
+}
+
+test('a region can be drawn by dragging with a mouse', async ({ page }) => {
+  const editor = await openEditor(page);
+  const { rect } = await surfaceOf(editor);
+  const at = (fx: number, fy: number) => [rect.x + rect.width * fx, rect.y + rect.height * fy] as const;
+  await page.mouse.move(...at(0.2, 0.3));
+  await page.mouse.down();
+  await page.mouse.move(...at(0.5, 0.35), { steps: 5 });
+  await page.mouse.move(...at(0.7, 0.4), { steps: 5 });
+  await page.mouse.up();
+
+  const box = editor.getByRole('region', { name: 'Page' }).getByRole('button', { name: /^Region 1, text, / });
+  await expect(box).toBeFocused();
+  const drawn = (await box.boundingBox())!;
+  expect(Math.abs(drawn.x - at(0.2, 0.3)[0])).toBeLessThan(3);
+  expect(Math.abs(drawn.y - at(0.2, 0.3)[1])).toBeLessThan(3);
+  expect(Math.abs(drawn.x + drawn.width - at(0.7, 0.4)[0])).toBeLessThan(3);
+  expect(Math.abs(drawn.y + drawn.height - at(0.7, 0.4)[1])).toBeLessThan(3);
+});
+
+test('a region can be drawn with two taps, and Escape drops a waiting corner first', async ({ page }) => {
+  const editor = await openEditor(page);
+  const { rect } = await surfaceOf(editor);
+  await page.mouse.click(rect.x + rect.width * 0.1, rect.y + rect.height * 0.6);
+  await expect(editor.getByRole('region', { name: 'Page' }).getByText('First corner placed. Tap the opposite corner.')).toBeVisible();
+  await expect(editor.getByRole('button', { name: 'Cancel corner' })).toBeVisible();
+  expect(await violations(page, ['wcag22aa'])).toEqual([]);
+
+  await page.keyboard.press('Escape');
+  await expect(editor).toBeVisible();
+  await expect(editor.getByRole('button', { name: 'Cancel corner' })).toHaveCount(0);
+
+  await page.mouse.click(rect.x + rect.width * 0.1, rect.y + rect.height * 0.6);
+  await page.mouse.click(rect.x + rect.width * 0.9, rect.y + rect.height * 0.7);
+  await expect(editor.getByText('1 region: 1 text.')).toBeVisible();
+  await expect(editor.getByRole('region', { name: 'Page' }).getByRole('button', { name: 'Region 1, text, middle' })).toBeFocused();
+});
+
+test('tapping a region selects it, and a box too small to keep says so', async ({ page }) => {
+  const editor = await openEditor(page);
+  await editor.getByRole('button', { name: 'Add region' }).click();
+  await editor.getByRole('button', { name: 'Add region' }).click();
+  const rows = editor.getByRole('list', { name: 'Regions on this page' }).getByRole('button');
+  await expect(rows.nth(1)).toHaveAttribute('aria-current', 'true');
+
+  // Region 1 is the first one Add region placed: 10% to 18% of the page height, 10% to 90% of its width.
+  const { rect } = await surfaceOf(editor);
+  await page.mouse.click(rect.x + rect.width * 0.5, rect.y + rect.height * 0.14);
+  await expect(rows.nth(0)).toHaveAttribute('aria-current', 'true');
+  // The tapped region takes focus, so the arrow keys work on it next.
+  await expect(editor.getByRole('region', { name: 'Page' }).getByRole('button', { name: /^Region 1, / })).toBeFocused();
+
+  await page.mouse.move(rect.x + rect.width * 0.5, rect.y + rect.height * 0.8);
+  await page.mouse.down();
+  // A long sliver one screen pixel tall is too thin at any display size.
+  await page.mouse.move(rect.x + rect.width * 0.5 + 80, rect.y + rect.height * 0.8 + 1, { steps: 4 });
+  await page.mouse.up();
+  await expect(editor.getByRole('region', { name: 'Page' }).getByText('That box is too small to be a region. Make it larger.')).toBeVisible();
+  await expect(rows).toHaveCount(2);
+});
+
+test('a region can be drawn with a pen', async ({ page }) => {
+  const editor = await openEditor(page);
+  const { rect } = await surfaceOf(editor);
+  const cdp = await page.context().newCDPSession(page);
+  const pen = (type: 'mousePressed' | 'mouseMoved' | 'mouseReleased', fx: number, fy: number) =>
+    cdp.send('Input.dispatchMouseEvent', { type, x: rect.x + rect.width * fx, y: rect.y + rect.height * fy, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1, pointerType: 'pen' });
+  await pen('mousePressed', 0.2, 0.5);
+  for (let i = 1; i <= 5; i++) await pen('mouseMoved', 0.2 + 0.1 * i, 0.5 + 0.02 * i);
+  await pen('mouseReleased', 0.7, 0.6);
+  await expect(editor.getByText('1 region: 1 text.')).toBeVisible();
+});
+
+test.describe('on a touch screen', () => {
+  const { defaultBrowserType: _, ...pixel } = devices['Pixel 7'];
+  test.use(pixel);
+
+  test('a finger draws a region without scrolling the editor', async ({ page }) => {
+    const editor = await openEditor(page);
+    const { rect } = await surfaceOf(editor);
+    const scroller = editor.locator('div.overflow-y-auto').first();
+    const before = await scroller.evaluate((el) => el.scrollTop);
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', fx: number, fy: number) =>
+      cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: rect.x + rect.width * fx, y: rect.y + rect.height * fy }] });
+    await touch('touchStart', 0.2, 0.3);
+    for (let i = 1; i <= 6; i++) await touch('touchMove', 0.2 + 0.08 * i, 0.3 + 0.03 * i);
+    await touch('touchEnd', 0, 0);
+    await expect(editor.getByText('1 region: 1 text.')).toBeVisible();
+    expect(await scroller.evaluate((el) => el.scrollTop)).toBe(before);
+  });
+});
 
 test('a file that is not an image gets a clear message', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });

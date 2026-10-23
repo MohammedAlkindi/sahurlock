@@ -82,3 +82,49 @@ export function summary(blocks: Block[]): string {
   const parts = [...counts].map(([kind, n]) => `${n} ${PLURAL[kind](n)}`);
   return `${blocks.length} ${blocks.length === 1 ? 'region' : 'regions'}: ${parts.join(', ')}.`;
 }
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+/**
+ * A pointer position in page pixels, from its position on screen and the
+ * page's on-screen rectangle (read again on every event, since the page can
+ * scroll or resize mid-drag). Points off the page are pulled onto its edge.
+ */
+export function toPagePoint(client: Point, rect: { left: number; top: number; width: number; height: number }, page: PageSize): Point {
+  const x = ((client.x - rect.left) / rect.width) * page.width;
+  const y = ((client.y - rect.top) / rect.height) * page.height;
+  return { x: Math.min(page.width, Math.max(0, x)), y: Math.min(page.height, Math.max(0, y)) };
+}
+
+/**
+ * The box with these two opposite corners, in whatever direction they were
+ * drawn, rounded outward to whole pixels so it covers everything drawn over.
+ * Null when it would be smaller than a region may be.
+ */
+export function boxFromPoints(a: Point, b: Point, page: PageSize): Box | null {
+  const left = Math.max(0, Math.floor(Math.min(a.x, b.x)));
+  const top = Math.max(0, Math.floor(Math.min(a.y, b.y)));
+  const right = Math.min(page.width, Math.ceil(Math.max(a.x, b.x)));
+  const bottom = Math.min(page.height, Math.ceil(Math.max(a.y, b.y)));
+  const min = minSide(page);
+  if (right - left < min || bottom - top < min) return null;
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+/**
+ * The region a tap at this point means: the smallest box containing it, so a
+ * box drawn inside another stays reachable. `slop` widens every box by that
+ * many page pixels, for fingers.
+ */
+export function boxAt(blocks: Block[], point: Point, slop = 0): Block | null {
+  let best: Block | null = null;
+  for (const b of blocks) {
+    const { x, y, width, height } = b.box;
+    const inside = point.x >= x - slop && point.x <= x + width + slop && point.y >= y - slop && point.y <= y + height + slop;
+    if (inside && (!best || width * height < best.box.width * best.box.height)) best = b;
+  }
+  return best;
+}
