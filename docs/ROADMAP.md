@@ -23,7 +23,8 @@ that shipped it.
       literal string `custom` as the video source today)
 - [x] Stop the timer double-counting while the window is blurred but visible, and make
       `finishSession` idempotent so one session cannot write two history entries
-- [ ] Stop counting uncertain frames as focused time
+      (bc88013)
+- [x] Stop counting uncertain frames as focused time
 - [ ] Scale head-pose thresholds by face size, with recorded-landmark test fixtures
 - [ ] Self-host a pinned MediaPipe build and add a Content Security Policy, so
       detection works offline and no third-party script sees camera frames
