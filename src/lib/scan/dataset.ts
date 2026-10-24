@@ -73,6 +73,14 @@ export interface LabelsExport {
 
 const hex = (buffer: ArrayBuffer) => Array.from(new Uint8Array(buffer), (b) => b.toString(16).padStart(2, '0')).join('');
 
+/**
+ * JSON with U+0085, U+2028 and U+2029 escaped. JSON.stringify leaves them raw,
+ * and readers that split lines on more than "\n" (Python's splitlines) would
+ * cut a page's line in two at one typed into a region's content.
+ */
+const jsonLine = (value: unknown) =>
+  JSON.stringify(value).replace(/[\u0085\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+
 // Keys are written in a fixed order, so the same labels always give the same file.
 const blockJson = (b: Block) => ({
   id: b.id,
@@ -117,7 +125,7 @@ export async function buildLabelsZip(scans: SavedScan[], now: Date): Promise<Lab
   }
   kept.sort((a, b) => (a.sha < b.sha ? -1 : a.sha > b.sha ? 1 : 0));
 
-  const lines = kept.map(({ sha, page }) => JSON.stringify({
+  const lines = kept.map(({ sha, page }) => jsonLine({
     image: `images/${sha}.jpg`,
     sha256: sha,
     width: page.width,

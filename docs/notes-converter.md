@@ -100,7 +100,8 @@ chat language models are not, and no model runs on a hosted service.
   Fixing a misread word, with the model version and confidence beside it, arrives
   with the first recognizer.
 - Labels leave the device only as a download the user makes: one ZIP with
-  `manifest.json`, `pages.jsonl` (one line per page, with Document v1 blocks) and
+  `manifest.json`, `pages.jsonl` (one line per page ending in `\n`, with Document v1
+  blocks, and U+0085, U+2028 and U+2029 escaped so no other line break splits it) and
   each page's JPEG named by its SHA-256. Boxes are in the JPEG's pixels from its
   top-left corner, COCO's bbox convention. Kinds are numbered by their place in
   `BLOCK_KINDS` plus one. The detector's COCO files and the held-out split are to be

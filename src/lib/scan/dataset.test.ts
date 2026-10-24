@@ -88,6 +88,15 @@ describe('buildLabelsZip', () => {
     expect(await lines()).toEqual(await lines());
   });
 
+  it('keeps one line per page when content holds a Unicode line or paragraph separator', async () => {
+    const content = 'a\u2028b\u2029c\u0085d';
+    const result = await buildLabelsZip([scan('a', [{ blocks: [{ ...userBlock('t1', 'text', box), content }] }])], now);
+    const text = new TextDecoder().decode(readZip(await bytesOf(result.zip))[1].data);
+    expect(text).not.toMatch(/[\u0085\u2028\u2029]/);
+    expect(text.split('\n')).toHaveLength(2);
+    expect(JSON.parse(text.split('\n')[0]).blocks[0].content).toBe(content);
+  });
+
   it('writes a page image used twice once, from the newest scan, and skips images of the wrong size', async () => {
     const scans = [
       scan('newer', [{ blocks: [math()] }]),
