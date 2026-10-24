@@ -11,7 +11,7 @@ import { type Block, DOCUMENT_VERSION } from '@/lib/scan/document';
 import { buildPdf, type Paper } from '@/lib/scan/pdf';
 import { buildLabelsZip, labelsFileName, LabelsTooLargeError } from '@/lib/scan/dataset';
 import { downloadBlob } from '@/lib/download';
-import { type ScanNotice, noticeAfterRead } from '@/lib/scan/import-notice';
+import { endRead, readingLine, type Reads, type ScanNotice, startRead } from '@/lib/scan/imports';
 import { isPdf, MAX_PDF_PAGES, pdfToImages } from '@/lib/scan/pdf-pages';
 import {
   deleteScan, groupByCourse, listScans, type MoveSource, movePageToScan, saveScan, ScanChangedError, scanFileName, type SavedScan,
@@ -94,7 +94,13 @@ export default function ScanPage() {
   /** Why the last move failed. Kept apart from import notices, so neither replaces the other. */
   const [moveError, setMoveError] = useState<string | null>(null);
   /** PDFs being read into the pages on screen, tagged with the page set they belong to, so a read that will be dropped does not count. */
-  const [reading, setReading] = useState({ set: 0, count: 0 });
+  const [reading, setReading] = useState<Reads>({ set: 0, names: [] });
+  /**
+   * What came of each PDF read since the last pick: pages left out, or a file
+   * that could not be read. Kept apart from the reading line, so a read
+   * starting never hides another's result.
+   */
+  const [importNotes, setImportNotes] = useState<ScanNotice[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
   /** The page the region editor opened on, while it is open. */
@@ -163,25 +169,27 @@ export default function ScanPage() {
   const addFiles = async (list: FileList | null) => {
     const files = Array.from(list ?? []);
     const set = pageSet.current;
-    // An old notice goes, but not one for a PDF still being read by an earlier pick.
-    setNotice((n) => (n?.kind === 'reading' ? n : null));
+    // Old results go. A PDF still being read by an earlier pick keeps its line, which comes from `reading`.
+    setNotice(null);
+    setImportNotes([]);
     for (const file of files) {
       if (pageSet.current !== set) return;
       if (!isPdf(file)) { addImages([file]); continue; }
-      const readingNotice: ScanNotice = { kind: 'reading', text: `Reading ${file.name}…` };
-      setNotice(readingNotice);
-      setReading((r) => ({ set, count: r.set === set ? r.count + 1 : 1 }));
+      setReading((r) => startRead(r, set, file.name));
       try {
         const { images, skipped } = await pdfToImages(file);
         // Another scan was opened, or Start over pressed, while this PDF was read.
         if (pageSet.current !== set) return;
         addImages(images);
-        const truncated = skipped > 0 ? `${file.name} has more than ${MAX_PDF_PAGES} pages, so only the first ${MAX_PDF_PAGES} were added.` : null;
-        setNotice((n) => noticeAfterRead(n, readingNotice, truncated));
+        if (skipped > 0) {
+          setImportNotes((n) => [...n, { kind: 'info', text: `${file.name} has more than ${MAX_PDF_PAGES} pages, so only the first ${MAX_PDF_PAGES} were added.` }]);
+        }
       } catch {
-        setNotice({ kind: 'error', text: `${file.name} could not be read as a PDF. If it has a password, export it again without one.` });
+        if (pageSet.current === set) {
+          setImportNotes((n) => [...n, { kind: 'error', text: `${file.name} could not be read as a PDF. If it has a password, export it again without one.` }]);
+        }
       } finally {
-        setReading((r) => (r.set === set ? { set, count: r.count - 1 } : r));
+        setReading((r) => endRead(r, set, file.name));
       }
     }
   };
@@ -218,12 +226,14 @@ export default function ScanPage() {
     setCourse('');
     setSavedAs(null);
     setSaveError(null);
+    // A move error is about pages that are no longer here.
+    setMoveError(null);
   };
 
   const startOver = () => {
     pageSet.current += 1;
-    setReading({ set: pageSet.current, count: 0 });
-    setMoveError(null);
+    setReading({ set: pageSet.current, names: [] });
+    setImportNotes([]);
     pages.forEach(release);
     setPages([]);
     setSelectedId(null);
@@ -372,7 +382,8 @@ export default function ScanPage() {
 
   const openSaved = (scan: SavedScan) => {
     pageSet.current += 1;
-    setReading({ set: pageSet.current, count: 0 });
+    setReading({ set: pageSet.current, names: [] });
+    setImportNotes([]);
     setMoveError(null);
     editing.current += 1;
     pages.forEach(release);
@@ -403,7 +414,11 @@ export default function ScanPage() {
     } catch {
       return null;
     }
-    if (savedAs?.id === scan.id) setSavedAs(null);
+    if (savedAs?.id === scan.id) {
+      setSavedAs(null);
+      // Its advice, such as opening this scan again, no longer applies.
+      setMoveError(null);
+    }
     announce(`Deleted ${scan.title}.`);
     const rest = await reloadLibrary();
     if (rest.length === 0) pageHeading.current?.focus();
@@ -562,11 +577,12 @@ export default function ScanPage() {
         </div>
       )}
 
-      {notice && (
-        <p role={notice.kind === 'error' ? 'alert' : 'status'} className={`mb-4 text-sm ${notice.kind === 'error' ? 'text-danger' : 'text-muted-foreground'}`}>
-          {notice.text}
+      {reading.names.length > 0 && <p role="status" className="mb-4 text-sm text-muted-foreground">{readingLine(reading.names)}</p>}
+      {[...importNotes, ...(notice ? [notice] : [])].map((n, i) => (
+        <p key={`${i}:${n.text}`} role={n.kind === 'error' ? 'alert' : 'status'} className={`mb-4 text-sm ${n.kind === 'error' ? 'text-danger' : 'text-muted-foreground'}`}>
+          {n.text}
         </p>
-      )}
+      ))}
       {moveError && <p role="alert" className="mb-4 text-sm text-danger">{moveError}</p>}
 
       {pages.length > 0 && (
@@ -830,7 +846,7 @@ export default function ScanPage() {
           // The editor has its own paper control. Without it open, the list shows one.
           paper={pages.length === 0 ? { value: paper, onChange: setPaper } : null}
           // Opening over pages that are not saved as they are, or while a PDF is still being read, asks first.
-          openNeedsConfirm={(pages.length > 0 && !upToDate) || reading.count > 0}
+          openNeedsConfirm={(pages.length > 0 && !upToDate) || reading.names.length > 0}
           onOpen={openSaved}
           onDownloadLabels={downloadLabels}
           onDownload={(scan) => savePdf(scan.pages.map((pg) => pg.jpeg), scanFileName(scan.title))}
