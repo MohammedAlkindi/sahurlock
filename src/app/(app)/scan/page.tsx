@@ -11,6 +11,7 @@ import { type Block, DOCUMENT_VERSION } from '@/lib/scan/document';
 import { buildPdf, type Paper } from '@/lib/scan/pdf';
 import { buildLabelsZip, labelsFileName, LabelsTooLargeError } from '@/lib/scan/dataset';
 import { downloadBlob } from '@/lib/download';
+import { type ScanNotice, noticeAfterRead } from '@/lib/scan/import-notice';
 import { isPdf, MAX_PDF_PAGES, pdfToImages } from '@/lib/scan/pdf-pages';
 import {
   deleteScan, groupByCourse, listScans, type MoveSource, movePageToScan, saveScan, ScanChangedError, scanFileName, type SavedScan,
@@ -80,7 +81,7 @@ export default function ScanPage() {
   const [paper, setPaper] = useState<Paper>('a4');
   const [dragging, setDragging] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [notice, setNotice] = useState<{ kind: 'reading' | 'error' | 'info'; text: string } | null>(null);
+  const [notice, setNotice] = useState<ScanNotice | null>(null);
   const [library, setLibrary] = useState<SavedScan[]>([]);
   const [title, setTitle] = useState('');
   const [course, setCourse] = useState('');
@@ -90,6 +91,8 @@ export default function ScanPage() {
   /** The saved scan chosen to move the selected page to. */
   const [moveTarget, setMoveTarget] = useState<string | null>(null);
   const [moving, setMoving] = useState(false);
+  /** Why the last move failed. Kept apart from import notices, so neither replaces the other. */
+  const [moveError, setMoveError] = useState<string | null>(null);
   /** PDFs being read into the pages on screen, tagged with the page set they belong to, so a read that will be dropped does not count. */
   const [reading, setReading] = useState({ set: 0, count: 0 });
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -160,21 +163,21 @@ export default function ScanPage() {
   const addFiles = async (list: FileList | null) => {
     const files = Array.from(list ?? []);
     const set = pageSet.current;
-    setNotice(null);
+    // An old notice goes, but not one for a PDF still being read by an earlier pick.
+    setNotice((n) => (n?.kind === 'reading' ? n : null));
     for (const file of files) {
       if (pageSet.current !== set) return;
       if (!isPdf(file)) { addImages([file]); continue; }
-      setNotice({ kind: 'reading', text: `Reading ${file.name}…` });
+      const readingNotice: ScanNotice = { kind: 'reading', text: `Reading ${file.name}…` };
+      setNotice(readingNotice);
       setReading((r) => ({ set, count: r.set === set ? r.count + 1 : 1 }));
       try {
         const { images, skipped } = await pdfToImages(file);
         // Another scan was opened, or Start over pressed, while this PDF was read.
         if (pageSet.current !== set) return;
         addImages(images);
-        // Only the reading notice is replaced. An error shown meanwhile, such as a refused move, stays.
-        setNotice((n) => (n?.kind !== 'reading' ? n : skipped > 0
-          ? { kind: 'info', text: `${file.name} has more than ${MAX_PDF_PAGES} pages, so only the first ${MAX_PDF_PAGES} were added.` }
-          : null));
+        const truncated = skipped > 0 ? `${file.name} has more than ${MAX_PDF_PAGES} pages, so only the first ${MAX_PDF_PAGES} were added.` : null;
+        setNotice((n) => noticeAfterRead(n, readingNotice, truncated));
       } catch {
         setNotice({ kind: 'error', text: `${file.name} could not be read as a PDF. If it has a password, export it again without one.` });
       } finally {
@@ -220,6 +223,7 @@ export default function ScanPage() {
   const startOver = () => {
     pageSet.current += 1;
     setReading({ set: pageSet.current, count: 0 });
+    setMoveError(null);
     pages.forEach(release);
     setPages([]);
     setSelectedId(null);
@@ -347,6 +351,8 @@ export default function ScanPage() {
       if (editing.current === scan) {
         setTitle(name);
         setSavedAs({ id, key, savedAt });
+        // A move error about these pages, such as their scan being deleted elsewhere, no longer applies.
+        setMoveError(null);
       }
       announce(replacing ? `Saved the changes to ${name}.` : `Saved ${name} to this device.`);
       await reloadLibrary();
@@ -367,6 +373,7 @@ export default function ScanPage() {
   const openSaved = (scan: SavedScan) => {
     pageSet.current += 1;
     setReading({ set: pageSet.current, count: 0 });
+    setMoveError(null);
     editing.current += 1;
     pages.forEach(release);
     const opened: ScanPage[] = scan.pages.map((p, i) => ({
@@ -437,8 +444,6 @@ export default function ScanPage() {
       setSelectedId((current) => (current === id ? next?.id ?? null : current));
       // A confirm about the page that left, or about all of them once none are left, has nothing to ask about.
       setDiscarding((d) => (rest.length === 0 || (d?.action === 'remove' && d.pageId === id) ? null : d));
-      // With no pages left the region editor has nothing to show, and must not open again on the next scan.
-      if (rest.length === 0) setMarkingFrom(null);
     }, () => (next ? pageButtons.current.get(next.id) : pageHeading.current));
     return rest;
   };
@@ -462,8 +467,7 @@ export default function ScanPage() {
     const scan = editing.current;
     const set = pageSet.current;
     // Cleared first, so an old error does not sit beside this result, and the same error twice is announced twice.
-    // A PDF still being read keeps its notice.
-    flushSync(() => setNotice((n) => (n?.kind === 'reading' ? n : null)));
+    flushSync(() => setMoveError(null));
     setMoving(true);
     try {
       const result = await movePageToScan(idb, source, targetId, new Date());
@@ -477,7 +481,9 @@ export default function ScanPage() {
         else if (savedAs) forgetSavedScan();
       }
       announce(`Moved page ${index + 1} to ${target.title}.${savedAs && !result.source ? ' Its scan had no pages left, so it was deleted.' : ''}`);
-      await reloadLibrary();
+      // The reload can take away a Saved scans row with focus in it: the source's, when its last page left.
+      const stored = await listScans(idb).catch(() => null);
+      if (stored) keepFocus(() => setLibrary(stored), () => pageHeading.current);
     } catch (error) {
       const refused = error instanceof ScanChangedError ? error.scan : null;
       // After a refusal, show what is stored now, so opening a scan again opens the copy the move was
@@ -486,7 +492,9 @@ export default function ScanPage() {
       const here = editing.current === scan && pageSet.current === set;
       const full = error instanceof DOMException && error.name === 'QuotaExceededError';
       const messages = {
-        'source': 'The page was not moved, because this scan was saved again in another tab or window. Open it again from Saved scans, then move the page.',
+        'source': here
+          ? 'The page was not moved, because this scan was saved again in another tab or window. Open it again from Saved scans, then move the page.'
+          : 'The page was not moved, because the scan it was in was saved again in another tab or window.',
         'source-gone': here
           ? 'The page was not moved, because this scan was deleted in another tab or window. Its pages are still here, so save them to keep them.'
           : 'The page was not moved, because the scan it was in was deleted in another tab or window.',
@@ -497,11 +505,9 @@ export default function ScanPage() {
         if (stored) setLibrary(stored);
         // These pages are now saved nowhere, so they show as unsaved: Save offers a new copy, and Open and Start over ask first.
         if (refused === 'source-gone' && here) setSavedAs((link) => (link?.id === sourceId ? null : link));
-        setNotice({
-          kind: 'error',
-          text: refused ? messages[refused]
-            : full ? 'The page was not moved, because this browser is out of room for saved scans.' : 'The page could not be moved. Try again.',
-        });
+        setMoveError(refused ? messages[refused]
+          : full ? 'The page was not moved, because this browser is out of room for saved scans.'
+          : here ? 'The page could not be moved. Try again.' : 'The page could not be moved.');
       }, () => (here ? pageButtons.current.get(pageId) ?? pageHeading.current : pageHeading.current));
     } finally {
       setMoving(false);
@@ -514,6 +520,8 @@ export default function ScanPage() {
   const editorPages: EditorPage[] = pages.flatMap((p, i) => (p.cleaned && !p.request && !p.error ? [{
     id: p.id, number: i + 1, url: p.cleaned.url, width: p.cleaned.width, height: p.cleaned.height, blocks: p.blocks, regionsComplete: p.regionsComplete,
   }] : []));
+  // The region editor closes for good once it has no page to show, so it never opens again by itself.
+  if (markingFrom && editorPages.length === 0) setMarkingFrom(null);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -559,6 +567,7 @@ export default function ScanPage() {
           {notice.text}
         </p>
       )}
+      {moveError && <p role="alert" className="mb-4 text-sm text-danger">{moveError}</p>}
 
       {pages.length > 0 && (
         <>
@@ -692,9 +701,11 @@ export default function ScanPage() {
               {selected.cleaned && !selected.request && !selected.error && (
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button
-                    onClick={() => setMarkingFrom(selected.id)}
+                    // A region marked now would be left behind: the move copies the page as it was when it began.
+                    onClick={() => { if (!moving) setMarkingFrom(selected.id); }}
+                    aria-disabled={moving}
                     aria-label={`Mark regions on page ${selectedNumber}`}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 py-2 text-sm font-medium text-foreground transition hover:bg-muted"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 py-2 text-sm font-medium text-foreground transition hover:bg-muted aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
                   >
                     <SquareDashed size={14} aria-hidden="true" /> Mark regions
                   </button>
