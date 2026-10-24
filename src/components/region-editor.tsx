@@ -106,6 +106,7 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
   const heading = useRef<HTMLHeadingElement | null>(null);
   const selectedBox = useRef<HTMLButtonElement | null>(null);
   const addButton = useRef<HTMLButtonElement | null>(null);
+  const cancelButton = useRef<HTMLButtonElement | null>(null);
   const kindSelect = useRef<HTMLSelectElement | null>(null);
   const deleteButton = useRef<HTMLButtonElement | null>(null);
   const keepButton = useRef<HTMLButtonElement | null>(null);
@@ -141,8 +142,13 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
   };
 
   const cancelCorner = () => {
-    setCorner(null);
-    setHint('');
+    // The button goes with the corner, so focus moves on instead of falling out of the editor.
+    const fromButton = document.activeElement === cancelButton.current;
+    flushSync(() => {
+      setCorner(null);
+      setHint('');
+    });
+    if (fromButton) addButton.current?.focus();
     announce('Corner cancelled.');
   };
 
@@ -357,7 +363,7 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
           {(hint || corner) && (
             <div className="flex flex-wrap items-center gap-2 text-sm">
               {hint && <p>{hint}</p>}
-              {corner && <button onClick={cancelCorner} className={control}>Cancel corner</button>}
+              {corner && <button ref={cancelButton} onClick={cancelCorner} className={control}>Cancel corner</button>}
             </div>
           )}
 
