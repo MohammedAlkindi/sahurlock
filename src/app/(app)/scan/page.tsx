@@ -578,16 +578,17 @@ export default function ScanPage() {
       )}
 
       {/* Both live regions stay on the page, so a line added to either is announced. A region that
-          arrives already holding its text often is not. Each line keeps its own key, so one arriving
-          never rebuilds, and so announces again, the lines already there. */}
-      <div role="status">
+          arrives already holding its text often is not. Status and alert regions are atomic unless told
+          otherwise, and would read every line again when one changes, so both say aria-atomic="false".
+          Each line keeps its own key, so one arriving never rebuilds the lines already there. */}
+      <div role="status" aria-atomic="false">
         {[
           ...(reading.names.length > 0 ? [{ key: 'reading', text: readingLine(reading.names) }] : []),
           ...importNotes.flatMap((n, i) => (n.kind === 'info' ? [{ key: `import-${i}`, text: n.text }] : [])),
           ...(notice?.kind === 'info' ? [{ key: 'notice', text: notice.text }] : []),
         ].map((line) => <p key={line.key} className="mb-4 text-sm text-muted-foreground">{line.text}</p>)}
       </div>
-      <div role="alert">
+      <div role="alert" aria-atomic="false">
         {[
           ...importNotes.flatMap((n, i) => (n.kind === 'error' ? [{ key: `import-${i}`, text: n.text }] : [])),
           ...(notice?.kind === 'error' ? [{ key: 'notice', text: notice.text }] : []),
