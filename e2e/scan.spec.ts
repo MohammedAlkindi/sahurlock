@@ -918,6 +918,30 @@ test('the region editor numbers pages by their place in the scan, counting pages
   await expect(editor.getByRole('status')).toHaveText('Page 1 of 3.');
 });
 
+test('focus that leaves the region editor comes back, and keys still reach it', async ({ page }) => {
+  const editor = await openEditor(page);
+  // Shift+Tab from the heading, which is not a control, wraps to the last control.
+  await page.keyboard.press('Shift+Tab');
+  await expect(editor.getByRole('checkbox', { name: 'Every region on this page is marked' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(editor.getByRole('button', { name: 'Previous page' })).toBeFocused();
+
+  // Focus moved outside by a script comes back in.
+  await page.locator('h1').evaluate((h: HTMLElement) => h.focus());
+  await expect(editor.getByRole('heading', { name: 'Mark regions on page 1 of 1' })).toBeFocused();
+
+  // Cancel corner goes when pressed, and focus moves on to Add region.
+  const { rect } = await surfaceOf(editor);
+  await page.mouse.click(rect.x + rect.width * 0.1, rect.y + rect.height * 0.6);
+  await editor.getByRole('button', { name: 'Cancel corner' }).click();
+  await expect(editor.getByRole('button', { name: 'Add region' })).toBeFocused();
+
+  // With focus fallen to the page, Escape still reaches the editor.
+  await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+  await page.keyboard.press('Escape');
+  await expect(editor).toHaveCount(0);
+});
+
 test('Start over asks first when marked regions are not saved, and not once they are', async ({ page }) => {
   await twoPagesWithARegion(page);
   await page.getByRole('button', { name: 'Start over' }).click();
