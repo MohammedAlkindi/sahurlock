@@ -493,6 +493,21 @@ async function slowScanDatabase(page: Page) {
   });
 }
 
+/** Lets a test make the scans database fail: while failScans(page, true) is in force, opening it gives a VersionError. */
+async function failingScanDatabase(page: Page) {
+  await page.addInitScript(() => {
+    const flagged = window as unknown as { __failScans?: boolean };
+    const open = IDBFactory.prototype.open;
+    IDBFactory.prototype.open = function (name: string, version?: number) {
+      // Asking for a version older than the stored one fails, as storage a newer build upgraded would.
+      return open.call(this, name, name === 'sahurlock-scans' && flagged.__failScans ? 1 : version);
+    };
+  });
+}
+
+const failScans = (page: Page, on: boolean) =>
+  page.evaluate((on) => { (window as unknown as { __failScans?: boolean }).__failScans = on; }, on);
+
 const slowScans = (page: Page, on: boolean) =>
   page.evaluate((on) => { (window as unknown as { __slowScans?: boolean }).__slowScans = on; }, on);
 
@@ -903,6 +918,14 @@ test('a PDF still being read keeps Open asking first after a refused move replac
   // The read goes on, so opening Lecture 4 afresh would throw its pages away, and asks first.
   await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
   await expect(saved.getByRole('group', { name: /^Open Lecture 4 in place/ })).toBeVisible();
+  // Still only the two pages, so it is the read in progress that made Open ask, not pages it added.
+  const pageButtons = page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ });
+  await expect(pageButtons).toHaveCount(2);
+
+  // When the read ends, its pages arrive and the refusal's alert stays.
+  await saved.getByRole('button', { name: 'Cancel' }).click();
+  await expect(pageButtons).toHaveCount(8, { timeout: 30_000 });
+  await expect(page.getByRole('alert').filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible();
 });
 
 test('a Start over confirm left open goes when a move empties the screen', async ({ page }) => {
@@ -924,6 +947,57 @@ test('a Start over confirm left open goes when a move empties the screen', async
   await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
   await expect(confirm).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Start over' })).toBeVisible();
+});
+
+test('a move refused with both scans deleted elsewhere still says the open scan is gone', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  // As after Clear all data in another tab.
+  await deleteStored(page, 'a');
+  await deleteStored(page, 'b');
+
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'The page was not moved' })).toHaveText(
+    'The page was not moved, because this scan was deleted in another tab or window. Its pages are still here, so save them to keep them.',
+  );
+  await expect(page.getByRole('button', { name: 'Save to this device' })).toHaveAttribute('aria-disabled', 'false');
+});
+
+test('a move refused after Start over does not claim the pages are still here', async ({ page }) => {
+  await slowScanDatabase(page);
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  await deleteStored(page, 'a');
+
+  await slowScans(page, true);
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'The page was not moved' })).toHaveText(
+    'The page was not moved, because the scan it was in was deleted in another tab or window.',
+    { timeout: 10_000 },
+  );
+  await slowScans(page, false);
+});
+
+test('a move that fails because storage does not open leaves Saved scans as they were', async ({ page }) => {
+  await failingScanDatabase(page);
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
+
+  await failScans(page, true);
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'The page could not be moved. Try again.' })).toBeVisible();
+  // Reading the list back would fail the same way and show it empty, so the list is kept.
+  await expect(saved.getByRole('button', { name: 'Open Lab 2' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Move', exact: true })).toBeVisible();
+  await failScans(page, false);
 });
 
 test('saving waits while a page is being moved', async ({ page }) => {
@@ -995,6 +1069,80 @@ test('removing the other pages while a move runs leaves a new scan, not a link t
   await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
   await expect(page.getByRole('button', { name: 'Save to this device' })).toBeVisible();
   expect((await readScan(page, 'a')).pages).toEqual([{ width: 400, height: 500 }]);
+});
+
+test('focus moved elsewhere during a move stays where it was put', async ({ page }) => {
+  await slowScanDatabase(page);
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) },
+    { name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) },
+  ]);
+  await expect(page.getByRole('button', { name: 'Download PDF (2 pages)' })).toBeEnabled({ timeout: 30_000 });
+
+  await slowScans(page, true);
+  const move = page.getByRole('button', { name: 'Move', exact: true });
+  await move.focus();
+  await page.keyboard.press('Enter');
+  // While it runs: the pages are cleaned again, so the Move control goes, and focus is on the checkbox.
+  const grid = page.getByLabel('Remove grid lines');
+  await grid.check();
+  await expect(grid).toBeFocused();
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2.' })).toBeAttached({ timeout: 10_000 });
+  await slowScans(page, false);
+  await expect(grid).toBeFocused();
+});
+
+test('a move started with nothing focused leaves focus alone', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  // A mouse click in Safari focuses nothing. A dispatched click does the same here.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.getByRole('button', { name: 'Move', exact: true }).dispatchEvent('click');
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2.' })).toBeAttached();
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+});
+
+test('a page removed during a move, taking focus with it, leaves focus on the page selected', async ({ page }) => {
+  await slowScanDatabase(page);
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [{ id: 'three', title: 'Three pages', sizes: [[400, 500], [500, 400], [400, 600]] }, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Three pages' }).click();
+  await page.getByRole('button', { name: 'Page 2', exact: true }).click();
+
+  await slowScans(page, true);
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  // Removing page 1 sends focus to the next page's Remove button, which is on the page being moved.
+  await page.getByRole('button', { name: 'Remove page 1' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 2 to Lab 2.' })).toBeAttached({ timeout: 10_000 });
+  await slowScans(page, false);
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: 'Page 1', exact: true })).toBeFocused();
+});
+
+test('the region editor opened during a move that empties the screen does not open again later', async ({ page }) => {
+  await slowScanDatabase(page);
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+
+  await slowScans(page, true);
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await page.getByRole('button', { name: 'Mark regions on page 1' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2.' })).toBeAttached({ timeout: 10_000 });
+  await slowScans(page, false);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
 test('after a move, focus goes to the next page when that page cannot move yet', async ({ page }) => {

@@ -215,13 +215,10 @@ export async function movePageToScan(idb: IDBFactory, source: MoveSource, target
         result = { target: moved, source: rest };
       };
 
-      const targetRequest = store.get(targetId);
-      targetRequest.onsuccess = () => {
-        const target = decodeSavedScan(targetRequest.result);
-        if (!target) return refuse('target', 'the scan to move to is gone');
-        if (target.labelsUnreadable) return refuse('target', 'the scan to move to has labels that cannot be read');
-        if ('page' in source) return write(target, null, source.page, source.labels);
-        if (source.scanId === targetId) return refuse('target', 'a page cannot move to its own scan');
+      // The source is read first: when it is gone the open pages are saved nowhere, which
+      // matters more than anything about the target, and is reported even if both are gone.
+      const withSource = (next: (from: SavedScan | null) => void) => {
+        if ('page' in source) return next(null);
         const sourceRequest = store.get(source.scanId);
         sourceRequest.onsuccess = () => {
           if (sourceRequest.result === undefined) return refuse('source-gone', 'the scan the page is in is gone');
@@ -229,9 +226,21 @@ export async function movePageToScan(idb: IDBFactory, source: MoveSource, target
           const same = from !== null && from.createdAt === source.savedAt && from.pages.length === source.sizes.length
             && from.pages.every((p, i) => p.width === source.sizes[i].width && p.height === source.sizes[i].height);
           if (!from || !same) return refuse('source', 'the scan the page is in has changed since it was opened');
-          write(target, { scan: from, position: source.position }, from.pages[source.position], from.document.pages[source.position]);
+          next(from);
         };
       };
+
+      withSource((from) => {
+        if (!('page' in source) && source.scanId === targetId) return refuse('target', 'a page cannot move to its own scan');
+        const targetRequest = store.get(targetId);
+        targetRequest.onsuccess = () => {
+          const target = decodeSavedScan(targetRequest.result);
+          if (!target) return refuse('target', 'the scan to move to is gone');
+          if (target.labelsUnreadable) return refuse('target', 'the scan to move to has labels that cannot be read');
+          if ('page' in source) return write(target, null, source.page, source.labels);
+          write(target, { scan: from!, position: source.position }, from!.pages[source.position], from!.document.pages[source.position]);
+        };
+      });
     });
   } finally {
     db.close();
