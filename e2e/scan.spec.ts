@@ -147,7 +147,7 @@ test('each page of a PDF becomes a page to clean', async ({ page }) => {
 test('a PDF that cannot be read gets a clear message', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
   await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'broken.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 not really') });
-  await expect(page.getByRole('alert').filter({ hasText: 'could not be read as a PDF' })).toBeVisible({ timeout: 30_000 });
+  await expect(errorLines(page).filter({ hasText: 'could not be read as a PDF' })).toBeVisible({ timeout: 30_000 });
 });
 
 test('a saved scan survives a reload and downloads from the library', async ({ page }) => {
@@ -670,6 +670,9 @@ async function scanIds(page: Page) {
   }));
 }
 
+/** The Scan page's error lines (import errors, notices and move errors), which share one live region. */
+const errorLines = (page: Page) => page.locator('#scan-errors');
+
 /** A small blank JPEG, for PDFs with many pages that should read quickly. */
 async function tinyJpeg(page: Page): Promise<Uint8Array> {
   const dataUrl = await page.evaluate(() => {
@@ -803,7 +806,7 @@ test('a move is refused, and changes nothing, when the scan changed since it was
 
   const move = page.getByRole('button', { name: 'Move', exact: true });
   await move.click();
-  const refused = page.getByRole('alert').filter({ hasText: 'The page was not moved' });
+  const refused = errorLines(page).filter({ hasText: 'The page was not moved' });
   await expect(refused).toHaveText('The page was not moved, because this scan was saved again in another tab or window. Open it again from Saved scans, then move the page.');
   expect((await readScan(page, 'a')).pages).toHaveLength(1);
   expect((await readScan(page, 'b')).pages).toHaveLength(1);
@@ -833,7 +836,7 @@ test('a move is refused when the scan was saved again elsewhere, even with its p
 
   await page.getByRole('button', { name: 'Page 1, 1 region, every region marked' }).click();
   await page.getByRole('button', { name: 'Move', exact: true }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'this scan was saved again in another tab or window' })).toBeVisible();
+  await expect(errorLines(page).filter({ hasText: 'this scan was saved again in another tab or window' })).toBeVisible();
   expect((await readScan(page, 'b')).pages).toHaveLength(1);
   expect((await readScan(page, 'a')).document).toEqual({ version: 1, pages: [second, first] });
 });
@@ -851,7 +854,7 @@ test('a move to a scan deleted elsewhere is refused, and that scan leaves the li
   await target.selectOption('b');
   const move = page.getByRole('button', { name: 'Move', exact: true });
   await move.click();
-  const refused = page.getByRole('alert').filter({ hasText: 'The page was not moved' });
+  const refused = errorLines(page).filter({ hasText: 'The page was not moved' });
   await expect(refused).toHaveText(
     'The page was not moved, because Lab 2 was changed or deleted in another tab or window. Saved scans now shows what is stored.',
   );
@@ -874,13 +877,13 @@ test('a move refused because the open scan was deleted elsewhere leaves its page
   await deleteStored(page, 'a');
 
   await page.getByRole('button', { name: 'Move', exact: true }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'The page was not moved' })).toHaveText(
+  await expect(errorLines(page).filter({ hasText: 'The page was not moved' })).toHaveText(
     'The page was not moved, because this scan was deleted in another tab or window. Its pages are still here, so save them to keep them.',
   );
   // Saved nowhere now, so it no longer reads as Saved, and saving makes a new copy with both pages.
   await page.getByRole('button', { name: 'Save to this device' }).click();
   await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
-  await expect(page.getByRole('alert').filter({ hasText: 'The page was not moved' })).toHaveCount(0);
+  await expect(errorLines(page).filter({ hasText: 'The page was not moved' })).toHaveCount(0);
   const ids = await scanIds(page);
   expect(ids).toHaveLength(2);
   expect((await readScan(page, ids.find((id) => id !== 'b')!)).pages).toHaveLength(2);
@@ -897,11 +900,11 @@ test('when a refused move leaves no scan to move to, focus goes to the page', as
   const move = page.getByRole('button', { name: 'Move', exact: true });
   await move.focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('alert').filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible();
+  await expect(errorLines(page).filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible();
   await expect(move).toHaveCount(0);
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: 'Page 1', exact: true })).toBeFocused();
   await page.getByRole('button', { name: 'Start over' }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'Lab 2 was changed or deleted' })).toHaveCount(0);
+  await expect(errorLines(page).filter({ hasText: 'Lab 2 was changed or deleted' })).toHaveCount(0);
 });
 
 test('a PDF still being read keeps Open asking first after a move', async ({ page }) => {
@@ -939,7 +942,7 @@ test('a refused move during a PDF read leaves the reading notice, and Open still
   // Another tab deletes Lab 2, so the move is refused. Its alert shows beside the reading notice, not in its place.
   await deleteStored(page, 'b');
   await page.getByRole('button', { name: 'Move', exact: true }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible();
+  await expect(errorLines(page).filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Reading big.pdf' })).toBeVisible();
   // The read goes on, so opening Lecture 4 afresh would throw its pages away, and asks first.
   await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
@@ -951,7 +954,7 @@ test('a refused move during a PDF read leaves the reading notice, and Open still
   // When the read ends, its pages arrive and the refusal's alert stays.
   await saved.getByRole('button', { name: 'Cancel' }).click();
   await expect(pageButtons).toHaveCount(8, { timeout: 30_000 });
-  await expect(page.getByRole('alert').filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible();
+  await expect(errorLines(page).filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible();
 });
 
 test('a Start over confirm left open goes when a move empties the screen', async ({ page }) => {
@@ -985,7 +988,7 @@ test('a move refused with both scans deleted elsewhere still says the open scan 
   await deleteStored(page, 'b');
 
   await page.getByRole('button', { name: 'Move', exact: true }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'The page was not moved' })).toHaveText(
+  await expect(errorLines(page).filter({ hasText: 'The page was not moved' })).toHaveText(
     'The page was not moved, because this scan was deleted in another tab or window. Its pages are still here, so save them to keep them.',
   );
   await expect(page.getByRole('button', { name: 'Save to this device' })).toHaveAttribute('aria-disabled', 'false');
@@ -1002,7 +1005,7 @@ test('a move refused after Start over does not claim the pages are still here', 
   await slowScans(page, true);
   await page.getByRole('button', { name: 'Move', exact: true }).click();
   await page.getByRole('button', { name: 'Start over' }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'The page was not moved' })).toHaveText(
+  await expect(errorLines(page).filter({ hasText: 'The page was not moved' })).toHaveText(
     'The page was not moved, because the scan it was in was deleted in another tab or window.',
     { timeout: 10_000 },
   );
@@ -1019,7 +1022,7 @@ test('a move that fails because storage does not open leaves Saved scans as they
 
   await failScans(page, true);
   await page.getByRole('button', { name: 'Move', exact: true }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'The page could not be moved. Try again.' })).toBeVisible();
+  await expect(errorLines(page).filter({ hasText: 'The page could not be moved. Try again.' })).toBeVisible();
   // Reading the list back would fail the same way and show it empty, so the list is kept.
   await expect(saved.getByRole('button', { name: 'Open Lab 2' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Move', exact: true })).toBeVisible();
@@ -1053,7 +1056,7 @@ test('a failed pick beside a PDF still being read shows both, and Open still ask
   await expect(reading).toBeVisible();
 
   await page.getByLabel('Add page').setInputFiles({ name: 'broken.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') });
-  await expect(page.getByRole('alert').filter({ hasText: 'broken.pdf could not be read as a PDF' })).toBeVisible();
+  await expect(errorLines(page).filter({ hasText: 'broken.pdf could not be read as a PDF' })).toBeVisible();
   await expect(reading).toBeVisible();
   // No page has changed, yet opening would drop big.pdf, so it asks.
   await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
@@ -1068,16 +1071,21 @@ test('a PDF over the page limit says so even when another PDF in the same pick i
     { name: 'long.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(Array.from({ length: 45 }, () => tiny))) },
     { name: 'short.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf([tiny, tiny])) },
   ]);
-  // Marks the live region the reading line is in, to check below that the result lands in that same region.
-  // A live region that arrives already holding its text is often not announced.
-  await page.getByRole('status').filter({ hasText: 'Reading long.pdf' }).evaluate((region) => { region.setAttribute('data-test-region', 'imports'); });
+  // Marks the results region while the PDFs are read, to check below that the result lands in that same
+  // region. A live region that arrives already holding its text is often not announced.
+  await expect(page.getByRole('status').filter({ hasText: 'Reading long.pdf' })).toBeVisible();
+  // The reading line has a region to itself, so its going does not make the results already there read as new.
+  await expect(page.locator('#scan-reading')).toContainText('Reading long.pdf');
+  await expect(page.locator('#scan-results')).not.toContainText('Reading');
+  await page.locator('#scan-results').evaluate((region) => { region.setAttribute('data-test-region', 'imports'); });
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /Page 42$/ })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('status').filter({ hasText: 'Reading' })).toHaveCount(0);
   const note = page.getByText('long.pdf has more than 40 pages, so only the first 40 were added.');
   await expect(note).toBeVisible();
-  expect(await note.evaluate((el) => el.closest('[role="status"]')?.getAttribute('data-test-region'))).toBe('imports');
-  // Not atomic, so a line added is read alone, not with every line already there.
-  await expect(page.getByRole('status').filter({ hasText: 'long.pdf has more' })).toHaveAttribute('aria-atomic', 'false');
+  expect(await note.evaluate((el) => el.closest('#scan-results')?.getAttribute('data-test-region'))).toBe('imports');
+  // Not atomic, so a line added is read alone.
+  await expect(page.locator('#scan-results')).toHaveAttribute('aria-atomic', 'false');
+  await expect(page.locator('#scan-reading')).toHaveAttribute('aria-atomic', 'false');
 });
 
 test('a PDF that cannot be read keeps its message when a good one follows in the same pick', async ({ page }) => {
@@ -1089,7 +1097,7 @@ test('a PDF that cannot be read keeps its message when a good one follows in the
   ]);
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /Page 1$/ })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('status').filter({ hasText: /^Reading/ })).toHaveCount(0);
-  await expect(page.getByRole('alert').filter({ hasText: 'broken.pdf could not be read as a PDF' })).toBeVisible();
+  await expect(errorLines(page).filter({ hasText: 'broken.pdf could not be read as a PDF' })).toBeVisible();
 });
 
 test('a second import error is added beside the first, which stays as it was', async ({ page }) => {
@@ -1107,7 +1115,11 @@ test('a second import error is added beside the first, which stays as it was', a
   await first.evaluate((line) => { line.setAttribute('data-test-line', 'first'); });
   await expect(page.getByText('second.pdf could not be read as a PDF')).toBeVisible({ timeout: 30_000 });
   await expect(first).toHaveAttribute('data-test-line', 'first');
-  await expect(page.getByRole('alert').filter({ hasText: 'second.pdf' })).toHaveAttribute('aria-atomic', 'false');
+  // Not atomic, and not role=alert, which Firefox answers with an alert event that has NVDA read every line.
+  const region = errorLines(page);
+  await expect(region).toHaveAttribute('aria-atomic', 'false');
+  await expect(region).toHaveAttribute('aria-live', 'assertive');
+  expect(await region.getAttribute('role')).toBeNull();
 });
 
 test('a move alert goes once the pages it is about are gone', async ({ page }) => {
@@ -1117,7 +1129,7 @@ test('a move alert goes once the pages it is about are gone', async ({ page }) =
   await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
   await deleteStored(page, 'a');
   await page.getByRole('button', { name: 'Move', exact: true }).click();
-  const alert = page.getByRole('alert').filter({ hasText: 'Its pages are still here' });
+  const alert = errorLines(page).filter({ hasText: 'Its pages are still here' });
   await expect(alert).toBeVisible();
 
   await page.getByRole('button', { name: 'Remove page 1' }).click();
@@ -1134,7 +1146,7 @@ test('a move alert that says to open the scan again goes when that scan is delet
   await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
   await seedScans(page, 2, [lecture]);
   await page.getByRole('button', { name: 'Move', exact: true }).click();
-  const alert = page.getByRole('alert').filter({ hasText: 'Open it again from Saved scans' });
+  const alert = errorLines(page).filter({ hasText: 'Open it again from Saved scans' });
   await expect(alert).toBeVisible();
 
   await saved.getByRole('button', { name: 'Delete Lecture 4' }).click();
@@ -1153,7 +1165,7 @@ test('a move that fails after Start over does not offer to try again', async ({ 
   await failScans(page, true);
   await page.getByRole('button', { name: 'Move', exact: true }).click();
   await page.getByRole('button', { name: 'Start over' }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'The page could not be moved' })).toHaveText('The page could not be moved.', { timeout: 10_000 });
+  await expect(errorLines(page).filter({ hasText: 'The page could not be moved' })).toHaveText('The page could not be moved.', { timeout: 10_000 });
   await failScans(page, false);
 });
 
@@ -1169,7 +1181,7 @@ test('a move refused after Start over does not tell the user to open the scan ag
   await slowScans(page, true);
   await page.getByRole('button', { name: 'Move', exact: true }).click();
   await page.getByRole('button', { name: 'Start over' }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'The page was not moved' })).toHaveText(
+  await expect(errorLines(page).filter({ hasText: 'The page was not moved' })).toHaveText(
     'The page was not moved, because the scan it was in was saved again in another tab or window.',
     { timeout: 10_000 },
   );
@@ -1189,7 +1201,7 @@ test('a refused move leaves focus where the user moved it', async ({ page }) => 
   // While it runs the user moves on. The refusal then takes the Move control away, Lab 2 being the only other scan.
   const grid = page.getByLabel('Remove grid lines');
   await grid.focus();
-  await expect(page.getByRole('alert').filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible({ timeout: 10_000 });
+  await expect(errorLines(page).filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible({ timeout: 10_000 });
   await slowScans(page, false);
   await expect(page.getByRole('button', { name: 'Move', exact: true })).toHaveCount(0);
   await expect(grid).toBeFocused();

@@ -577,18 +577,23 @@ export default function ScanPage() {
         </div>
       )}
 
-      {/* Both live regions stay on the page, so a line added to either is announced. A region that
-          arrives already holding its text often is not. Status and alert regions are atomic unless told
-          otherwise, and would read every line again when one changes, so both say aria-atomic="false".
-          Each line keeps its own key, so one arriving never rebuilds the lines already there. */}
-      <div role="status" aria-atomic="false">
+      {/* Live regions that stay on the page, so a line added to one is announced: a region that
+          arrives already holding its text often is not. Each says aria-atomic="false", so only the line
+          added or changed is read, not every line already there, and each line keeps its own key.
+          - The reading line has a region to itself. Sharing one, its removal in the same update as a
+            new result made Chrome report the earlier results as new too.
+          - Errors use aria-live="assertive" and not role="alert": Firefox answers any line added under
+            an alert with an alert event, and NVDA then reads every line in it. */}
+      <div id="scan-reading" role="status" aria-atomic="false">
+        {reading.names.length > 0 && <p className="mb-4 text-sm text-muted-foreground">{readingLine(reading.names)}</p>}
+      </div>
+      <div id="scan-results" role="status" aria-atomic="false">
         {[
-          ...(reading.names.length > 0 ? [{ key: 'reading', text: readingLine(reading.names) }] : []),
           ...importNotes.flatMap((n, i) => (n.kind === 'info' ? [{ key: `import-${i}`, text: n.text }] : [])),
           ...(notice?.kind === 'info' ? [{ key: 'notice', text: notice.text }] : []),
         ].map((line) => <p key={line.key} className="mb-4 text-sm text-muted-foreground">{line.text}</p>)}
       </div>
-      <div role="alert" aria-atomic="false">
+      <div id="scan-errors" aria-live="assertive" aria-atomic="false">
         {[
           ...importNotes.flatMap((n, i) => (n.kind === 'error' ? [{ key: `import-${i}`, text: n.text }] : [])),
           ...(notice?.kind === 'error' ? [{ key: 'notice', text: notice.text }] : []),
