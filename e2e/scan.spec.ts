@@ -127,6 +127,10 @@ test('a page can be removed', async ({ page }) => {
   await page.getByRole('button', { name: 'Remove page 2' }).click();
   await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled();
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(1);
+  // The button pressed went with its page, so focus is on the page left, not lost to the page body.
+  await expect(page.getByRole('button', { name: 'Remove page 1' })).toBeFocused();
+  await page.getByRole('button', { name: 'Remove page 1' }).click();
+  await expect(page.getByRole('heading', { name: 'Scan notes' })).toBeFocused();
 });
 
 test('each page of a PDF becomes a page to clean', async ({ page }) => {

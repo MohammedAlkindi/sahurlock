@@ -259,8 +259,17 @@ export default function ScanPage() {
     (was.action === 'start-over' ? startOverButton.current : removeButtons.current.get(was.pageId))?.focus();
   };
   const askStartOver = () => (unsavedRegions ? setDiscarding({ action: 'start-over' }) : startOver());
-  const askRemovePage = (id: string) =>
-    (pages.find((p) => p.id === id)?.blocks.length ? setDiscarding({ action: 'remove', pageId: id }) : removePage(id));
+  const askRemovePage = (id: string) => {
+    const index = pages.findIndex((p) => p.id === id);
+    if (pages[index]?.blocks.length) {
+      setDiscarding({ action: 'remove', pageId: id });
+      return;
+    }
+    // The button pressed goes with its page, so focus moves to the next page's, as after the confirm.
+    const next = pages[index + 1] ?? pages[index - 1];
+    flushSync(() => removePage(id));
+    (next ? removeButtons.current.get(next.id) : pageHeading.current)?.focus();
+  };
   const courses = groupByCourse(library).map((g) => g.course).filter(Boolean);
 
   const savePdf = async (jpegs: Blob[], filename: string) => {
