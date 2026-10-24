@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DOCUMENT_VERSION, emptyDocument, userBlock } from '@/lib/scan/document';
-import { decodeSavedScan, groupByCourse, scanFileName, type SavedScan } from '@/lib/scan/library';
+import { decodeSavedScan, groupByCourse, scanFileName, type SavedScan, withPageAdded, withPageRemoved } from '@/lib/scan/library';
 
 const page = () => ({ jpeg: new Blob([new Uint8Array([0xff, 0xd8])], { type: 'image/jpeg' }), width: 1700, height: 2200 });
 const scan = (overrides: Record<string, unknown> = {}) => ({
@@ -96,5 +96,49 @@ describe('scanFileName', () => {
   it('falls back to notes when nothing usable is left', () => {
     expect(scanFileName('')).toBe('notes.pdf');
     expect(scanFileName('???')).toBe('notes.pdf');
+  });
+});
+
+describe('moving a page between scans', () => {
+  const box = { x: 10, y: 20, width: 300, height: 40 };
+  const now = new Date('2026-10-24T04:00:00.000Z');
+  const saved = (id: string, blockIds: string[][]): SavedScan => {
+    const pages = blockIds.map(() => page());
+    return {
+      id, title: id, course: '', createdAt: '2026-10-23T06:00:00.000Z', pages,
+      document: {
+        version: DOCUMENT_VERSION,
+        pages: blockIds.map((ids) => ({ width: 1700, height: 2200, regionsComplete: false, blocks: ids.map((i) => userBlock(i, 'text', box)) })),
+      },
+    };
+  };
+
+  it('adds the page at the end with its regions, and stamps the time', () => {
+    const target = saved('t', [['a']]);
+    const moved = page();
+    const labels = { width: 1700, height: 2200, regionsComplete: true, blocks: [{ ...userBlock('b', 'math', box), content: 'x^2' }] };
+    const result = withPageAdded(target, moved, labels, now);
+    expect(result.pages).toEqual([target.pages[0], moved]);
+    expect(result.document.pages[1]).toEqual(labels);
+    expect(result.createdAt).toBe(now.toISOString());
+    expect(decodeSavedScan(result)?.document).toEqual(result.document);
+  });
+
+  it('gives a moved region a new id when the scan already uses its id, so decoding keeps it', () => {
+    const target = saved('t', [['a', 'b']]);
+    const ids = ['b', 'c'];
+    const labels = { width: 1700, height: 2200, regionsComplete: false, blocks: [userBlock('a', 'text', box), userBlock('z', 'text', box)] };
+    const result = withPageAdded(target, page(), labels, now, () => ids.shift()!);
+    expect(result.document.pages[1].blocks.map((b) => b.id)).toEqual(['c', 'z']);
+    expect(decodeSavedScan(result)?.document.pages[1].blocks).toHaveLength(2);
+  });
+
+  it('removes the page and its regions together, so they stay lined up', () => {
+    const source = saved('s', [['a'], ['b'], ['c']]);
+    const result = withPageRemoved(source, 1, now);
+    expect(result.pages).toEqual([source.pages[0], source.pages[2]]);
+    expect(result.document.pages.map((p) => p.blocks[0].id)).toEqual(['a', 'c']);
+    expect(result.createdAt).toBe(now.toISOString());
+    expect(source.pages).toHaveLength(3);
   });
 });

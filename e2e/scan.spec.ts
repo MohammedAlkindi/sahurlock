@@ -595,6 +595,128 @@ test('marked regions stay with their page when pages are reordered', async ({ pa
   ] });
 });
 
+/** The id of every saved scan, as stored. */
+async function scanIds(page: Page) {
+  return page.evaluate(() => new Promise<string[]>((resolve, reject) => {
+    const open = indexedDB.open('sahurlock-scans');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const request = open.result.transaction('scans').objectStore('scans').getAllKeys();
+      request.onsuccess = () => {
+        open.result.close();
+        resolve((request.result as string[]).sort());
+      };
+    };
+  }));
+}
+
+const mathRegion = (id: string) => ({ id, kind: 'math', box: { x: 40, y: 50, width: 200, height: 60 }, content: 'F = ma', tokens: [], origin: { by: 'user' }, reviewed: true });
+const lecture = { id: 'a', title: 'Lecture 4', sizes: [[400, 500], [500, 400]] as [number, number][], document: { version: 1, pages: [
+  { width: 400, height: 500, regionsComplete: false, blocks: [] },
+  { width: 500, height: 400, regionsComplete: true, blocks: [mathRegion('r1')] },
+] } };
+const lab = { id: 'b', title: 'Lab 2', sizes: [[300, 400]] as [number, number][], document: { version: 1, pages: [{ width: 300, height: 400, regionsComplete: false, blocks: [mathRegion('r1')] }] } };
+
+test('a page moves to another saved scan with its regions, and both scans are saved', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  // Labels that do not line up with their pages: moving a page in would write over them.
+  const damaged = { id: 'c', title: 'Damaged', sizes: [[300, 400]] as [number, number][], document: { version: 1, pages: [] } };
+  await seedScans(page, 2, [lecture, lab, damaged]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
+  await page.getByRole('button', { name: 'Page 2, 1 region, every region marked' }).click();
+
+  const target = page.getByLabel('Move page 2 to');
+  await expect(target.locator('option')).toHaveText(['Lab 2, 1 page']);
+  expect(await violations(page, ['wcag22aa'])).toEqual([]);
+  const move = page.getByRole('button', { name: 'Move', exact: true });
+  await move.click();
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 2 to Lab 2.' })).toBeAttached();
+  await expect(move).toBeFocused();
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+  await expect(saved.getByRole('listitem').filter({ hasText: 'Lab 2' })).toContainText('2 pages');
+
+  const a = await readScan(page, 'a');
+  expect(a.pages).toEqual([{ width: 400, height: 500 }]);
+  expect(a.document).toEqual({ version: 1, pages: [{ width: 400, height: 500, regionsComplete: false, blocks: [] }] });
+  const b = await readScan(page, 'b');
+  expect(b.pages).toEqual([{ width: 300, height: 400 }, { width: 500, height: 400 }]);
+  const [, movedPage] = (b.document as { pages: { regionsComplete: boolean; blocks: { id: string; content: string }[] }[] }).pages;
+  expect(movedPage.regionsComplete).toBe(true);
+  // Lab 2 already had a region r1, so the moved one has a new id instead of being dropped as a repeat.
+  expect(movedPage.blocks.map((r) => [r.id === 'r1', r.content])).toEqual([[false, 'F = ma']]);
+});
+
+test('a page does not move while its scan has changes that are not saved', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  await page.getByLabel('Title').fill('Lecture 4, edited');
+
+  const move = page.getByRole('button', { name: 'Move', exact: true });
+  await expect(move).toHaveAttribute('aria-disabled', 'true');
+  await expect(move).toHaveAccessibleDescription('Save the changes to this scan first. Moving changes its saved copy, which would undo them.');
+  // Pressed anyway, from the keyboard, since Playwright will not click an aria-disabled button.
+  await move.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(2);
+
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(move).toHaveAttribute('aria-disabled', 'false');
+  await move.click();
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2.' })).toBeAttached();
+  // Two pages, not three: the click while it waited for a save moved nothing.
+  expect((await readScan(page, 'b')).pages).toHaveLength(2);
+  expect((await readScan(page, 'a')).title).toBe('Lecture 4, edited');
+});
+
+test('moving the last page of a scan deletes that scan', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [{ id: 'loose', title: 'Loose page', sizes: [[400, 500]] }, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Loose page' }).click();
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2. Its scan had no pages left, so it was deleted.' })).toBeAttached();
+  await expect(page.getByRole('heading', { name: 'Scan notes' })).toBeFocused();
+  await expect(saved.getByRole('button', { name: 'Open Loose page' })).toHaveCount(0);
+  expect(await scanIds(page)).toEqual(['b']);
+  expect((await readScan(page, 'b')).pages).toHaveLength(2);
+});
+
+test('a page of a scan not saved yet moves into a saved scan', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2.' })).toBeAttached();
+  await expect(page.getByRole('list', { name: 'Pages' })).toHaveCount(0);
+  const b = await readScan(page, 'b');
+  expect(b.pages).toHaveLength(2);
+  expect(b.pages[1].width).toBeGreaterThan(0);
+  expect(await scanIds(page)).toEqual(['b']);
+});
+
+test('a move is refused, and changes nothing, when the scan changed since it was opened', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  // Another tab saves Lecture 4 with one page fewer.
+  await seedScans(page, 2, [{ id: 'a', title: 'Lecture 4', sizes: [[400, 500]] }]);
+
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'The page was not moved, because a saved scan changed since it was opened here.' })).toBeVisible();
+  expect((await readScan(page, 'a')).pages).toHaveLength(1);
+  expect((await readScan(page, 'b')).pages).toHaveLength(1);
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(2);
+});
+
 test('code from before regions cannot open the scans database and save over them', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
   await page.waitForFunction(async () => (await indexedDB.databases()).some((d) => d.name === 'sahurlock-scans' && d.version === 2));
