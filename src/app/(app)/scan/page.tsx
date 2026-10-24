@@ -6,12 +6,13 @@ import { Check, ChevronLeft, ChevronRight, Download, FileDown, FolderInput, Imag
 import { PaperSelect } from '@/components/paper-select';
 import { type EditorPage, RegionEditor } from '@/components/region-editor';
 import { SavedScans } from '@/components/saved-scans';
+import { useAnnouncer } from '@/hooks/use-announcer';
 import type { LineRemoval } from '@/lib/scan/clean';
 import { type Block, DOCUMENT_VERSION } from '@/lib/scan/document';
 import { buildPdf, type Paper } from '@/lib/scan/pdf';
 import { buildLabelsZip, labelsFileName, LabelsTooLargeError } from '@/lib/scan/dataset';
 import { downloadBlob } from '@/lib/download';
-import { endRead, readingLine, type Reads, type ScanNotice, startRead } from '@/lib/scan/imports';
+import { endRead, readingLine, type Reads, type ScanNotice, startRead, urgencyOf } from '@/lib/scan/imports';
 import { isPdf, MAX_PDF_PAGES, pdfToImages } from '@/lib/scan/pdf-pages';
 import {
   deleteScan, groupByCourse, listScans, type MoveSource, movePageToScan, saveScan, ScanChangedError, scanFileName, type SavedScan,
@@ -102,7 +103,7 @@ export default function ScanPage() {
    */
   const [importNotes, setImportNotes] = useState<ScanNotice[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [announcement, setAnnouncement] = useState('');
+  const { polite, assertive, announce } = useAnnouncer();
   /** The page the region editor opened on, while it is open. */
   const [markingFrom, setMarkingFrom] = useState<string | null>(null);
   /** What is waiting for a yes before marked regions are thrown away. */
@@ -182,11 +183,15 @@ export default function ScanPage() {
         if (pageSet.current !== set) return;
         addImages(images);
         if (skipped > 0) {
-          setImportNotes((n) => [...n, { kind: 'info', text: `${file.name} has more than ${MAX_PDF_PAGES} pages, so only the first ${MAX_PDF_PAGES} were added.` }]);
+          const text = `${file.name} has more than ${MAX_PDF_PAGES} pages, so only the first ${MAX_PDF_PAGES} were added.`;
+          setImportNotes((n) => [...n, { kind: 'info', text }]);
+          announce(text);
         }
       } catch {
         if (pageSet.current === set) {
-          setImportNotes((n) => [...n, { kind: 'error', text: `${file.name} could not be read as a PDF. If it has a password, export it again without one.` }]);
+          const text = `${file.name} could not be read as a PDF. If it has a password, export it again without one.`;
+          setImportNotes((n) => [...n, { kind: 'error', text }]);
+          announce(text, 'assertive');
         }
       } finally {
         setReading((r) => endRead(r, set, file.name));
@@ -241,10 +246,10 @@ export default function ScanPage() {
     forgetSavedScan();
   };
 
-  /** Clear the status region first, so the same words twice are announced twice. */
-  const announce = (text: string) => {
-    flushSync(() => setAnnouncement(''));
-    setAnnouncement(text);
+  /** Show a notice at the top of the page, and have an announcer read it. */
+  const showNotice = (next: ScanNotice) => {
+    setNotice(next);
+    announce(next.text, urgencyOf(next));
   };
 
   const today = localDate();
@@ -315,7 +320,7 @@ export default function ScanPage() {
       ].filter(Boolean);
       announce(`Downloaded labels for ${plural(labels.pages, 'page', 'pages')} from ${plural(labels.scans, 'scan', 'scans')}, ${labels.completePages} of them fully marked.${left.length ? ` Left out ${left.join(' and ')}.` : ''}`);
     } catch (error) {
-      setNotice({
+      showNotice({
         kind: 'error',
         text: error instanceof LabelsTooLargeError
           ? 'The labeled pages are too large for one download. Delete some saved scans you no longer need, then try again.'
@@ -373,7 +378,7 @@ export default function ScanPage() {
           ? 'This browser is out of room for saved scans. Delete an older one, or download this one as a PDF.'
           : 'This scan could not be saved. Download it as a PDF instead.');
       } else {
-        setNotice({ kind: 'error', text: full ? `${name} was not saved, because this browser is out of room for saved scans.` : `${name} could not be saved.` });
+        showNotice({ kind: 'error', text: full ? `${name} was not saved, because this browser is out of room for saved scans.` : `${name} could not be saved.` });
       }
     } finally {
       setSaving(false);
@@ -395,14 +400,14 @@ export default function ScanPage() {
     }));
     setPages(opened);
     setSelectedId(opened[0].id);
-    setNotice(scan.labelsUnreadable
-      ? { kind: 'info', text: "This scan's marked regions could not be read, so it opened without them." }
-      : null);
+    setNotice(null);
     setSaveError(null);
     setTitle(scan.title);
     setCourse(scan.course);
     setSavedAs({ id: scan.id, key: keyOf(scan.title, scan.course, opened), savedAt: scan.createdAt });
     announce(`Opened ${scan.title}.`);
+    // Said in the same update, so it joins the line above and both are read.
+    if (scan.labelsUnreadable) showNotice({ kind: 'info', text: "This scan's marked regions could not be read, so it opened without them." });
     pageHeading.current?.focus();
   };
 
@@ -481,7 +486,7 @@ export default function ScanPage() {
     const sourceId = savedAs?.id ?? null;
     const scan = editing.current;
     const set = pageSet.current;
-    // Cleared first, so an old error does not sit beside this result, and the same error twice is announced twice.
+    // Cleared first, so an old error does not sit beside this result.
     flushSync(() => setMoveError(null));
     setMoving(true);
     try {
@@ -516,13 +521,15 @@ export default function ScanPage() {
         'target': `The page was not moved, because ${target.title} was changed or deleted in another tab or window. Saved scans now shows what is stored.`,
       };
       // The reload can take the Move control away, when the refused target was the only other scan.
+      const why = refused ? messages[refused]
+        : full ? 'The page was not moved, because this browser is out of room for saved scans.'
+        : here ? 'The page could not be moved. Try again.' : 'The page could not be moved.';
       keepFocus(() => {
         if (stored) setLibrary(stored);
         // These pages are now saved nowhere, so they show as unsaved: Save offers a new copy, and Open and Start over ask first.
         if (refused === 'source-gone' && here) setSavedAs((link) => (link?.id === sourceId ? null : link));
-        setMoveError(refused ? messages[refused]
-          : full ? 'The page was not moved, because this browser is out of room for saved scans.'
-          : here ? 'The page could not be moved. Try again.' : 'The page could not be moved.');
+        setMoveError(why);
+        announce(why, 'assertive');
       }, () => (here ? pageButtons.current.get(pageId) ?? pageHeading.current : pageHeading.current));
     } finally {
       setMoving(false);
@@ -577,23 +584,22 @@ export default function ScanPage() {
         </div>
       )}
 
-      {/* Live regions that stay on the page, so a line added to one is announced: a region that
-          arrives already holding its text often is not. Each says aria-atomic="false", so only the line
-          added or changed is read, not every line already there, and each line keeps its own key.
-          - The reading line has a region to itself. Sharing one, its removal in the same update as a
-            new result made Chrome report the earlier results as new too.
-          - Errors use aria-live="assertive" and not role="alert": Firefox answers any line added under
-            an alert with an alert event, and NVDA then reads every line in it. */}
+      {/* The reading line has a live region to itself that stays on the page, so the line is announced
+          when it appears (a region that arrives already holding its text often is not), and its going
+          does not make other lines read as new. It is keyed by its words, so a change is a new node,
+          read whole, not text changed in place. Results and errors below are plain lists, not live: each
+          message in them is said once by one of the announcers at the end of the page, which hold only
+          the latest message, so nothing said before it is read again. */}
       <div id="scan-reading" role="status" aria-atomic="false">
-        {reading.names.length > 0 && <p className="mb-4 text-sm text-muted-foreground">{readingLine(reading.names)}</p>}
+        {reading.names.length > 0 && <p key={readingLine(reading.names)} className="mb-4 text-sm text-muted-foreground">{readingLine(reading.names)}</p>}
       </div>
-      <div id="scan-results" role="status" aria-atomic="false">
+      <div id="scan-results">
         {[
           ...importNotes.flatMap((n, i) => (n.kind === 'info' ? [{ key: `import-${i}`, text: n.text }] : [])),
           ...(notice?.kind === 'info' ? [{ key: 'notice', text: notice.text }] : []),
         ].map((line) => <p key={line.key} className="mb-4 text-sm text-muted-foreground">{line.text}</p>)}
       </div>
-      <div id="scan-errors" aria-live="assertive" aria-atomic="false">
+      <div id="scan-errors">
         {[
           ...importNotes.flatMap((n, i) => (n.kind === 'error' ? [{ key: `import-${i}`, text: n.text }] : [])),
           ...(notice?.kind === 'error' ? [{ key: 'notice', text: notice.text }] : []),
@@ -841,7 +847,15 @@ export default function ScanPage() {
         </>
       )}
 
-      <p role="status" className="sr-only">{announcement}</p>
+      {/* The announcers hold one line each. A message replaces the line as a new node, so it alone is
+          read, and the same words twice are read twice. The assertive one has no role=alert: Firefox
+          answers a line added under an alert with an alert event. */}
+      <div id="announce-polite" role="status" className="sr-only">
+        {polite && <p key={polite.id}>{polite.text}</p>}
+      </div>
+      <div id="announce-assertive" aria-live="assertive" aria-atomic="true" className="sr-only">
+        {assertive && <p key={assertive.id}>{assertive.text}</p>}
+      </div>
 
       {markingFrom && editorPages.length > 0 && (
         <RegionEditor
