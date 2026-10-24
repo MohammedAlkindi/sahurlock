@@ -1,4 +1,3 @@
 -r requirements.txt
-numpy==2.5.4
 pycocotools==2.0.11
 pytest==9.1.1

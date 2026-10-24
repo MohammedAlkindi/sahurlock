@@ -19,6 +19,11 @@ import sys
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+# Imported where used, as Pillow is, so `check` runs on a bare Python.
+if TYPE_CHECKING:
+    import numpy as np
 
 FORMAT = "sahurlock-labels"
 FORMAT_VERSION = 1
@@ -28,8 +33,21 @@ KINDS = ["text", "heading", "math", "table", "graph", "diagram"]
 ORIGINS = {"user", "model"}
 
 SPLIT_RULE = "sha256-mod100-v1"
-# A val or test page this close to a train page in dHash bits counts as the same page photographed twice.
-NEAR_DUPLICATE_BITS = 6
+
+# The near-duplicate guard. A cleaned page is white paper and dark ink, so a page's signature is
+# its ink alone: cropped to the ink's bounds, shrunk to a grid of ink density, with each row's and
+# column's mean taken out. Without that last step every page of two lines looks like two bands
+# and matches every other. A val or test page whose signature correlates with a train page's at
+# NEAR_DUPLICATE_SIMILARITY or more counts as the same page cleaned or photographed twice. On
+# synthetic note pages at the cleanup's 2400-pixel size, distinct pages reached 0.36, and the same
+# page cleaned at another size, shifted, or photographed again 0.3 degrees off stayed above 0.76
+# (above 0.6 at a quarter of that size). Check it on real pages before trusting it.
+INK_BELOW = 166  # the cleanup's own ink test, 0.6 of paper, after it pushes paper to white
+SIGNATURE_GRID = 32
+NEAR_DUPLICATE_SIMILARITY = 0.5
+# A page with less ink than this share of its pixels (blank, or under about half a line of
+# writing) has too little to compare. It is left out of the guard, so it is never dropped.
+MIN_INK_SHARE = 0.0005
 
 
 class LabelsError(Exception):
@@ -115,21 +133,26 @@ def check_manifest(manifest: dict) -> None:
         raise LabelsError(f"the file's kinds {manifest.get('kinds')} differ from this script's {KINDS}")
 
 
-def hamming(a: int, b: int) -> int:
-    return bin(a ^ b).count("1")
-
-
-def drop_near_duplicates(splits: dict[str, str], hashes: dict[str, int]) -> list[str]:
+def drop_near_duplicates(splits: dict[str, str], signatures: dict[str, np.ndarray | None]) -> list[dict]:
     """
-    Train pages within NEAR_DUPLICATE_BITS of a val or test page, which would
-    leak the held-out page into training. Held-out pages never move, so the
-    train side is the one dropped.
+    Train pages that match a val or test page, which would leak the held-out
+    page into training. Held-out pages never move, so the train side is the
+    one dropped. Each comes with the held-out page it matched. Pages without
+    a signature take no part.
     """
-    held_out = [hashes[s] for s, split in splits.items() if split != "train"]
-    return sorted(
-        s for s, split in splits.items()
-        if split == "train" and any(hamming(hashes[s], h) <= NEAR_DUPLICATE_BITS for h in held_out)
-    )
+    import numpy as np
+
+    held =sorted(s for s, split in splits.items() if split != "train" and signatures.get(s) is not None)
+    train = sorted(s for s, split in splits.items() if split == "train" and signatures.get(s) is not None)
+    if not held or not train:
+        return []
+    similarity = np.stack([signatures[s] for s in train]) @ np.stack([signatures[s] for s in held]).T
+    dropped = []
+    for row, sha in enumerate(train):
+        best = int(similarity[row].argmax())
+        if similarity[row, best] >= NEAR_DUPLICATE_SIMILARITY:
+            dropped.append({"train": sha, "held_out": held[best], "similarity": round(float(similarity[row, best]), 3)})
+    return dropped
 
 
 def coco(pages: list[Page]) -> dict:
@@ -178,7 +201,8 @@ def read_labels(path: Path) -> tuple[dict, list[Page], dict[str, bytes]]:
         check_manifest(manifest)
         images = {name[len("images/"):-len(".jpg")]: archive.read(name) for name in names if name.startswith("images/")}
         pages = []
-        for number, raw in enumerate(archive.read("pages.jsonl").decode("utf-8").splitlines(), start=1):
+        # On "\n" only: splitlines() would also break inside a line at U+2028, U+2029 or U+0085.
+        for number, raw in enumerate(archive.read("pages.jsonl").decode("utf-8").split("\n"), start=1):
             if not raw.strip():
                 continue
             try:
@@ -189,16 +213,25 @@ def read_labels(path: Path) -> tuple[dict, list[Page], dict[str, bytes]]:
     return manifest, pages, images
 
 
-def dhash(image: bytes) -> int:
-    """64-bit difference hash: the page shrunk to 9 x 8 grey, one bit per left-right brightness step."""
+def ink_signature(image: bytes) -> np.ndarray | None:
+    """
+    The page's ink, cropped to its bounds, as SIGNATURE_GRID x SIGNATURE_GRID
+    densities less their row and column means, scaled to unit length, so the
+    dot product of two signatures is their correlation. None when there is
+    too little ink.
+    """
+    import numpy as np
     from PIL import Image
 
-    pixels = Image.open(io.BytesIO(image)).convert("L").resize((9, 8), Image.Resampling.LANCZOS).tobytes()
-    bits = 0
-    for row in range(8):
-        for col in range(8):
-            bits = (bits << 1) | (pixels[row * 9 + col] > pixels[row * 9 + col + 1])
-    return bits
+    grey = Image.open(io.BytesIO(image)).convert("L")
+    ink = grey.point(lambda v: 255 if v < INK_BELOW else 0)
+    if ink.histogram()[255] < MIN_INK_SHARE * grey.width * grey.height:
+        return None
+    grid = ink.crop(ink.getbbox()).resize((SIGNATURE_GRID, SIGNATURE_GRID), Image.Resampling.BOX)
+    density = np.asarray(grid, dtype=np.float64)
+    values = (density - density.mean(axis=1, keepdims=True) - density.mean(axis=0, keepdims=True) + density.mean()).ravel()
+    norm = np.linalg.norm(values)
+    return values / norm if norm else None
 
 
 def build_detector(path: Path, out: Path) -> dict:
@@ -206,9 +239,9 @@ def build_detector(path: Path, out: Path) -> dict:
     _, pages, images = read_labels(path)
     complete = [p for p in pages if p.regions_complete]
     splits = {p.sha256: split_of(p.sha256) for p in complete}
-    dropped = drop_near_duplicates(splits, {p.sha256: dhash(images[p.sha256]) for p in complete})
-    for sha in dropped:
-        del splits[sha]
+    dropped = drop_near_duplicates(splits, {p.sha256: ink_signature(images[p.sha256]) for p in complete})
+    for match in dropped:
+        del splits[match["train"]]
 
     (out / "detector" / "annotations").mkdir(parents=True, exist_ok=True)
     (out / "detector" / "images").mkdir(parents=True, exist_ok=True)
