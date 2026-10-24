@@ -171,9 +171,10 @@ export default function ScanPage() {
         // Another scan was opened, or Start over pressed, while this PDF was read.
         if (pageSet.current !== set) return;
         addImages(images);
-        setNotice(skipped > 0
+        // Only the reading notice is replaced. An error shown meanwhile, such as a refused move, stays.
+        setNotice((n) => (n?.kind !== 'reading' ? n : skipped > 0
           ? { kind: 'info', text: `${file.name} has more than ${MAX_PDF_PAGES} pages, so only the first ${MAX_PDF_PAGES} were added.` }
-          : null);
+          : null));
       } catch {
         setNotice({ kind: 'error', text: `${file.name} could not be read as a PDF. If it has a password, export it again without one.` });
       } finally {
@@ -408,6 +409,18 @@ export default function ScanPage() {
   const moveNeedsSave = savedAs !== null && !upToDate;
 
   /**
+   * Apply a change that can remove the focused element, and if it did, move
+   * focus to `fallback`. Focus is read just before the change, so focus the
+   * user moved elsewhere meanwhile stays put. With nothing focused (the body,
+   * as after a mouse click in Safari) focus is left alone.
+   */
+  const keepFocus = (apply: () => void, fallback: () => HTMLElement | null | undefined) => {
+    const before = document.activeElement;
+    flushSync(apply);
+    if (before instanceof HTMLElement && before !== document.body && !before.isConnected) fallback()?.focus();
+  };
+
+  /**
    * Drop a page from this screen once it lives somewhere else, and return the
    * pages left. The pages are filtered as they are when React applies it, so a
    * cleanup result that lands meanwhile is kept.
@@ -418,13 +431,16 @@ export default function ScanPage() {
     if (index >= 0) release(now[index]);
     const rest = now.filter((p) => p.id !== id);
     const next = rest[index] ?? rest[index - 1] ?? null;
-    flushSync(() => {
+    // The Move control goes when the page now selected cannot move, and the page's own buttons go with it.
+    keepFocus(() => {
       setPages((all) => all.filter((p) => p.id !== id));
       setSelectedId((current) => (current === id ? next?.id ?? null : current));
       // A confirm about the page that left, or about all of them once none are left, has nothing to ask about.
       setDiscarding((d) => (rest.length === 0 || (d?.action === 'remove' && d.pageId === id) ? null : d));
-    });
-    return { rest, next };
+      // With no pages left the region editor has nothing to show, and must not open again on the next scan.
+      if (rest.length === 0) setMarkingFrom(null);
+    }, () => (next ? pageButtons.current.get(next.id) : pageHeading.current));
+    return rest;
   };
 
   const moveToScan = async (pageId: string, targetId: string) => {
@@ -445,11 +461,6 @@ export default function ScanPage() {
     const sourceId = savedAs?.id ?? null;
     const scan = editing.current;
     const set = pageSet.current;
-    // Focus is moved later only if what had it now is gone. A click in Safari focuses nothing, so a body check would misfire.
-    const had = document.activeElement;
-    const refocus = (fallback: HTMLElement | null | undefined) => {
-      if (had instanceof HTMLElement && had !== document.body && !had.isConnected) fallback?.focus();
-    };
     // Cleared first, so an old error does not sit beside this result, and the same error twice is announced twice.
     // A PDF still being read keeps its notice.
     flushSync(() => setNotice((n) => (n?.kind === 'reading' ? n : null)));
@@ -458,14 +469,12 @@ export default function ScanPage() {
       const result = await movePageToScan(idb, source, targetId, new Date());
       // Another scan may have been opened meanwhile. Then only the library changes.
       if (editing.current === scan && pageSet.current === set) {
-        const { rest, next } = dropMovedPage(pageId);
+        const rest = dropMovedPage(pageId);
         // With nothing left on screen, what comes next is a new scan, as after removing the last page.
         if (rest.length === 0) forgetSavedScan();
         else if (savedAs && result.source) setSavedAs({ id: result.source.id, key: keyAfter, savedAt: result.source.createdAt });
         // The last page left its saved scan, which is deleted, so pages added meanwhile make a new scan.
         else if (savedAs) forgetSavedScan();
-        // The Move control goes when the page now selected cannot move, so focus moves on with it.
-        refocus(next ? pageButtons.current.get(next.id) : pageHeading.current);
       }
       announce(`Moved page ${index + 1} to ${target.title}.${savedAs && !result.source ? ' Its scan had no pages left, so it was deleted.' : ''}`);
       await reloadLibrary();
@@ -478,10 +487,13 @@ export default function ScanPage() {
       const full = error instanceof DOMException && error.name === 'QuotaExceededError';
       const messages = {
         'source': 'The page was not moved, because this scan was saved again in another tab or window. Open it again from Saved scans, then move the page.',
-        'source-gone': 'The page was not moved, because this scan was deleted in another tab or window. Its pages are still here, so save them to keep them.',
+        'source-gone': here
+          ? 'The page was not moved, because this scan was deleted in another tab or window. Its pages are still here, so save them to keep them.'
+          : 'The page was not moved, because the scan it was in was deleted in another tab or window.',
         'target': `The page was not moved, because ${target.title} was changed or deleted in another tab or window. Saved scans now shows what is stored.`,
       };
-      flushSync(() => {
+      // The reload can take the Move control away, when the refused target was the only other scan.
+      keepFocus(() => {
         if (stored) setLibrary(stored);
         // These pages are now saved nowhere, so they show as unsaved: Save offers a new copy, and Open and Start over ask first.
         if (refused === 'source-gone' && here) setSavedAs((link) => (link?.id === sourceId ? null : link));
@@ -490,9 +502,7 @@ export default function ScanPage() {
           text: refused ? messages[refused]
             : full ? 'The page was not moved, because this browser is out of room for saved scans.' : 'The page could not be moved. Try again.',
         });
-      });
-      // The reload can take the Move control away, when the refused target was the only other scan.
-      if (here) refocus(pageButtons.current.get(pageId) ?? pageHeading.current);
+      }, () => (here ? pageButtons.current.get(pageId) ?? pageHeading.current : pageHeading.current));
     } finally {
       setMoving(false);
     }
