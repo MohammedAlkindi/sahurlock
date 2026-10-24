@@ -121,6 +121,9 @@ test('a page can be removed', async ({ page }) => {
     { name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) },
   ]);
   await expect(page.getByRole('button', { name: 'Download PDF (2 pages)' })).toBeEnabled({ timeout: 30_000 });
+  // At least 24 px across, the smallest target WCAG 2.2 allows.
+  const target = await page.getByRole('button', { name: 'Remove page 2' }).boundingBox();
+  expect(Math.min(target!.width, target!.height)).toBeGreaterThanOrEqual(24);
   await page.getByRole('button', { name: 'Remove page 2' }).click();
   await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled();
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(1);

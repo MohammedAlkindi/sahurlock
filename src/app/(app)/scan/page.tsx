@@ -475,9 +475,10 @@ export default function ScanPage() {
                   ref={(el) => { if (el) removeButtons.current.set(page.id, el); else removeButtons.current.delete(page.id); }}
                   onClick={() => askRemovePage(page.id)}
                   aria-label={`Remove page ${i + 1}`}
-                  className="absolute -right-1.5 -top-1.5 rounded-full border border-input bg-card p-0.5 text-muted-foreground transition hover:text-danger"
+                  // 24 px across, the smallest target WCAG 2.2 allows.
+                  className="absolute -right-2 -top-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-input bg-card text-muted-foreground transition hover:text-danger"
                 >
-                  <X size={12} />
+                  <X size={14} />
                 </button>
               </li>
             ))}
