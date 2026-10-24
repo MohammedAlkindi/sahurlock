@@ -1,36 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildZip, crc32 } from '@/lib/zip';
+import { crc32, zipWriter } from '@/lib/zip';
+import { readZip } from '@/lib/zip-read';
 
 const text = (s: string) => new TextEncoder().encode(s);
-
-/** Read a stored-only ZIP back through its central directory, the way unzip tools find files. */
-function readZip(zip: Uint8Array) {
-  const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
-  const end = zip.length - 22;
-  expect(view.getUint32(end, true)).toBe(0x06054b50);
-  const count = view.getUint16(end + 10, true);
-  let at = view.getUint32(end + 16, true);
-  const decoder = new TextDecoder();
-  const files = [];
-  for (let i = 0; i < count; i++) {
-    expect(view.getUint32(at, true)).toBe(0x02014b50);
-    const flags = view.getUint16(at + 8, true);
-    const method = view.getUint16(at + 10, true);
-    const crc = view.getUint32(at + 16, true);
-    const size = view.getUint32(at + 20, true);
-    const nameLength = view.getUint16(at + 28, true);
-    const offset = view.getUint32(at + 42, true);
-    const name = decoder.decode(zip.subarray(at + 46, at + 46 + nameLength));
-    // The local header must agree with the central directory.
-    expect(view.getUint32(offset, true)).toBe(0x04034b50);
-    expect(view.getUint32(offset + 14, true)).toBe(crc);
-    const localNameLength = view.getUint16(offset + 26, true);
-    const start = offset + 30 + localNameLength + view.getUint16(offset + 28, true);
-    files.push({ name, flags, method, crc, data: zip.slice(start, start + size) });
-    at += 46 + nameLength;
-  }
-  return files;
-}
+const bytesOf = async (blob: Blob) => new Uint8Array(await blob.arrayBuffer());
 
 describe('crc32', () => {
   it('matches the standard check values', () => {
@@ -40,42 +13,73 @@ describe('crc32', () => {
   });
 });
 
-describe('buildZip', () => {
-  it('stores every file so a reader gets the same bytes back', () => {
+describe('zipWriter', () => {
+  it('stores every file so a reader gets the same bytes back', async () => {
     const jpeg = new Uint8Array(5000).map((_, i) => (i * 37) & 0xff);
-    const zip = buildZip([
-      { name: 'manifest.json', data: text('{"version":1}') },
-      { name: 'images/week-4-p1.jpg', data: jpeg },
-      { name: 'empty.txt', data: new Uint8Array() },
-    ]);
-    const files = readZip(zip);
+    const zip = zipWriter();
+    zip.add('manifest.json', text('{"version":1}'));
+    zip.addBlob('images/week-4-p1.jpg', new Blob([jpeg], { type: 'image/jpeg' }), crc32(jpeg));
+    zip.add('empty.txt', new Uint8Array());
+    const archive = zip.finish();
+    expect(archive.type).toBe('application/zip');
+    const files = readZip(await bytesOf(archive));
     expect(files.map((f) => f.name)).toEqual(['manifest.json', 'images/week-4-p1.jpg', 'empty.txt']);
     expect(files.every((f) => f.method === 0)).toBe(true);
     expect(files[1].data).toEqual(jpeg);
     for (const f of files) expect(f.crc).toBe(crc32(f.data));
   });
 
-  it('marks names as UTF-8 so titles in any script survive', () => {
-    const [file] = readZip(buildZip([{ name: 'images/محاضرة-4.jpg', data: text('x') }]));
+  it('writes the same bytes whether a file comes as bytes or as a Blob', async () => {
+    const data = text('F = ma');
+    const when = new Date(2026, 9, 23, 14, 5, 30);
+    const a = zipWriter(when);
+    a.add('a.txt', data);
+    const b = zipWriter(when);
+    b.addBlob('a.txt', new Blob([data]), crc32(data));
+    expect(await bytesOf(a.finish())).toEqual(await bytesOf(b.finish()));
+  });
+
+  it('keeps an added file as it was, even if the caller changes its array later', async () => {
+    const data = text('first');
+    const zip = zipWriter();
+    zip.add('a.txt', data);
+    data.set(text('xxxxx'));
+    expect(new TextDecoder().decode(readZip(await bytesOf(zip.finish()))[0].data)).toBe('first');
+  });
+
+  it('marks names as UTF-8 so titles in any script survive', async () => {
+    const zip = zipWriter();
+    zip.add('images/محاضرة-4.jpg', text('x'));
+    const [file] = readZip(await bytesOf(zip.finish()));
     expect(file.name).toBe('images/محاضرة-4.jpg');
     expect(file.flags & 0x0800).toBe(0x0800);
   });
 
-  it('writes an empty archive as just the end record', () => {
-    const zip = buildZip([]);
+  it('writes an empty archive as just the end record', async () => {
+    const zip = await bytesOf(zipWriter().finish());
     expect(zip.length).toBe(22);
     expect(readZip(zip)).toEqual([]);
   });
 
   it('refuses paths that could land outside the folder it is unpacked into, and duplicates', () => {
     const data = text('x');
-    for (const name of ['', '/etc/passwd', '../up.txt', 'a/../../b.txt']) expect(() => buildZip([{ name, data }])).toThrow(/Bad ZIP path/);
-    expect(() => buildZip([{ name: 'a.txt', data }, { name: 'a.txt', data }])).toThrow(/Duplicate/);
+    for (const name of ['', '/etc/passwd', '../up.txt', 'a/../../b.txt']) expect(() => zipWriter().add(name, data)).toThrow(/Bad ZIP path/);
+    const zip = zipWriter();
+    zip.add('a.txt', data);
+    expect(() => zip.add('a.txt', data)).toThrow(/Duplicate/);
   });
 
-  it('records the time it is given in MS-DOS form', () => {
-    const zip = buildZip([{ name: 'a.txt', data: text('x') }], new Date(2026, 9, 23, 14, 5, 30));
-    const view = new DataView(zip.buffer);
+  it('refuses more files than a ZIP without ZIP64 can count', () => {
+    const zip = zipWriter();
+    const empty = new Uint8Array();
+    for (let i = 0; i < 0xfffe; i++) zip.add(`${i}`, empty);
+    expect(() => zip.add('one-too-many', empty)).toThrow(/Too many files/);
+  });
+
+  it('records the time it is given in MS-DOS form', async () => {
+    const zip = zipWriter(new Date(2026, 9, 23, 14, 5, 30));
+    zip.add('a.txt', text('x'));
+    const view = new DataView((await bytesOf(zip.finish())).buffer);
     expect(view.getUint16(10, true)).toBe((14 << 11) | (5 << 5) | 15);
     expect(view.getUint16(12, true)).toBe(((2026 - 1980) << 9) | (10 << 5) | 23);
   });

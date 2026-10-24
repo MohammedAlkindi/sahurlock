@@ -9,19 +9,17 @@ import { SavedScans } from '@/components/saved-scans';
 import type { LineRemoval } from '@/lib/scan/clean';
 import { type Block, DOCUMENT_VERSION } from '@/lib/scan/document';
 import { buildPdf, type Paper } from '@/lib/scan/pdf';
+import { buildLabelsZip, labelsFileName, LabelsTooLargeError } from '@/lib/scan/dataset';
+import { downloadBlob } from '@/lib/download';
 import { isPdf, MAX_PDF_PAGES, pdfToImages } from '@/lib/scan/pdf-pages';
 import { deleteScan, groupByCourse, listScans, saveScan, scanFileName, type SavedScan } from '@/lib/scan/library';
 import { scanKey } from '@/lib/scan/scan-key';
 import type { ScanRequest, ScanResponse } from '@/lib/scan/worker';
-import { uid } from '@/lib/utils';
+import { localDate, localTime, uid } from '@/lib/utils';
 
 /** IndexedDB, or null where the browser does not offer it. */
 const scanStore = () => (typeof indexedDB === 'undefined' ? null : indexedDB);
 
-const pad = (n: number) => String(n).padStart(2, '0');
-/** The date where the user is, such as 2026-10-23. toISOString would give the date in UTC. */
-const localDate = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const localTime = (d = new Date()) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 interface Cleaned {
   /** Object URL of the cleaned image: the worker's PNG, or the stored JPEG of a saved page. */
@@ -258,18 +256,39 @@ export default function ScanPage() {
     setExporting(true);
     try {
       const bytes = buildPdf(await Promise.all(jpegs.map(async (j) => new Uint8Array(await j.arrayBuffer()))), paper);
-      const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      downloadBlob(new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }), filename);
     } finally {
       setExporting(false);
     }
   };
 
   const downloadPdf = () => savePdf(pages.map((p) => p.cleaned!.jpeg), `notes-${today}.pdf`);
+
+  const downloadLabels = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const now = new Date();
+      const labels = await buildLabelsZip(library, now);
+      downloadBlob(labels.zip, labelsFileName(now));
+      const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+      const left = [
+        labels.skipped.duplicateImage && plural(labels.skipped.duplicateImage, 'repeated page image', 'repeated page images'),
+        labels.skipped.sizeMismatch && plural(labels.skipped.sizeMismatch, 'page whose image size did not match', 'pages whose image sizes did not match'),
+        labels.skipped.unreadableLabels && plural(labels.skipped.unreadableLabels, 'scan whose labels could not be read', 'scans whose labels could not be read'),
+      ].filter(Boolean);
+      announce(`Downloaded labels for ${plural(labels.pages, 'page', 'pages')} from ${plural(labels.scans, 'scan', 'scans')}, ${labels.completePages} of them fully marked.${left.length ? ` Left out ${left.join(' and ')}.` : ''}`);
+    } catch (error) {
+      setNotice({
+        kind: 'error',
+        text: error instanceof LabelsTooLargeError
+          ? 'The labeled pages are too large for one download. Delete some saved scans you no longer need, then try again.'
+          : 'The labels could not be downloaded. Try again.',
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const saveToLibrary = async () => {
     if (!ready || saving || upToDate) return;
@@ -631,6 +650,7 @@ export default function ScanPage() {
           // Opening over pages that are not saved as they are, or while a PDF is still being read, asks first.
           openNeedsConfirm={(pages.length > 0 && !upToDate) || notice?.kind === 'reading'}
           onOpen={openSaved}
+          onDownloadLabels={downloadLabels}
           onDownload={(scan) => savePdf(scan.pages.map((pg) => pg.jpeg), scanFileName(scan.title))}
           onDelete={removeSaved}
         />

@@ -2,15 +2,13 @@
  * A minimal ZIP writer. Entries are stored without compression: the files
  * that go in (JPEG pages, small JSON) are already compressed or tiny, and
  * storing keeps this small and dependency-free. Names are UTF-8, flagged as
- * such, so Arabic or accented titles survive. No ZIP64, so the archive and
- * every entry stay under 4 GiB and 65,535 entries.
+ * such. No ZIP64, so the archive and every entry stay under 4 GiB and fewer
+ * than 65,535 entries.
+ *
+ * The archive is a Blob built from parts: only the small headers are held in
+ * memory, and each file's own Blob is referenced rather than copied, so a
+ * download of many large pages does not need them all in memory at once.
  */
-
-export interface ZipEntry {
-  /** Path inside the archive, with forward slashes. */
-  name: string;
-  data: Uint8Array;
-}
 
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
@@ -37,25 +35,34 @@ function dosTime(date: Date): { time: number; day: number } {
   };
 }
 
-const LIMIT = 0xffffffff;
+/** Values that would mean ZIP64 in a header, so sizes, offsets and counts must stay below them. */
+const MAX_32 = 0xffffffff;
+const MAX_ENTRIES = 0xffff;
 
-export function buildZip(entries: ZipEntry[], modified = new Date()): Uint8Array {
-  if (entries.length > 0xffff) throw new Error('Too many files for one ZIP.');
+export interface ZipWriter {
+  /** Add a file from bytes in memory. */
+  add(name: string, data: Uint8Array): void;
+  /** Add a file by reference to a Blob whose CRC-32 is already known. */
+  addBlob(name: string, data: Blob, crc: number): void;
+  /** The finished archive. */
+  finish(): Blob;
+}
+
+export function zipWriter(modified = new Date()): ZipWriter {
   const encoder = new TextEncoder();
   const { time, day } = dosTime(modified);
   const seen = new Set<string>();
-  const chunks: Uint8Array[] = [];
-  const central: Uint8Array[] = [];
+  const parts: (Uint8Array<ArrayBuffer> | Blob)[] = [];
+  const central: Uint8Array<ArrayBuffer>[] = [];
   let offset = 0;
 
-  for (const entry of entries) {
-    if (!entry.name || entry.name.startsWith('/') || entry.name.split('/').includes('..')) throw new Error(`Bad ZIP path: ${entry.name}`);
-    if (seen.has(entry.name)) throw new Error(`Duplicate ZIP path: ${entry.name}`);
-    seen.add(entry.name);
-    const name = encoder.encode(entry.name);
-    const size = entry.data.length;
-    if (size > LIMIT || offset > LIMIT) throw new Error('ZIP too large.');
-    const crc = crc32(entry.data);
+  const entry = (path: string, data: Uint8Array<ArrayBuffer> | Blob, size: number, crc: number) => {
+    if (!path || path.startsWith('/') || path.split('/').includes('..')) throw new Error(`Bad ZIP path: ${path}`);
+    if (seen.has(path)) throw new Error(`Duplicate ZIP path: ${path}`);
+    if (seen.size + 1 >= MAX_ENTRIES) throw new Error('Too many files for one ZIP.');
+    const name = encoder.encode(path);
+    if (size >= MAX_32 || offset + 30 + name.length + size >= MAX_32) throw new Error('ZIP too large.');
+    seen.add(path);
 
     // Version 2.0, flag bit 11 for UTF-8 names, method 0 (stored).
     const local = new DataView(new ArrayBuffer(30));
@@ -86,25 +93,24 @@ export function buildZip(entries: ZipEntry[], modified = new Date()): Uint8Array
     // Extra field, comment, disk number, internal and external attributes are all zero.
     dir.setUint32(42, offset, true);
 
-    chunks.push(new Uint8Array(local.buffer), name, entry.data);
+    parts.push(new Uint8Array(local.buffer), name, data);
     central.push(new Uint8Array(dir.buffer), name);
     offset += 30 + name.length + size;
-  }
+  };
 
-  const dirSize = central.reduce((n, c) => n + c.length, 0);
-  if (offset + dirSize > LIMIT) throw new Error('ZIP too large.');
-  const end = new DataView(new ArrayBuffer(22));
-  end.setUint32(0, 0x06054b50, true);
-  end.setUint16(8, entries.length, true);
-  end.setUint16(10, entries.length, true);
-  end.setUint32(12, dirSize, true);
-  end.setUint32(16, offset, true);
-
-  const out = new Uint8Array(offset + dirSize + 22);
-  let at = 0;
-  for (const chunk of [...chunks, ...central, new Uint8Array(end.buffer)]) {
-    out.set(chunk, at);
-    at += chunk.length;
-  }
-  return out;
+  return {
+    add: (name, data) => entry(name, new Uint8Array(data), data.length, crc32(data)),
+    addBlob: (name, data, crc) => entry(name, data, data.size, crc),
+    finish() {
+      const dirSize = central.reduce((n, c) => n + c.length, 0);
+      if (offset + dirSize >= MAX_32) throw new Error('ZIP too large.');
+      const end = new DataView(new ArrayBuffer(22));
+      end.setUint32(0, 0x06054b50, true);
+      end.setUint16(8, seen.size, true);
+      end.setUint16(10, seen.size, true);
+      end.setUint32(12, dirSize, true);
+      end.setUint32(16, offset, true);
+      return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
+    },
+  };
 }

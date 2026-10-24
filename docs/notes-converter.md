@@ -92,12 +92,21 @@ chat language models are not, and no model runs on a hosted service.
 - The maintainer's own course notes are the first training set: his handwriting,
   equations, graphs and diagrams. Other people's pages arrive only by opt-in
   donation (below).
-- The correction screen is the labeling tool. Fixing a misread word, drawing a box
-  around a region, or marking a region as text, math, graph or diagram saves a
-  labeled example on the device: the crop, the label, the model version and its
-  confidence. Examples export as a dataset file, which is how they reach training
-  without the app uploading anything. The screen ships with the first model at the
-  latest.
+- The correction screen is the labeling tool. Drawing a box around a region,
+  marking it as text, heading, math, table, graph or diagram, and typing what it
+  says saves a label on the device. A labeled example is the page image plus the
+  region's box, kind and content: the crop is cut at training time, so padding can
+  change without exporting again, and a region detector needs whole pages anyway.
+  Fixing a misread word, with the model version and confidence beside it, arrives
+  with the first recognizer.
+- Labels leave the device only as a download the user makes: one ZIP with
+  `manifest.json`, `pages.jsonl` (one line per page, with Document v1 blocks) and
+  each page's JPEG named by its SHA-256. Boxes are in the JPEG's pixels from its
+  top-left corner, COCO's bbox convention. Kinds are numbered by their place in
+  `BLOCK_KINDS` plus one. The detector's COCO files and the held-out split are to be
+  built from `pages.jsonl` in `training/`, so those rules live in one place. Only
+  pages marked as having every region marked will train the detector, and partly
+  marked pages still give the recognizers their typed text.
 - Order: region detector (text, math, graph, diagram, table, heading), then
   handwriting, then math to LaTeX, then graphs and diagrams. Layout models were
   trained on printed pages, so the region detector gains most from notes.

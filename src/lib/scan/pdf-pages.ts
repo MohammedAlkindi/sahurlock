@@ -1,3 +1,5 @@
+import { CLEAN_MAX_SIDE } from '@/lib/scan/output';
+
 /** Most pages read from one PDF. Each page is cleaned at full size, so this bounds memory. */
 export const MAX_PDF_PAGES = 40;
 
@@ -9,7 +11,7 @@ export const isPdf = (file: File) => file.type === 'application/pdf' || file.nam
  * can go through the same cleanup as a photo. pdf.js is loaded only when a PDF
  * is chosen, and parses in its own worker served from this app.
  */
-export async function pdfToImages(file: File, maxSide = 2400): Promise<{ images: File[]; skipped: number }> {
+export async function pdfToImages(file: File, maxSide = CLEAN_MAX_SIDE): Promise<{ images: File[]; skipped: number }> {
   // The legacy build polyfills recent JavaScript (Map.getOrInsertComputed, for
   // one) that the modern build assumes and many students' browsers lack.
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
