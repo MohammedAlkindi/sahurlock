@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { FileDown, FolderOpen, Trash2 } from 'lucide-react';
+import { Archive, FileDown, FolderOpen, Trash2 } from 'lucide-react';
 import { PaperSelect } from '@/components/paper-select';
+import { labeledPages } from '@/lib/scan/dataset';
 import { groupByCourse, type SavedScan } from '@/lib/scan/library';
 import type { Paper } from '@/lib/scan/pdf';
 
@@ -19,12 +20,14 @@ interface Props {
   openNeedsConfirm: boolean;
   onOpen: (scan: SavedScan) => void;
   onDownload: (scan: SavedScan) => void;
+  /** Download every labeled page as one dataset file. */
+  onDownloadLabels: () => void;
   /** Resolves to how many scans are left, or null when the delete failed. */
   onDelete: (scan: SavedScan) => Promise<number | null>;
 }
 
 /** The Scan page's list of scans saved on this device, grouped by course. */
-export function SavedScans({ scans, exporting, paper, openNeedsConfirm, onOpen, onDownload, onDelete }: Props) {
+export function SavedScans({ scans, exporting, paper, openNeedsConfirm, onOpen, onDownload, onDownloadLabels, onDelete }: Props) {
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState<{ id: string; action: Action } | null>(null);
   const [failedDelete, setFailedDelete] = useState<string | null>(null);
@@ -142,6 +145,7 @@ export function SavedScans({ scans, exporting, paper, openNeedsConfirm, onOpen, 
 
   const groups = groupByCourse(scans);
   const filed = groups.some((g) => g.course);
+  const labeled = labeledPages(scans).length;
 
   return (
     <section aria-labelledby="saved-scans" className="mt-10">
@@ -150,8 +154,25 @@ export function SavedScans({ scans, exporting, paper, openNeedsConfirm, onOpen, 
           <h2 id="saved-scans" ref={heading} tabIndex={-1} className="mb-1 text-base font-semibold focus:outline-none">Saved scans</h2>
           <p className="text-xs text-muted-foreground">Kept in this browser only. Settings &gt; Data &gt; Clear all data removes them.</p>
         </div>
-        {paper && <PaperSelect value={paper.value} onChange={paper.onChange} />}
+        <div className="flex flex-wrap items-center gap-3">
+          {paper && <PaperSelect value={paper.value} onChange={paper.onChange} />}
+          <button
+            onClick={onDownloadLabels}
+            disabled={labeled === 0}
+            // aria-disabled, not disabled, while busy, so focus stays here while the file is built.
+            aria-disabled={exporting}
+            aria-describedby={labeled === 0 ? 'labels-hint' : undefined}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 py-1.5 text-sm text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
+          >
+            <Archive size={14} aria-hidden="true" /> Download labels ({labeled} {labeled === 1 ? 'page' : 'pages'})
+          </button>
+        </div>
       </div>
+      {labeled === 0 && (
+        <p id="labels-hint" className="-mt-2 mb-4 text-xs text-muted-foreground">
+          A page counts once it has a marked region and its scan is saved. Nothing is uploaded.
+        </p>
+      )}
       {filed ? (
         <div className="space-y-5">
           {groups.map((group) => (

@@ -109,11 +109,16 @@ Phases 3 to 7 follow one plan:
 
 - [ ] Web Worker model host: ONNX Runtime Web and transformers.js, WebGPU with a
       WASM fallback, weights pinned by SHA-256 in a manifest and cached locally
-- [ ] Correction screen: draw a box around a region, mark it as text, math, graph,
-      diagram, table or heading, and fix a misread word. Each change saves a
-      labeled example on the device (the crop, the label, the model version and its
-      confidence), and the examples export as a dataset file. Ships with the first
-      model at the latest
+- Correction screen, the labeling tool:
+  - [x] Draw a box around a region with a mouse, finger or pen, or place it with
+        the keyboard, and mark it as text, heading, math, table, graph or diagram
+  - [x] Type what a text, heading or math region says, and mark a page as having
+        every region marked
+  - [x] Save the labels with the scan, on the device
+  - [x] Download every labeled page as one dataset file (`src/lib/scan/dataset.ts`)
+  - [ ] Fix a misread word, and keep the model version and confidence beside each
+        correction. Needs the first recognizer, and Document v2 to keep a prediction
+        next to its correction
 - [ ] Held-out evaluation set with character error rate for text, expression error
       rate for math, and precision and recall for regions
 - [ ] Training code under `training/`, with a model card for every published version

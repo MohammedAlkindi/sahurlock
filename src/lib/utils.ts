@@ -19,6 +19,12 @@ export const formatFocusTime = (ms: number): string => {
 
 export const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const pad2 = (n: number) => String(n).padStart(2, '0');
+/** The date where the user is, such as 2026-10-23. toISOString would give the date in UTC. */
+export const localDate = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+/** The time where the user is, such as 14:05. */
+export const localTime = (d = new Date()) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+
 export interface FocusGrade {
   label: string;
   color: string;

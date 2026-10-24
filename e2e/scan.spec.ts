@@ -1,6 +1,9 @@
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { devices, expect, test, type Page } from '@playwright/test';
-import { buildPdf } from '../src/lib/scan/pdf';
+import { buildPdf, jpegInfo } from '../src/lib/scan/pdf';
+import { readZip } from '../src/lib/zip-read';
 import { violations } from './axe';
 
 /**
@@ -900,6 +903,68 @@ test('leaving the page with unsaved marked regions asks the browser to warn', as
   const warned = new Promise<string>((resolve) => page.once('dialog', async (d) => { resolve(d.type()); await d.dismiss(); }));
   await page.close({ runBeforeUnload: true });
   expect(await warned).toBe('beforeunload');
+});
+
+test('labeled pages download as one dataset file, and nothing leaves the device', async ({ page }) => {
+  const origins = new Set<string>();
+  page.on('request', (r) => { if (!r.url().startsWith('blob:') && !r.url().startsWith('data:')) origins.add(new URL(r.url()).origin); });
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Mark regions on page 1' }).click();
+  const editor = page.getByRole('dialog');
+  await editor.getByRole('radio', { name: 'Math' }).check({ force: true });
+  await editor.getByRole('button', { name: 'Add region' }).click();
+  await editor.getByLabel('LaTeX').fill('F = ma');
+  await editor.getByRole('checkbox', { name: 'Every region on this page is marked' }).check();
+  await editor.getByRole('button', { name: 'Done' }).click();
+  await page.getByLabel('Title').fill('Physics');
+  await page.getByLabel('Course').fill('PHYS 2A');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+
+  // A second scan with nothing marked adds nothing.
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  const [download] = await Promise.all([page.waitForEvent('download'), saved.getByRole('button', { name: 'Download labels (1 page)' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^sahurlock-labels-\d{4}-\d{2}-\d{2}\.zip$/);
+  const path = await download.path();
+  const files = readZip(new Uint8Array(await readFile(path)));
+  expect(files.map((f) => f.name)).toEqual(['manifest.json', 'pages.jsonl', expect.stringMatching(/^images\/[0-9a-f]{64}\.jpg$/)]);
+
+  const image = files[2];
+  const hash = createHash('sha256').update(image.data).digest('hex');
+  expect(image.name).toBe(`images/${hash}.jpg`);
+  const lines = new TextDecoder().decode(files[1].data).trimEnd().split('\n').map((l) => JSON.parse(l));
+  expect(lines).toHaveLength(1);
+  const [line] = lines;
+  expect(line).toMatchObject({ sha256: hash, course: 'PHYS 2A', position: 0, regionsComplete: true });
+  expect(jpegInfo(image.data)).toMatchObject({ width: line.width, height: line.height });
+  expect(line.blocks).toHaveLength(1);
+  expect(line.blocks[0]).toMatchObject({ kind: 'math', content: 'F = ma', origin: { by: 'user' }, reviewed: true });
+  const { x, y, width, height } = line.blocks[0].box;
+  expect(x >= 0 && y >= 0 && x + width <= line.width && y + height <= line.height).toBe(true);
+
+  await expect(page.getByRole('status').filter({ hasText: 'Downloaded labels for 1 page from 1 scan, 1 of them fully marked.' })).toBeAttached();
+  if (spawnSync('python3', ['--version']).status === 0) {
+    const check = spawnSync('python3', ['-I', '-m', 'zipfile', '-t', path], { encoding: 'utf8' });
+    expect(check.status, check.stderr).toBe(0);
+  }
+  expect([...origins]).toEqual([new URL(page.url()).origin]);
+});
+
+test('with no labels the dataset download is unavailable, and says why', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await expect(saved.getByRole('button', { name: 'Download labels (0 pages)' })).toBeDisabled();
+  await expect(saved.getByText('A page counts once it has a marked region and its scan is saved. Nothing is uploaded.')).toBeVisible();
 });
 
 test('a file that is not an image gets a clear message', async ({ page }) => {
