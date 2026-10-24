@@ -30,7 +30,7 @@ it up: it finds the page edges and corrects the perspective, evens out shadows a
 uneven light, levels tilted writing and removes ruled or grid lines while keeping
 strokes that cross them. Several pages save as one PDF on A4 or Letter, or a single page
 as a PNG. Scans can be saved to the device, filed by course, and opened again later to
-rename them, reorder their pages or add more. Regions can be marked on a page too: a box
+rename them, reorder their pages, add more, or move a page to another saved scan. Regions can be marked on a page too: a box
 for each piece of text, heading, equation, table, graph or diagram, with what it says. Those
 labels are what SahurLock's own recognizers will learn from, and they download as one
 dataset file. The cleanup runs in a Web

@@ -83,7 +83,8 @@ that shipped it.
 - [x] Save scans to an on-device library, covered by Clear everything
 - [x] Open a saved scan again to rename it, file it under a course, and reorder, add or
       remove its pages. The list groups scans by course
-- [ ] Move pages from one saved scan to another
+- [x] Move a page, with its marked regions, from one saved scan to another. Both scans
+      change in one transaction, and a scan with unsaved changes is saved first
 - [x] Versioned Document JSON for a converted page: blocks with bounding boxes,
       content, per-token confidence and alternatives (`src/lib/scan/document.ts`)
 - [ ] Layout styles (outline, Cornell, two-column) with print-ready PDF and

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Check, ChevronLeft, ChevronRight, Download, FileDown, ImageUp, Plus, RotateCcw, Save, SquareDashed, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Download, FileDown, FolderInput, ImageUp, Plus, RotateCcw, Save, SquareDashed, X } from 'lucide-react';
 import { PaperSelect } from '@/components/paper-select';
 import { type EditorPage, RegionEditor } from '@/components/region-editor';
 import { SavedScans } from '@/components/saved-scans';
@@ -12,7 +12,9 @@ import { buildPdf, type Paper } from '@/lib/scan/pdf';
 import { buildLabelsZip, labelsFileName, LabelsTooLargeError } from '@/lib/scan/dataset';
 import { downloadBlob } from '@/lib/download';
 import { isPdf, MAX_PDF_PAGES, pdfToImages } from '@/lib/scan/pdf-pages';
-import { deleteScan, groupByCourse, listScans, saveScan, scanFileName, type SavedScan } from '@/lib/scan/library';
+import {
+  deleteScan, groupByCourse, listScans, type MoveSource, movePageToScan, saveScan, ScanChangedError, scanFileName, type SavedScan,
+} from '@/lib/scan/library';
 import { scanKey } from '@/lib/scan/scan-key';
 import type { ScanRequest, ScanResponse } from '@/lib/scan/worker';
 import { localDate, localTime, uid } from '@/lib/utils';
@@ -85,6 +87,9 @@ export default function ScanPage() {
   /** The library entry these pages were saved as, and what they looked like then. */
   const [savedAs, setSavedAs] = useState<{ id: string; key: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  /** The saved scan chosen to move the selected page to. */
+  const [moveTarget, setMoveTarget] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
   /** The page the region editor opened on, while it is open. */
@@ -378,6 +383,66 @@ export default function ScanPage() {
     return rest.length;
   };
 
+  /** Scans a page can move to: every other saved scan whose labels can be read, since moving rewrites them. */
+  const moveTargets = library.filter((s) => s.id !== savedAs?.id && !s.labelsUnreadable);
+  /** A move changes the saved copy of this scan, so with changes not yet saved it would undo them. */
+  const moveNeedsSave = savedAs !== null && !upToDate;
+
+  /** Drop a page from this screen once it lives somewhere else. Reads the pages as they are now. */
+  const dropMovedPage = (id: string) => {
+    const now = pagesRef.current;
+    const index = now.findIndex((p) => p.id === id);
+    if (index < 0) return now;
+    release(now[index]);
+    const rest = now.filter((p) => p.id !== id);
+    setPages(rest);
+    setSelectedId((current) => (current === id ? (rest[index] ?? rest[index - 1])?.id ?? null : current));
+    return rest;
+  };
+
+  const moveToScan = async (pageId: string, targetId: string) => {
+    const idb = scanStore();
+    const index = pages.findIndex((p) => p.id === pageId);
+    const page = pages[index];
+    const target = library.find((s) => s.id === targetId);
+    if (!idb || !page?.cleaned || !target || moving || saving || moveNeedsSave) return;
+    const { cleaned } = page;
+    const source: MoveSource = savedAs
+      ? { scanId: savedAs.id, position: index, sizes: pages.map((p) => ({ width: p.cleaned!.width, height: p.cleaned!.height })) }
+      : {
+          page: { jpeg: cleaned.jpeg, width: cleaned.width, height: cleaned.height },
+          labels: { width: cleaned.width, height: cleaned.height, regionsComplete: page.regionsComplete, blocks: page.blocks },
+        };
+    // What the saved copy looks like after the move, from the pages as they were when it started.
+    const keyAfter = keyOf(title.trim(), course, pages.filter((p) => p.id !== pageId));
+    const scan = editing.current;
+    const set = pageSet.current;
+    setMoving(true);
+    try {
+      const result = await movePageToScan(idb, source, targetId, new Date());
+      // Another scan may have been opened meanwhile. Then only the library changes.
+      if (editing.current === scan && pageSet.current === set) {
+        const rest = dropMovedPage(pageId);
+        if (savedAs && result.source) setSavedAs({ id: result.source.id, key: keyAfter });
+        // The last page left its scan, which is deleted, so what remains here is a new scan.
+        else if (savedAs || rest.length === 0) forgetSavedScan();
+        if (rest.length === 0) pageHeading.current?.focus();
+      }
+      announce(`Moved page ${index + 1} to ${target.title}.${savedAs && !result.source ? ' Its scan had no pages left, so it was deleted.' : ''}`);
+      await reloadLibrary();
+    } catch (error) {
+      const full = error instanceof DOMException && error.name === 'QuotaExceededError';
+      setNotice({
+        kind: 'error',
+        text: error instanceof ScanChangedError
+          ? 'The page was not moved, because a saved scan changed since it was opened here. Open it again, then move the page.'
+          : full ? 'The page was not moved, because this browser is out of room for saved scans.' : 'The page could not be moved. Try again.',
+      });
+    } finally {
+      setMoving(false);
+    }
+  };
+
   const selected = pages.find((p) => p.id === selectedId) ?? null;
   const selectedNumber = selected ? pages.indexOf(selected) + 1 : 0;
   // The region editor shows cleaned pages only, each numbered by its place in the scan.
@@ -572,6 +637,40 @@ export default function ScanPage() {
                   </p>
                 </div>
               )}
+
+              {selected.cleaned && !selected.request && !selected.error && moveTargets.length > 0 && (() => {
+                const target = moveTargets.find((s) => s.id === moveTarget) ?? moveTargets[0];
+                const pageWord = (n: number) => `${n} ${n === 1 ? 'page' : 'pages'}`;
+                return (
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <label htmlFor="move-target" className="text-sm text-muted-foreground">Move page {selectedNumber} to</label>
+                    <select
+                      id="move-target"
+                      value={target.id}
+                      onChange={(e) => setMoveTarget(e.target.value)}
+                      className="max-w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
+                    >
+                      {moveTargets.map((s) => (
+                        <option key={s.id} value={s.id}>{`${s.title}${s.course ? `, ${s.course}` : ''}, ${pageWord(s.pages.length)}`}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => moveToScan(selected.id, target.id)}
+                      // aria-disabled, not disabled, so focus stays here while the move runs.
+                      aria-disabled={moveNeedsSave || moving || saving}
+                      aria-describedby={moveNeedsSave ? 'move-hint' : undefined}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 py-1.5 text-sm text-foreground transition hover:bg-muted aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
+                    >
+                      <FolderInput size={14} aria-hidden="true" /> Move
+                    </button>
+                    {moveNeedsSave && (
+                      <p id="move-hint" className="w-full text-xs text-muted-foreground">
+                        Save the changes to this scan first. Moving changes its saved copy, which would undo them.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           )}
 

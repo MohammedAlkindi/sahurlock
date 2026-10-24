@@ -1,5 +1,6 @@
 import { SCAN_DATABASE } from '@/lib/data-management';
-import { decodeDocument, emptyDocument, type ScanDocument } from '@/lib/scan/document';
+import { decodeDocument, type DocumentPage, emptyDocument, type ScanDocument } from '@/lib/scan/document';
+import { uid } from '@/lib/utils';
 
 // Saved scans live in their own IndexedDB database on this device. Nothing is
 // uploaded, and Settings > Data > Clear all data deletes the database.
@@ -81,6 +82,37 @@ export function groupByCourse(scans: SavedScan[]): CourseGroup[] {
   });
 }
 
+/**
+ * The scan with a page added at the end, with its marked regions. A region
+ * whose id the scan already uses gets a new one, since ids are unique across
+ * a scan's document. `now` becomes its saved time.
+ */
+export function withPageAdded(scan: SavedScan, page: SavedPage, labels: DocumentPage, now: Date, newId: () => string = uid): SavedScan {
+  const taken = new Set(scan.document.pages.flatMap((p) => p.blocks.map((b) => b.id)));
+  const blocks = labels.blocks.map((block) => {
+    let id = block.id;
+    while (taken.has(id)) id = newId();
+    taken.add(id);
+    return id === block.id ? block : { ...block, id };
+  });
+  return {
+    ...scan,
+    createdAt: now.toISOString(),
+    pages: [...scan.pages, page],
+    document: { ...scan.document, pages: [...scan.document.pages, { ...labels, width: page.width, height: page.height, blocks }] },
+  };
+}
+
+/** The scan without the page at `position`, and its regions. `now` becomes its saved time. */
+export function withPageRemoved(scan: SavedScan, position: number, now: Date): SavedScan {
+  return {
+    ...scan,
+    createdAt: now.toISOString(),
+    pages: scan.pages.filter((_, i) => i !== position),
+    document: { ...scan.document, pages: scan.document.pages.filter((_, i) => i !== position) },
+  };
+}
+
 /** A download name from a scan's title: letters and digits in any script, spaces as hyphens. */
 export function scanFileName(title: string): string {
   const stem = title.replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '-');
@@ -118,6 +150,82 @@ async function run<T>(idb: IDBFactory, mode: IDBTransactionMode, work: (store: I
 export const saveScan = (idb: IDBFactory, scan: SavedScan) => run(idb, 'readwrite', (s) => s.put(scan)).then(() => undefined);
 
 export const deleteScan = (idb: IDBFactory, id: string) => run(idb, 'readwrite', (s) => s.delete(id)).then(() => undefined);
+
+/**
+ * The page to move: one of a saved scan's pages, with the page sizes the
+ * caller holds for that scan so a scan changed since is refused, or a page
+ * that is not saved anywhere yet.
+ */
+export type MoveSource =
+  | { scanId: string; position: number; sizes: { width: number; height: number }[] }
+  | { page: SavedPage; labels: DocumentPage };
+
+/** A scan the move needed is gone, changed since it was opened, or has labels that cannot be read. Nothing was written. */
+export class ScanChangedError extends Error {}
+
+export interface MoveResult {
+  target: SavedScan;
+  /** The source scan as it is now, or null when it was not saved or its last page left, which deletes it. */
+  source: SavedScan | null;
+}
+
+/**
+ * Move a page, with its marked regions, to the end of another saved scan.
+ * Both scans are read and written in one transaction, so a failure changes
+ * neither. A target whose labels cannot be read is refused, since writing it
+ * would replace those labels with none.
+ */
+export async function movePageToScan(idb: IDBFactory, source: MoveSource, targetId: string, now: Date): Promise<MoveResult> {
+  const db = await open(idb);
+  try {
+    return await new Promise<MoveResult>((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      const store = tx.objectStore(STORE);
+      let result: MoveResult | null = null;
+      let refused: ScanChangedError | null = null;
+      const refuse = (reason: string) => {
+        refused = new ScanChangedError(reason);
+        tx.abort();
+      };
+      tx.oncomplete = () => resolve(result!);
+      tx.onabort = () => reject(refused ?? tx.error);
+
+      const write = (target: SavedScan, from: { scan: SavedScan; position: number } | null, page: SavedPage, labels: DocumentPage) => {
+        const moved = withPageAdded(target, page, labels, now);
+        store.put(moved);
+        let rest: SavedScan | null = null;
+        if (from) {
+          rest = withPageRemoved(from.scan, from.position, now);
+          if (rest.pages.length > 0) store.put(rest);
+          else {
+            store.delete(rest.id);
+            rest = null;
+          }
+        }
+        result = { target: moved, source: rest };
+      };
+
+      const targetRequest = store.get(targetId);
+      targetRequest.onsuccess = () => {
+        const target = decodeSavedScan(targetRequest.result);
+        if (!target) return refuse('the scan to move to is gone');
+        if (target.labelsUnreadable) return refuse('the scan to move to has labels that cannot be read');
+        if ('page' in source) return write(target, null, source.page, source.labels);
+        if (source.scanId === targetId) return refuse('a page cannot move to its own scan');
+        const sourceRequest = store.get(source.scanId);
+        sourceRequest.onsuccess = () => {
+          const from = decodeSavedScan(sourceRequest.result);
+          const same = from !== null && from.pages.length === source.sizes.length
+            && from.pages.every((p, i) => p.width === source.sizes[i].width && p.height === source.sizes[i].height);
+          if (!from || !same) return refuse('the scan the page is in has changed since it was opened');
+          write(target, { scan: from, position: source.position }, from.pages[source.position], from.document.pages[source.position]);
+        };
+      };
+    });
+  } finally {
+    db.close();
+  }
+}
 
 /** Every saved scan, newest first. Records that are not a scan are skipped. */
 export async function listScans(idb: IDBFactory): Promise<SavedScan[]> {
