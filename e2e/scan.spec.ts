@@ -856,6 +856,68 @@ async function twoPagesWithARegion(page: Page) {
   await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
 }
 
+test('a page that finishes cleaning ahead of the one being marked does not take its place', async ({ page }) => {
+  // Holds back the cleanup of slow.jpg until the test lets it go, so the page after it finishes first.
+  await page.addInitScript(() => {
+    const post = Worker.prototype.postMessage;
+    const held: (() => void)[] = [];
+    let released = false;
+    Worker.prototype.postMessage = function (this: Worker, ...args: Parameters<Worker['postMessage']>) {
+      if (!released && (args[0] as { file?: File } | null)?.file?.name === 'slow.jpg') {
+        held.push(() => post.apply(this, args));
+        return;
+      }
+      post.apply(this, args);
+    } as Worker['postMessage'];
+    (window as unknown as { __release: () => void }).__release = () => {
+      released = true;
+      held.splice(0).forEach((send) => send());
+    };
+  });
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'slow.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) },
+    { name: 'fast.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) },
+  ]);
+  await page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page 2/ }).click();
+  await page.getByRole('button', { name: 'Mark regions on page 2' }).click({ timeout: 30_000 });
+  const editor = page.getByRole('dialog');
+  await expect(editor.getByRole('heading', { name: 'Mark regions on page 2 of 2' })).toBeFocused();
+  await expect(editor.getByRole('button', { name: 'Previous page' })).toHaveAttribute('aria-disabled', 'true');
+  await editor.getByRole('button', { name: 'Add region' }).click();
+  await editor.getByLabel('What it says').fill('Second page');
+
+  await page.evaluate(() => (window as unknown as { __release: () => void }).__release());
+  await expect(editor.getByRole('button', { name: 'Previous page' })).toHaveAttribute('aria-disabled', 'false', { timeout: 30_000 });
+  await expect(editor.getByRole('heading', { name: 'Mark regions on page 2 of 2' })).toBeVisible();
+  await expect(editor.getByRole('list', { name: 'Regions on this page' })).toContainText('Second page');
+
+  await editor.getByRole('button', { name: 'Previous page' }).click();
+  await expect(editor.getByRole('heading', { name: 'Mark regions on page 1 of 2' })).toBeVisible();
+  await expect(editor.getByText('No regions yet.')).toBeVisible();
+});
+
+test('the region editor numbers pages by their place in the scan, counting pages it cannot show', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) },
+    { name: 'broken.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('not an image') },
+    { name: 'p3.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) },
+  ]);
+  const pages = page.getByRole('list', { name: 'Pages' });
+  await pages.getByRole('button', { name: 'Error Page 2' }).click({ timeout: 30_000 });
+  await expect(page.getByRole('alert').filter({ hasText: 'Page 2:' })).toBeVisible();
+  await pages.getByRole('button', { name: 'Page 3', exact: true }).click();
+  await page.getByRole('button', { name: 'Mark regions on page 3' }).click({ timeout: 30_000 });
+
+  const editor = page.getByRole('dialog');
+  await expect(editor.getByRole('heading', { name: 'Mark regions on page 3 of 3' })).toBeFocused();
+  await expect(editor.getByRole('img', { name: 'The cleaned page 3' })).toBeVisible();
+  await editor.getByRole('button', { name: 'Previous page' }).click();
+  await expect(editor.getByRole('heading', { name: 'Mark regions on page 1 of 3' })).toBeVisible();
+  await expect(editor.getByRole('status')).toHaveText('Page 1 of 3.');
+});
+
 test('Start over asks first when marked regions are not saved, and not once they are', async ({ page }) => {
   await twoPagesWithARegion(page);
   await page.getByRole('button', { name: 'Start over' }).click();

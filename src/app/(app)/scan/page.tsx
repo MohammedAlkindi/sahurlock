@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Check, ChevronLeft, ChevronRight, Download, FileDown, ImageUp, Plus, RotateCcw, Save, SquareDashed, X } from 'lucide-react';
 import { PaperSelect } from '@/components/paper-select';
-import { RegionEditor } from '@/components/region-editor';
+import { type EditorPage, RegionEditor } from '@/components/region-editor';
 import { SavedScans } from '@/components/saved-scans';
 import type { LineRemoval } from '@/lib/scan/clean';
 import { type Block, DOCUMENT_VERSION } from '@/lib/scan/document';
@@ -380,6 +380,10 @@ export default function ScanPage() {
 
   const selected = pages.find((p) => p.id === selectedId) ?? null;
   const selectedNumber = selected ? pages.indexOf(selected) + 1 : 0;
+  // The region editor shows cleaned pages only, each numbered by its place in the scan.
+  const editorPages: EditorPage[] = pages.flatMap((p, i) => (p.cleaned && !p.request && !p.error ? [{
+    id: p.id, number: i + 1, url: p.cleaned.url, width: p.cleaned.width, height: p.cleaned.height, blocks: p.blocks, regionsComplete: p.regionsComplete,
+  }] : []));
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -630,11 +634,10 @@ export default function ScanPage() {
 
       <p role="status" className="sr-only">{announcement}</p>
 
-      {markingFrom && (
+      {markingFrom && editorPages.length > 0 && (
         <RegionEditor
-          pages={pages.filter((p) => p.cleaned && !p.request && !p.error).map((p) => ({
-            id: p.id, url: p.cleaned!.url, width: p.cleaned!.width, height: p.cleaned!.height, blocks: p.blocks, regionsComplete: p.regionsComplete,
-          }))}
+          pages={editorPages}
+          pageCount={pages.length}
           startId={markingFrom}
           onChange={(id, blocks, regionsComplete) => setPages((all) => all.map((p) => (p.id === id ? { ...p, blocks, regionsComplete } : p)))}
           onClose={(id) => { setMarkingFrom(null); setSelectedId(id); }}
