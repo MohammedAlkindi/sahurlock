@@ -121,7 +121,9 @@ Phases 3 to 7 follow one plan:
         next to its correction
 - [ ] Held-out evaluation set with character error rate for text, expression error
       rate for math, and precision and recall for regions
-- [ ] Training code under `training/`, with a model card for every published version
+- [x] Training code under `training/`: check a labels download, and build the region
+      detector's COCO set with a fixed held-out split and a near-duplicate guard
+- [ ] A model card for every published version
 
 ## Phase 4: region detection
 

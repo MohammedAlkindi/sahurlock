@@ -1,0 +1,7 @@
+# Labels downloads and what is built from them stay on the machine that trains.
+*.zip
+data/
+out/
+.venv/
+__pycache__/
+.pytest_cache/

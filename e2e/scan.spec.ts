@@ -953,6 +953,10 @@ test('labeled pages download as one dataset file, and nothing leaves the device'
   if (spawnSync('python3', ['--version']).status === 0) {
     const check = spawnSync('python3', ['-I', '-m', 'zipfile', '-t', path], { encoding: 'utf8' });
     expect(check.status, check.stderr).toBe(0);
+    // The training script reads what the app writes.
+    const labels = spawnSync('python3', ['-I', 'training/prepare.py', 'check', path], { encoding: 'utf8' });
+    expect(labels.status, labels.stderr).toBe(0);
+    expect(labels.stdout).toContain('OK: 1 page, 1 fully marked');
   }
   expect([...origins]).toEqual([new URL(page.url()).origin]);
 });
