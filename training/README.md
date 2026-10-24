@@ -41,9 +41,15 @@ python training/prepare.py detector sahurlock-labels-2026-10-23.zip out
 - `out/split.json` records each page's split under the rule `sha256-mod100-v1`:
   the first 8 hex digits of the image's SHA-256, modulo 100, under 10 is test,
   under 20 is val, the rest train. A page keeps its split in every export.
-- A train page whose 64-bit difference hash is within 6 bits of a val or test page
-  is dropped and listed, since it is likely the same page cleaned twice. Held-out
-  pages are never moved into training.
+- A train page that looks like a val or test page is dropped and listed with the
+  page it matched, since it is likely the same page cleaned or photographed twice.
+  Held-out pages are never moved into training. The comparison uses the ink alone,
+  cropped to its bounds, as a 32 x 32 grid with each row's and column's mean taken
+  out, and drops at a correlation of 0.5 or more. A whole-page hash would not do
+  here: cleaned pages are mostly white, so it sees most sparse pages as one. Pages
+  with almost no ink, blank negatives among them, are left out of the comparison.
+  The threshold was set on synthetic pages, so look over the listed matches on
+  real ones.
 
 ## Training notes
 
