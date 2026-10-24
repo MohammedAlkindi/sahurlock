@@ -4,6 +4,9 @@ export interface ScanNotice {
   text: string;
 }
 
+/** How a notice is announced: an error interrupts, other news waits its turn. */
+export const urgencyOf = (notice: ScanNotice): 'polite' | 'assertive' => (notice.kind === 'error' ? 'assertive' : 'polite');
+
 /** The PDFs being read into one set of pages, by name, in the order they started. */
 export interface Reads {
   set: number;

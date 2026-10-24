@@ -670,8 +670,14 @@ async function scanIds(page: Page) {
   }));
 }
 
-/** The Scan page's error lines (import errors, notices and move errors), which share one live region. */
+/** The Scan page's visible list of error lines: import errors, error notices and move errors. */
 const errorLines = (page: Page) => page.locator('#scan-errors');
+
+/** The ids (or roles) of the live regions whose text holds `text`, which shows where it would be announced. */
+const liveRegionsHolding = (page: Page, text: string) => page.evaluate((text) =>
+  Array.from(document.querySelectorAll<HTMLElement>('[role="status"], [role="alert"], [role="log"], [aria-live]:not([aria-live="off"])'))
+    .filter((region) => region.textContent?.includes(text))
+    .map((region) => region.id || region.getAttribute('role') || 'aria-live'), text);
 
 /** A small blank JPEG, for PDFs with many pages that should read quickly. */
 async function tinyJpeg(page: Page): Promise<Uint8Array> {
@@ -1071,21 +1077,54 @@ test('a PDF over the page limit says so even when another PDF in the same pick i
     { name: 'long.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(Array.from({ length: 45 }, () => tiny))) },
     { name: 'short.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf([tiny, tiny])) },
   ]);
-  // Marks the results region while the PDFs are read, to check below that the result lands in that same
-  // region. A live region that arrives already holding its text is often not announced.
   await expect(page.getByRole('status').filter({ hasText: 'Reading long.pdf' })).toBeVisible();
-  // The reading line has a region to itself, so its going does not make the results already there read as new.
+  // The reading line has a region to itself, so its going does not make other lines read as new.
   await expect(page.locator('#scan-reading')).toContainText('Reading long.pdf');
   await expect(page.locator('#scan-results')).not.toContainText('Reading');
-  await page.locator('#scan-results').evaluate((region) => { region.setAttribute('data-test-region', 'imports'); });
+  // The announcer is on the page, empty, while the PDFs are read, and is marked to check below that the
+  // result lands in that same element. A live region that arrives already holding its text is often not announced.
+  expect(await page.evaluate(() => {
+    const region = document.getElementById('announce-polite');
+    region?.setAttribute('data-test-region', 'before');
+    return region?.textContent;
+  })).toBe('');
+  const text = 'long.pdf has more than 40 pages, so only the first 40 were added.';
+  await expect(page.locator('#scan-results').getByText(text)).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('#announce-polite')).toHaveText(text);
+  await expect(page.locator('#announce-polite')).toHaveAttribute('data-test-region', 'before');
+  expect(await liveRegionsHolding(page, text)).toEqual(['announce-polite']);
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /Page 42$/ })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('status').filter({ hasText: 'Reading' })).toHaveCount(0);
-  const note = page.getByText('long.pdf has more than 40 pages, so only the first 40 were added.');
-  await expect(note).toBeVisible();
-  expect(await note.evaluate((el) => el.closest('#scan-results')?.getAttribute('data-test-region'))).toBe('imports');
-  // Not atomic, so a line added is read alone.
-  await expect(page.locator('#scan-results')).toHaveAttribute('aria-atomic', 'false');
   await expect(page.locator('#scan-reading')).toHaveAttribute('aria-atomic', 'false');
+});
+
+test('the reading line is a new line for each PDF it names, not text changed in place', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const photos = [];
+  for (let i = 0; i < 6; i++) photos.push(new Uint8Array(await notebookPhoto(page, i % 2 === 1)));
+  // Every line element the reading region shows, with each text it held. Watching mutations sees
+  // a line that comes and goes faster than a test could poll for it.
+  await page.evaluate(() => {
+    const seen: { node: Element; texts: string[] }[] = [];
+    (window as unknown as { __readingLines: typeof seen }).__readingLines = seen;
+    const region = document.getElementById('scan-reading')!;
+    new MutationObserver(() => {
+      for (const line of Array.from(region.querySelectorAll('p'))) {
+        let entry = seen.find((e) => e.node === line);
+        if (!entry) seen.push(entry = { node: line, texts: [] });
+        if (entry.texts.at(-1) !== line.textContent) entry.texts.push(line.textContent ?? '');
+      }
+    }).observe(region, { childList: true, subtree: true, characterData: true });
+  });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'one.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) },
+    { name: 'two.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) },
+  ]);
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /Page 12$/ })).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('#scan-reading p')).toHaveCount(0);
+  const lines = await page.evaluate(() => (window as unknown as { __readingLines: { texts: string[] }[] }).__readingLines.map((e) => e.texts));
+  // Each name had a line of its own: no line's text was changed in place.
+  expect(lines).toEqual([['Reading one.pdf…'], ['Reading two.pdf…']]);
 });
 
 test('a PDF that cannot be read keeps its message when a good one follows in the same pick', async ({ page }) => {
@@ -1109,17 +1148,93 @@ test('a second import error is added beside the first, which stays as it was', a
     { name: 'big.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) },
     { name: 'second.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') },
   ]);
-  const first = page.getByText('first.pdf could not be read as a PDF');
+  const first = errorLines(page).getByText('first.pdf could not be read as a PDF');
   await expect(first).toBeVisible();
   // Marked while big.pdf is read, to check the line is the same one once second.pdf's error joins it.
   await first.evaluate((line) => { line.setAttribute('data-test-line', 'first'); });
-  await expect(page.getByText('second.pdf could not be read as a PDF')).toBeVisible({ timeout: 30_000 });
+  await expect(errorLines(page).getByText('second.pdf could not be read as a PDF')).toBeVisible({ timeout: 30_000 });
   await expect(first).toHaveAttribute('data-test-line', 'first');
-  // Not atomic, and not role=alert, which Firefox answers with an alert event that has NVDA read every line.
-  const region = errorLines(page);
-  await expect(region).toHaveAttribute('aria-atomic', 'false');
-  await expect(region).toHaveAttribute('aria-live', 'assertive');
-  expect(await region.getAttribute('role')).toBeNull();
+  // The announcer reads the second error alone. It is not role=alert, which Firefox answers with an alert event.
+  const announcer = page.locator('#announce-assertive');
+  await expect(announcer).toHaveText('second.pdf could not be read as a PDF. If it has a password, export it again without one.');
+  await expect(announcer).toHaveAttribute('aria-live', 'assertive');
+  expect(await announcer.getAttribute('role')).toBeNull();
+});
+
+test('each Scan message is announced from one live region, which holds only that message', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  const odd = { id: 'odd', title: 'Odd', sizes: [[400, 500], [500, 400]] as [number, number][], document: { version: 1, pages: [{ width: 400, height: 500, regionsComplete: true, blocks: [] }] } };
+  await seedScans(page, 2, [lecture, lab, odd]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  const polite = page.locator('#announce-polite');
+  const assertive = page.locator('#announce-assertive');
+
+  // An info notice made in the same update as "Opened Odd." joins its line, so both are read.
+  await saved.getByRole('button', { name: 'Open Odd' }).click();
+  const unreadable = "This scan's marked regions could not be read, so it opened without them.";
+  await expect(page.locator('#scan-results')).toHaveText(unreadable);
+  await expect(polite).toHaveText(`Opened Odd. ${unreadable}`);
+  await expect(polite.locator('p')).toHaveCount(1);
+  expect(await liveRegionsHolding(page, unreadable)).toEqual(['announce-polite']);
+
+  // An import error.
+  await page.getByLabel('Add page').setInputFiles({ name: 'broken.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') });
+  const broken = 'broken.pdf could not be read as a PDF. If it has a password, export it again without one.';
+  await expect(errorLines(page)).toHaveText(broken);
+  await expect(assertive).toHaveText(broken);
+  expect(await liveRegionsHolding(page, broken)).toEqual(['announce-assertive']);
+
+  // A move error.
+  await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
+  await deleteStored(page, 'a');
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  const gone = 'The page was not moved, because this scan was deleted in another tab or window. Its pages are still here, so save them to keep them.';
+  await expect(errorLines(page)).toHaveText(gone);
+  await expect(assertive).toHaveText(gone);
+  await expect(assertive.locator('p')).toHaveCount(1);
+  expect(await liveRegionsHolding(page, gone)).toEqual(['announce-assertive']);
+
+  // The visible lists announce nothing themselves.
+  expect(await assertive.getAttribute('role')).toBeNull();
+  for (const id of ['#scan-results', '#scan-errors']) {
+    expect(await page.locator(id).getAttribute('role')).toBeNull();
+    expect(await page.locator(id).getAttribute('aria-live')).toBeNull();
+  }
+});
+
+test('the same error said twice is read twice, from a new line', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  // The announcer is on the page, empty, before anything is said, so its first line is announced too.
+  expect(await page.evaluate(() => {
+    const region = document.getElementById('announce-assertive');
+    region?.setAttribute('data-test-region', 'before');
+    return region?.textContent;
+  })).toBe('');
+  const pick = () => page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'broken.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') });
+  const line = page.locator('#announce-assertive p');
+  await pick();
+  await expect(line).toContainText('broken.pdf could not be read as a PDF');
+  await line.evaluate((p) => { p.setAttribute('data-test-line', 'first'); });
+  await pick();
+  await expect(page.locator('#announce-assertive p:not([data-test-line])')).toContainText('broken.pdf could not be read as a PDF');
+  await expect(line).toHaveCount(1);
+  await expect(page.locator('#announce-assertive')).toHaveAttribute('data-test-region', 'before');
+  await expect(page.locator('#announce-assertive')).toHaveAttribute('aria-atomic', 'true');
+});
+
+test('the same news said twice is read twice, from a new line', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const open = page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lab 2' });
+  const line = page.locator('#announce-polite p');
+  await open.click();
+  await expect(line).toHaveText('Opened Lab 2.');
+  await line.evaluate((p) => { p.setAttribute('data-test-line', 'first'); });
+  await open.click();
+  await expect(page.locator('#announce-polite p:not([data-test-line])')).toHaveText('Opened Lab 2.');
+  await expect(line).toHaveCount(1);
 });
 
 test('a move alert goes once the pages it is about are gone', async ({ page }) => {
@@ -1131,11 +1246,14 @@ test('a move alert goes once the pages it is about are gone', async ({ page }) =
   await page.getByRole('button', { name: 'Move', exact: true }).click();
   const alert = errorLines(page).filter({ hasText: 'Its pages are still here' });
   await expect(alert).toBeVisible();
+  await expect(page.locator('#announce-assertive')).toContainText('Its pages are still here');
 
   await page.getByRole('button', { name: 'Remove page 1' }).click();
   await page.getByRole('button', { name: 'Remove page 1' }).click();
   await page.getByRole('group', { name: /^Remove page 1 and its/ }).getByRole('button', { name: 'Remove' }).click();
   await expect(alert).toHaveCount(0);
+  // The announcer drops its copy a few seconds after reading it, so it is not read again, or once out of date.
+  await expect(page.locator('#announce-assertive')).not.toContainText('Its pages are still here', { timeout: 10_000 });
 });
 
 test('a move alert that says to open the scan again goes when that scan is deleted here', async ({ page }) => {
@@ -1409,7 +1527,7 @@ test('a scan whose labels do not line up with its pages opens without them and s
   }]);
   await page.goto('/scan', { waitUntil: 'networkidle' });
   await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Odd' }).click();
-  await expect(page.getByRole('status').filter({ hasText: "This scan's marked regions could not be read" })).toBeVisible();
+  await expect(page.locator('#scan-results').getByText("This scan's marked regions could not be read")).toBeVisible();
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(2);
 });
 
@@ -1800,6 +1918,8 @@ test('labeled pages download as one dataset file, and nothing leaves the device'
 
   const saved = page.getByRole('region', { name: 'Saved scans' });
   const [download] = await Promise.all([page.waitForEvent('download'), saved.getByRole('button', { name: 'Download labels (1 page)' }).click()]);
+  // Checked at once: the announcer drops its line a few seconds after it is shown.
+  await expect(page.getByRole('status').filter({ hasText: 'Downloaded labels for 1 page from 1 scan, 1 of them fully marked.' })).toBeAttached();
   expect(download.suggestedFilename()).toMatch(/^sahurlock-labels-\d{4}-\d{2}-\d{2}\.zip$/);
   const path = await download.path();
   const files = readZip(new Uint8Array(await readFile(path)));
@@ -1818,7 +1938,6 @@ test('labeled pages download as one dataset file, and nothing leaves the device'
   const { x, y, width, height } = line.blocks[0].box;
   expect(x >= 0 && y >= 0 && x + width <= line.width && y + height <= line.height).toBe(true);
 
-  await expect(page.getByRole('status').filter({ hasText: 'Downloaded labels for 1 page from 1 scan, 1 of them fully marked.' })).toBeAttached();
   if (spawnSync('python3', ['--version']).status === 0) {
     const check = spawnSync('python3', ['-I', '-m', 'zipfile', '-t', path], { encoding: 'utf8' });
     expect(check.status, check.stderr).toBe(0);

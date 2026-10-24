@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { endRead, readingLine, type Reads, startRead } from '@/lib/scan/imports';
+import { endRead, readingLine, type Reads, startRead, urgencyOf } from '@/lib/scan/imports';
+
+describe('urgencyOf', () => {
+  it('interrupts for an error and waits for other news', () => {
+    expect(urgencyOf({ kind: 'error', text: 'The labels could not be downloaded. Try again.' })).toBe('assertive');
+    expect(urgencyOf({ kind: 'info', text: "This scan's marked regions could not be read, so it opened without them." })).toBe('polite');
+  });
+});
 
 describe('reads in progress', () => {
   it('adds and ends reads by name, one at a time, so two reads of one name both count', () => {
