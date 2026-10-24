@@ -14,6 +14,8 @@ import { uid } from '@/lib/utils';
 
 export interface EditorPage {
   id: string;
+  /** The page's place in its scan, from 1, counting pages the editor does not show. */
+  number: number;
   /** The cleaned image. Regions are in its pixels. */
   url: string;
   width: number;
@@ -23,8 +25,10 @@ export interface EditorPage {
 }
 
 interface Props {
-  /** Cleaned pages only, in scan order. */
+  /** Cleaned pages only, in scan order. Pages can arrive, or go, while the editor is open. */
   pages: EditorPage[];
+  /** How many pages the scan has, cleaned or not. */
+  pageCount: number;
   startId: string;
   onChange: (pageId: string, blocks: Block[], regionsComplete: boolean) => void;
   /** Called with the page shown last, so the Scan page can select it. */
@@ -62,9 +66,14 @@ const control = 'tap-target inline-flex min-h-6 min-w-6 items-center justify-cen
  * headings and math, what it says. Every action works with the keyboard alone
  * and with single clicks or taps alone.
  */
-export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
-  const [index, setIndex] = useState(() => Math.max(0, pages.findIndex((p) => p.id === startId)));
-  const page = pages[Math.min(index, pages.length - 1)];
+export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: Props) {
+  // The page shown is tracked by id, since a page that finishes cleaning while the
+  // editor is open can land before it in `pages`. If the page goes, the one now in
+  // its place is shown.
+  const [shown, setShown] = useState(() => ({ id: startId, index: Math.max(0, pages.findIndex((p) => p.id === startId)) }));
+  const found = pages.findIndex((p) => p.id === shown.id);
+  const index = found >= 0 ? found : Math.min(shown.index, pages.length - 1);
+  const page = pages[index];
   const [selectedId, setSelectedId] = useState<string | null>(page.blocks[0]?.id ?? null);
   const [newKind, setNewKind] = useState<BlockKind>('text');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -75,7 +84,19 @@ export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
   const [corner, setCorner] = useState<Point | null>(null);
   /** The box being dragged out, before it is kept. */
   const [draft, setDraft] = useState<Box | null>(null);
-  const drag = useRef<{ id: number; touch: boolean; start: Point; startX: number; startY: number; dragging: boolean } | null>(null);
+  const drag = useRef<{ id: number; pageId: string; touch: boolean; start: Point; startX: number; startY: number; dragging: boolean } | null>(null);
+
+  if (page.id !== shown.id || index !== shown.index) {
+    setShown({ id: page.id, index });
+    // Another page in its place: nothing half done on the old one carries over.
+    if (page.id !== shown.id) {
+      setSelectedId(page.blocks[0]?.id ?? null);
+      setCorner(null);
+      setHint('');
+      setDraft(null);
+      setConfirmingDelete(false);
+    }
+  }
   const surface = useRef<HTMLDivElement | null>(null);
   // What was typed for each region this session, so switching a region to a kind
   // kept as an image and back again does not lose it.
@@ -129,10 +150,10 @@ export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
     if (next < 0 || next >= pages.length) return;
     setCorner(null);
     setHint('');
-    setIndex(next);
+    setShown({ id: pages[next].id, index: next });
     setSelectedId(pages[next].blocks[0]?.id ?? null);
     setConfirmingDelete(false);
-    announce(`Page ${next + 1} of ${pages.length}.`);
+    announce(`Page ${pages[next].number} of ${pageCount}.`);
   };
 
   const addRegion = (box: Box = newBoxBelow(page.blocks, page)) => {
@@ -180,12 +201,12 @@ export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
     // Only the main finger, the left mouse button and the pen tip draw. The pen's eraser end is button 5.
     if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0) || e.button === 5) return;
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* capture is a nicety, drawing works without it */ }
-    drag.current = { id: e.pointerId, touch: e.pointerType === 'touch', start: pagePoint(e), startX: e.clientX, startY: e.clientY, dragging: false };
+    drag.current = { id: e.pointerId, pageId: page.id, touch: e.pointerType === 'touch', start: pagePoint(e), startX: e.clientX, startY: e.clientY, dragging: false };
   };
 
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
-    if (!d || e.pointerId !== d.id) return;
+    if (!d || e.pointerId !== d.id || d.pageId !== page.id) return;
     if (!d.dragging) {
       if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) <= (d.touch ? 8 : 4)) return;
       d.dragging = true;
@@ -200,6 +221,8 @@ export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
     if (!d || e.pointerId !== d.id) return;
     drag.current = null;
     setDraft(null);
+    // Pressed on a page that has since been replaced by another.
+    if (d.pageId !== page.id) return;
     const point = pagePoint(e);
     if (d.dragging) return finishBox(d.start, point);
     if (corner) {
@@ -274,7 +297,6 @@ export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
     replace(withContent(b, text));
   };
 
-  const pageNumber = index + 1;
   const fieldClass = 'w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none';
   const contentField = (b: Block) => {
     const common = {
@@ -296,7 +318,7 @@ export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
     >
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
         <h2 id="region-editor-title" ref={heading} tabIndex={-1} className="mr-auto text-base font-semibold focus:outline-none">
-          Mark regions on page {pageNumber} of {pages.length}
+          Mark regions on page {page.number} of {pageCount}
         </h2>
         <button onClick={() => goTo(index - 1)} aria-disabled={index === 0} className={control}>
           <ChevronLeft size={14} aria-hidden="true" /> Previous page
@@ -354,7 +376,7 @@ export function RegionEditor({ pages, startId, onChange, onClose }: Props) {
             style={{ aspectRatio: `${page.width} / ${page.height}`, width: `min(100%, calc((100dvh - 15rem) * ${page.width / page.height}))` }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- a local blob URL, which next/image cannot optimise */}
-            <img src={page.url} alt={`The cleaned page ${pageNumber}`} draggable={false} className="absolute inset-0 h-full w-full" />
+            <img src={page.url} alt={`The cleaned page ${page.number}`} draggable={false} className="absolute inset-0 h-full w-full" />
             {page.blocks.map((b, i) => {
               const style = { left: pct(b.box.x, page.width), top: pct(b.box.y, page.height), width: pct(b.box.width, page.width), height: pct(b.box.height, page.height) };
               const look = KIND_STYLE[b.kind];
