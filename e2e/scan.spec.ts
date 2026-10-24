@@ -1076,6 +1076,8 @@ test('a PDF over the page limit says so even when another PDF in the same pick i
   const note = page.getByText('long.pdf has more than 40 pages, so only the first 40 were added.');
   await expect(note).toBeVisible();
   expect(await note.evaluate((el) => el.closest('[role="status"]')?.getAttribute('data-test-region'))).toBe('imports');
+  // Not atomic, so a line added is read alone, not with every line already there.
+  await expect(page.getByRole('status').filter({ hasText: 'long.pdf has more' })).toHaveAttribute('aria-atomic', 'false');
 });
 
 test('a PDF that cannot be read keeps its message when a good one follows in the same pick', async ({ page }) => {
@@ -1088,6 +1090,24 @@ test('a PDF that cannot be read keeps its message when a good one follows in the
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /Page 1$/ })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('status').filter({ hasText: /^Reading/ })).toHaveCount(0);
   await expect(page.getByRole('alert').filter({ hasText: 'broken.pdf could not be read as a PDF' })).toBeVisible();
+});
+
+test('a second import error is added beside the first, which stays as it was', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const photos = [];
+  for (let i = 0; i < 6; i++) photos.push(new Uint8Array(await notebookPhoto(page, i % 2 === 1)));
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'first.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') },
+    { name: 'big.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) },
+    { name: 'second.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') },
+  ]);
+  const first = page.getByText('first.pdf could not be read as a PDF');
+  await expect(first).toBeVisible();
+  // Marked while big.pdf is read, to check the line is the same one once second.pdf's error joins it.
+  await first.evaluate((line) => { line.setAttribute('data-test-line', 'first'); });
+  await expect(page.getByText('second.pdf could not be read as a PDF')).toBeVisible({ timeout: 30_000 });
+  await expect(first).toHaveAttribute('data-test-line', 'first');
+  await expect(page.getByRole('alert').filter({ hasText: 'second.pdf' })).toHaveAttribute('aria-atomic', 'false');
 });
 
 test('a move alert goes once the pages it is about are gone', async ({ page }) => {
