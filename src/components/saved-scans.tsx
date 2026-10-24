@@ -14,6 +14,8 @@ interface Props {
   scans: SavedScan[];
   /** A PDF is being built, so downloads wait. */
   exporting: boolean;
+  /** A page is being moved between saved scans, so opening and deleting wait. */
+  busy: boolean;
   /** The paper control to show with the list, or null when the page shows its own. */
   paper: { value: Paper; onChange: (paper: Paper) => void } | null;
   /** Opening a scan would replace work that is not saved, so ask first. */
@@ -27,7 +29,7 @@ interface Props {
 }
 
 /** The Scan page's list of scans saved on this device, grouped by course. */
-export function SavedScans({ scans, exporting, paper, openNeedsConfirm, onOpen, onDownload, onDownloadLabels, onDelete }: Props) {
+export function SavedScans({ scans, exporting, busy, paper, openNeedsConfirm, onOpen, onDownload, onDownloadLabels, onDelete }: Props) {
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState<{ id: string; action: Action } | null>(null);
   const [failedDelete, setFailedDelete] = useState<string | null>(null);
@@ -60,6 +62,7 @@ export function SavedScans({ scans, exporting, paper, openNeedsConfirm, onOpen, 
   };
 
   const open = (scan: SavedScan) => {
+    if (busy) return;
     if (openNeedsConfirm && shown?.id !== scan.id) {
       setConfirming({ id: scan.id, action: 'open' });
       return;
@@ -69,6 +72,7 @@ export function SavedScans({ scans, exporting, paper, openNeedsConfirm, onOpen, 
   };
 
   const remove = async (scan: SavedScan) => {
+    if (busy) return;
     const left = await onDelete(scan);
     if (left === null) {
       setFailedDelete(scan.id);
@@ -102,8 +106,8 @@ export function SavedScans({ scans, exporting, paper, openNeedsConfirm, onOpen, 
         >
           <span className="text-muted-foreground" aria-hidden="true">{shown.action === 'delete' ? 'Delete?' : 'Not saved. Replace?'}</span>
           {shown.action === 'delete'
-            ? <button onClick={() => remove(scan)} className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-red-700">Delete</button>
-            : <button onClick={() => open(scan)} className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground transition hover:opacity-90">Replace</button>}
+            ? <button onClick={() => remove(scan)} aria-disabled={busy} className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-red-700 aria-disabled:cursor-not-allowed aria-disabled:opacity-40">Delete</button>
+            : <button onClick={() => open(scan)} aria-disabled={busy} className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground transition hover:opacity-90 aria-disabled:cursor-not-allowed aria-disabled:opacity-40">Replace</button>}
           <button ref={cancelButton} onClick={cancel} className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground">
             {shown.action === 'delete' ? 'Keep' : 'Cancel'}
           </button>
@@ -113,8 +117,9 @@ export function SavedScans({ scans, exporting, paper, openNeedsConfirm, onOpen, 
           <button
             ref={buttonRef('open', scan.id)}
             onClick={() => open(scan)}
+            aria-disabled={busy}
             aria-label={`Open ${scan.title}`}
-            className="rounded-md p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            className="rounded-md p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
           >
             <FolderOpen size={16} />
           </button>
