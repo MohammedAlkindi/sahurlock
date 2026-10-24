@@ -493,14 +493,23 @@ async function slowScanDatabase(page: Page) {
   });
 }
 
-/** Lets a test make the scans database fail: while failScans(page, true) is in force, opening it gives a VersionError. */
+/** Lets a test make the scans database fail: while failScans(page, true) is in force, opening it gives a VersionError, 1.5 s late. */
 async function failingScanDatabase(page: Page) {
   await page.addInitScript(() => {
     const flagged = window as unknown as { __failScans?: boolean };
     const open = IDBFactory.prototype.open;
+    const onerror = Object.getOwnPropertyDescriptor(IDBRequest.prototype, 'onerror')!;
     IDBFactory.prototype.open = function (name: string, version?: number) {
+      if (name !== 'sahurlock-scans' || !flagged.__failScans) return open.call(this, name, version);
       // Asking for a version older than the stored one fails, as storage a newer build upgraded would.
-      return open.call(this, name, name === 'sahurlock-scans' && flagged.__failScans ? 1 : version);
+      // The failure comes 1.5 s late, so a test can act while the failing move runs.
+      const request = open.call(this, name, 1);
+      Object.defineProperty(request, 'onerror', {
+        set(handler: (event: Event) => void) {
+          onerror.set!.call(this, (event: Event) => setTimeout(() => handler.call(this, event), 1_500));
+        },
+      });
+      return request;
     };
   });
 }
@@ -661,6 +670,19 @@ async function scanIds(page: Page) {
   }));
 }
 
+/** A small blank JPEG, for PDFs with many pages that should read quickly. */
+async function tinyJpeg(page: Page): Promise<Uint8Array> {
+  const dataUrl = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 60; canvas.height = 80;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#fbfaf5';
+    ctx.fillRect(0, 0, 60, 80);
+    return canvas.toDataURL('image/jpeg', 0.8);
+  });
+  return new Uint8Array(Buffer.from(dataUrl.split(',')[1], 'base64'));
+}
+
 /** Delete a saved scan straight from storage, as another tab would. */
 async function deleteStored(page: Page, id: string) {
   await page.evaluate((id) => new Promise<void>((resolve, reject) => {
@@ -791,6 +813,7 @@ test('a move is refused, and changes nothing, when the scan changed since it was
   await expect(saved.getByRole('listitem').filter({ hasText: 'Lecture 4' })).toContainText('1 page');
   await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(1);
+  await expect(refused).toHaveCount(0);
   await move.click();
   await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2. Its scan had no pages left, so it was deleted.' })).toBeAttached();
   await expect(refused).toHaveCount(0);
@@ -857,6 +880,7 @@ test('a move refused because the open scan was deleted elsewhere leaves its page
   // Saved nowhere now, so it no longer reads as Saved, and saving makes a new copy with both pages.
   await page.getByRole('button', { name: 'Save to this device' }).click();
   await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+  await expect(page.getByRole('alert').filter({ hasText: 'The page was not moved' })).toHaveCount(0);
   const ids = await scanIds(page);
   expect(ids).toHaveLength(2);
   expect((await readScan(page, ids.find((id) => id !== 'b')!)).pages).toHaveLength(2);
@@ -876,6 +900,8 @@ test('when a refused move leaves no scan to move to, focus goes to the page', as
   await expect(page.getByRole('alert').filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible();
   await expect(move).toHaveCount(0);
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: 'Page 1', exact: true })).toBeFocused();
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'Lab 2 was changed or deleted' })).toHaveCount(0);
 });
 
 test('a PDF still being read keeps Open asking first after a move', async ({ page }) => {
@@ -1014,7 +1040,7 @@ test('a photo added while a PDF is read leaves the reading notice up', async ({ 
   await expect(reading).toHaveCount(0);
 });
 
-test('a PDF still being read keeps Open asking first after another pick fails and takes its notice', async ({ page }) => {
+test('a failed pick beside a PDF still being read shows both, and Open still asks first', async ({ page }) => {
   await page.goto('/settings', { waitUntil: 'networkidle' });
   await seedScans(page, 2, [lecture, lab]);
   await page.goto('/scan', { waitUntil: 'networkidle' });
@@ -1023,15 +1049,87 @@ test('a PDF still being read keeps Open asking first after another pick fails an
   const photos = [];
   for (let i = 0; i < 6; i++) photos.push(new Uint8Array(await notebookPhoto(page, i % 2 === 1)));
   await page.getByLabel('Add page').setInputFiles({ name: 'big.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) });
-  await expect(page.getByRole('status').filter({ hasText: 'Reading big.pdf' })).toBeVisible();
+  const reading = page.getByRole('status').filter({ hasText: 'Reading big.pdf' });
+  await expect(reading).toBeVisible();
 
   await page.getByLabel('Add page').setInputFiles({ name: 'broken.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') });
   await expect(page.getByRole('alert').filter({ hasText: 'broken.pdf could not be read as a PDF' })).toBeVisible();
-  // Nothing on screen says big.pdf is still being read, and no page has changed, yet opening would drop it.
-  const pageButtons = page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ });
+  await expect(reading).toBeVisible();
+  // No page has changed, yet opening would drop big.pdf, so it asks.
   await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
   await expect(saved.getByRole('group', { name: /^Open Lecture 4 in place/ })).toBeVisible();
-  await expect(pageButtons).toHaveCount(2);
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(2);
+});
+
+test('a PDF over the page limit says so even when another PDF in the same pick is read after it', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const tiny = await tinyJpeg(page);
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'long.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(Array.from({ length: 45 }, () => tiny))) },
+    { name: 'short.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf([tiny, tiny])) },
+  ]);
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /Page 42$/ })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('status').filter({ hasText: /^Reading/ })).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'long.pdf has more than 40 pages, so only the first 40 were added.' })).toBeVisible();
+});
+
+test('a PDF that cannot be read keeps its message when a good one follows in the same pick', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const tiny = await tinyJpeg(page);
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'broken.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') },
+    { name: 'good.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf([tiny])) },
+  ]);
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /Page 1$/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('status').filter({ hasText: /^Reading/ })).toHaveCount(0);
+  await expect(page.getByRole('alert').filter({ hasText: 'broken.pdf could not be read as a PDF' })).toBeVisible();
+});
+
+test('a move alert goes once the pages it is about are gone', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  await deleteStored(page, 'a');
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  const alert = page.getByRole('alert').filter({ hasText: 'Its pages are still here' });
+  await expect(alert).toBeVisible();
+
+  await page.getByRole('button', { name: 'Remove page 1' }).click();
+  await page.getByRole('button', { name: 'Remove page 1' }).click();
+  await page.getByRole('group', { name: /^Remove page 1 and its/ }).getByRole('button', { name: 'Remove' }).click();
+  await expect(alert).toHaveCount(0);
+});
+
+test('a move alert that says to open the scan again goes when that scan is deleted here', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
+  await seedScans(page, 2, [lecture]);
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  const alert = page.getByRole('alert').filter({ hasText: 'Open it again from Saved scans' });
+  await expect(alert).toBeVisible();
+
+  await saved.getByRole('button', { name: 'Delete Lecture 4' }).click();
+  await saved.getByRole('group', { name: 'Delete Lecture 4?' }).getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(saved.getByRole('button', { name: 'Open Lecture 4' })).toHaveCount(0);
+  await expect(alert).toHaveCount(0);
+});
+
+test('a move that fails after Start over does not offer to try again', async ({ page }) => {
+  await failingScanDatabase(page);
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+
+  await failScans(page, true);
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'The page could not be moved' })).toHaveText('The page could not be moved.', { timeout: 10_000 });
+  await failScans(page, false);
 });
 
 test('a move refused after Start over does not tell the user to open the scan again', async ({ page }) => {
