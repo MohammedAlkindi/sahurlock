@@ -577,13 +577,23 @@ export default function ScanPage() {
         </div>
       )}
 
-      {reading.names.length > 0 && <p role="status" className="mb-4 text-sm text-muted-foreground">{readingLine(reading.names)}</p>}
-      {[...importNotes, ...(notice ? [notice] : [])].map((n, i) => (
-        <p key={`${i}:${n.text}`} role={n.kind === 'error' ? 'alert' : 'status'} className={`mb-4 text-sm ${n.kind === 'error' ? 'text-danger' : 'text-muted-foreground'}`}>
-          {n.text}
-        </p>
-      ))}
-      {moveError && <p role="alert" className="mb-4 text-sm text-danger">{moveError}</p>}
+      {/* Both live regions stay on the page, so a line added to either is announced. A region that
+          arrives already holding its text often is not. Each line keeps its own key, so one arriving
+          never rebuilds, and so announces again, the lines already there. */}
+      <div role="status">
+        {[
+          ...(reading.names.length > 0 ? [{ key: 'reading', text: readingLine(reading.names) }] : []),
+          ...importNotes.flatMap((n, i) => (n.kind === 'info' ? [{ key: `import-${i}`, text: n.text }] : [])),
+          ...(notice?.kind === 'info' ? [{ key: 'notice', text: notice.text }] : []),
+        ].map((line) => <p key={line.key} className="mb-4 text-sm text-muted-foreground">{line.text}</p>)}
+      </div>
+      <div role="alert">
+        {[
+          ...importNotes.flatMap((n, i) => (n.kind === 'error' ? [{ key: `import-${i}`, text: n.text }] : [])),
+          ...(notice?.kind === 'error' ? [{ key: 'notice', text: notice.text }] : []),
+          ...(moveError ? [{ key: 'move', text: moveError }] : []),
+        ].map((line) => <p key={line.key} className="mb-4 text-sm text-danger">{line.text}</p>)}
+      </div>
 
       {pages.length > 0 && (
         <>

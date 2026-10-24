@@ -1068,9 +1068,14 @@ test('a PDF over the page limit says so even when another PDF in the same pick i
     { name: 'long.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(Array.from({ length: 45 }, () => tiny))) },
     { name: 'short.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf([tiny, tiny])) },
   ]);
+  // Marks the live region the reading line is in, to check below that the result lands in that same region.
+  // A live region that arrives already holding its text is often not announced.
+  await page.getByRole('status').filter({ hasText: 'Reading long.pdf' }).evaluate((region) => { region.setAttribute('data-test-region', 'imports'); });
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /Page 42$/ })).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByRole('status').filter({ hasText: /^Reading/ })).toHaveCount(0);
-  await expect(page.getByRole('status').filter({ hasText: 'long.pdf has more than 40 pages, so only the first 40 were added.' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Reading' })).toHaveCount(0);
+  const note = page.getByText('long.pdf has more than 40 pages, so only the first 40 were added.');
+  await expect(note).toBeVisible();
+  expect(await note.evaluate((el) => el.closest('[role="status"]')?.getAttribute('data-test-region'))).toBe('imports');
 });
 
 test('a PDF that cannot be read keeps its message when a good one follows in the same pick', async ({ page }) => {
