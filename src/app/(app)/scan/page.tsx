@@ -84,8 +84,8 @@ export default function ScanPage() {
   const [library, setLibrary] = useState<SavedScan[]>([]);
   const [title, setTitle] = useState('');
   const [course, setCourse] = useState('');
-  /** The library entry these pages were saved as, and what they looked like then. */
-  const [savedAs, setSavedAs] = useState<{ id: string; key: string } | null>(null);
+  /** The library entry these pages were saved as, what they looked like then, and the saved time stored with them. */
+  const [savedAs, setSavedAs] = useState<{ id: string; key: string; savedAt: string } | null>(null);
   const [saving, setSaving] = useState(false);
   /** The saved scan chosen to move the selected page to. */
   const [moveTarget, setMoveTarget] = useState<string | null>(null);
@@ -98,6 +98,7 @@ export default function ScanPage() {
   const [discarding, setDiscarding] = useState<{ action: 'start-over' } | { action: 'remove'; pageId: string } | null>(null);
   const startOverButton = useRef<HTMLButtonElement | null>(null);
   const removeButtons = useRef(new Map<string, HTMLButtonElement>());
+  const pageButtons = useRef(new Map<string, HTMLButtonElement>());
   const discardCancel = useRef<HTMLButtonElement | null>(null);
   const pageHeading = useRef<HTMLHeadingElement | null>(null);
   // Async work checks these when it finishes, so it lands only where it started.
@@ -296,7 +297,8 @@ export default function ScanPage() {
   };
 
   const saveToLibrary = async () => {
-    if (!ready || saving || upToDate) return;
+    // A page being moved is still in this scan until the move ends, so saving now would keep a copy of it here.
+    if (!ready || saving || upToDate || moving) return;
     const idb = scanStore();
     if (!idb) {
       setSaveError('This browser cannot keep scans. Download them as a PDF instead.');
@@ -308,6 +310,7 @@ export default function ScanPage() {
     // An untitled scan is named when it is saved, and the name shows in the field.
     const name = title.trim() || `Notes ${localDate()} ${localTime()}`;
     const key = keyOf(name, course, pages);
+    const savedAt = new Date().toISOString();
     const scan = editing.current;
     setSaving(true);
     setSaveError(null);
@@ -316,7 +319,7 @@ export default function ScanPage() {
         id,
         title: name,
         course: course.trim(),
-        createdAt: new Date().toISOString(),
+        createdAt: savedAt,
         pages: pages.map((p) => ({ jpeg: p.cleaned!.jpeg, width: p.cleaned!.width, height: p.cleaned!.height })),
         document: {
           version: DOCUMENT_VERSION,
@@ -327,7 +330,7 @@ export default function ScanPage() {
       // its next save overwrite this one.
       if (editing.current === scan) {
         setTitle(name);
-        setSavedAs({ id, key });
+        setSavedAs({ id, key, savedAt });
       }
       announce(replacing ? `Saved the changes to ${name}.` : `Saved ${name} to this device.`);
       await reloadLibrary();
@@ -363,7 +366,7 @@ export default function ScanPage() {
     setSaveError(null);
     setTitle(scan.title);
     setCourse(scan.course);
-    setSavedAs({ id: scan.id, key: keyOf(scan.title, scan.course, opened) });
+    setSavedAs({ id: scan.id, key: keyOf(scan.title, scan.course, opened), savedAt: scan.createdAt });
     announce(`Opened ${scan.title}.`);
     pageHeading.current?.focus();
   };
@@ -388,15 +391,22 @@ export default function ScanPage() {
   /** A move changes the saved copy of this scan, so with changes not yet saved it would undo them. */
   const moveNeedsSave = savedAs !== null && !upToDate;
 
-  /** Drop a page from this screen once it lives somewhere else. Reads the pages as they are now. */
+  /**
+   * Drop a page from this screen once it lives somewhere else, and return the
+   * pages left. The pages are filtered as they are when React applies it, so a
+   * cleanup result that lands meanwhile is kept.
+   */
   const dropMovedPage = (id: string) => {
     const now = pagesRef.current;
     const index = now.findIndex((p) => p.id === id);
-    if (index < 0) return now;
-    release(now[index]);
+    if (index >= 0) release(now[index]);
     const rest = now.filter((p) => p.id !== id);
-    setPages(rest);
-    setSelectedId((current) => (current === id ? (rest[index] ?? rest[index - 1])?.id ?? null : current));
+    flushSync(() => {
+      setPages((all) => all.filter((p) => p.id !== id));
+      setSelectedId((current) => (current === id ? (rest[index] ?? rest[index - 1])?.id ?? null : current));
+      // A remove confirm for the page that left has nothing left to ask about.
+      setDiscarding((d) => (d?.action === 'remove' && d.pageId === id ? null : d));
+    });
     return rest;
   };
 
@@ -408,7 +418,7 @@ export default function ScanPage() {
     if (!idb || !page?.cleaned || !target || moving || saving || moveNeedsSave) return;
     const { cleaned } = page;
     const source: MoveSource = savedAs
-      ? { scanId: savedAs.id, position: index, sizes: pages.map((p) => ({ width: p.cleaned!.width, height: p.cleaned!.height })) }
+      ? { scanId: savedAs.id, position: index, savedAt: savedAs.savedAt, sizes: pages.map((p) => ({ width: p.cleaned!.width, height: p.cleaned!.height })) }
       : {
           page: { jpeg: cleaned.jpeg, width: cleaned.width, height: cleaned.height },
           labels: { width: cleaned.width, height: cleaned.height, regionsComplete: page.regionsComplete, blocks: page.blocks },
@@ -417,26 +427,38 @@ export default function ScanPage() {
     const keyAfter = keyOf(title.trim(), course, pages.filter((p) => p.id !== pageId));
     const scan = editing.current;
     const set = pageSet.current;
+    // Cleared first, so an old error does not sit beside this result, and the same error twice is announced twice.
+    flushSync(() => setNotice(null));
     setMoving(true);
     try {
       const result = await movePageToScan(idb, source, targetId, new Date());
       // Another scan may have been opened meanwhile. Then only the library changes.
       if (editing.current === scan && pageSet.current === set) {
         const rest = dropMovedPage(pageId);
-        if (savedAs && result.source) setSavedAs({ id: result.source.id, key: keyAfter });
-        // The last page left its scan, which is deleted, so what remains here is a new scan.
-        else if (savedAs || rest.length === 0) forgetSavedScan();
-        if (rest.length === 0) pageHeading.current?.focus();
+        // With nothing left on screen, what comes next is a new scan, as after removing the last page.
+        if (rest.length === 0) forgetSavedScan();
+        else if (savedAs && result.source) setSavedAs({ id: result.source.id, key: keyAfter, savedAt: result.source.createdAt });
+        // The last page left its saved scan, which is deleted, so pages added meanwhile make a new scan.
+        else if (savedAs) forgetSavedScan();
+        // The Move control goes when the page now selected cannot move, so focus moves on with it.
+        if (!document.activeElement || document.activeElement === document.body) {
+          const next = rest[index] ?? rest[index - 1];
+          (next ? pageButtons.current.get(next.id) : pageHeading.current)?.focus();
+        }
       }
       announce(`Moved page ${index + 1} to ${target.title}.${savedAs && !result.source ? ' Its scan had no pages left, so it was deleted.' : ''}`);
       await reloadLibrary();
     } catch (error) {
+      // Show what is stored now, so opening a scan again opens the copy the move was refused for.
+      await reloadLibrary().catch(() => undefined);
       const full = error instanceof DOMException && error.name === 'QuotaExceededError';
       setNotice({
         kind: 'error',
-        text: error instanceof ScanChangedError
-          ? 'The page was not moved, because a saved scan changed since it was opened here. Open it again, then move the page.'
-          : full ? 'The page was not moved, because this browser is out of room for saved scans.' : 'The page could not be moved. Try again.',
+        text: !(error instanceof ScanChangedError)
+          ? full ? 'The page was not moved, because this browser is out of room for saved scans.' : 'The page could not be moved. Try again.'
+          : error.scan === 'source'
+            ? 'The page was not moved, because this scan was saved again in another tab or window. Open it again from Saved scans, then move the page.'
+            : `The page was not moved, because ${target.title} was changed or deleted in another tab or window. Saved scans now shows what is stored.`,
       });
     } finally {
       setMoving(false);
@@ -516,6 +538,7 @@ export default function ScanPage() {
             {pages.map((page, i) => (
               <li key={page.id} className="relative">
                 <button
+                  ref={(el) => { if (el) pageButtons.current.set(page.id, el); else pageButtons.current.delete(page.id); }}
                   onClick={() => setSelectedId(page.id)}
                   aria-current={page.id === selectedId ? 'true' : undefined}
                   className={`flex h-20 w-16 items-center justify-center overflow-hidden rounded-lg border-2 bg-white transition ${page.id === selectedId ? 'border-accent' : 'border-input hover:border-foreground/40'}`}
@@ -722,7 +745,7 @@ export default function ScanPage() {
             <button
               onClick={saveToLibrary}
               disabled={!ready}
-              aria-disabled={saving || upToDate}
+              aria-disabled={saving || upToDate || moving}
               className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 py-2 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
             >
               <Save size={14} /> {upToDate ? 'Saved' : savedAs ? 'Save changes' : 'Save to this device'}
@@ -748,6 +771,8 @@ export default function ScanPage() {
         <SavedScans
           scans={library}
           exporting={exporting}
+          // A move rewrites saved scans, so opening or deleting one waits for it.
+          busy={moving}
           // The editor has its own paper control. Without it open, the list shows one.
           paper={pages.length === 0 ? { value: paper, onChange: setPaper } : null}
           // Opening over pages that are not saved as they are, or while a PDF is still being read, asks first.

@@ -465,9 +465,12 @@ test('a PDF still being read does not end up in a scan opened meanwhile', async 
   await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
 });
 
-test('a save still running when another scan is opened leaves the opened scan alone', async ({ page }) => {
-  // Lets the test hold a save open: while the flag is set, opening the scans database
-  // answers 1.5 s late, so the save is still running when the next click lands.
+/**
+ * Lets a test hold the scans database: while slowScans(page, true) is in force,
+ * opening it answers 1.5 s late, so a save or move is still running when the
+ * next click lands.
+ */
+async function slowScanDatabase(page: Page) {
   await page.addInitScript(() => {
     const flagged = window as unknown as { __slowScans?: boolean };
     const open = IDBFactory.prototype.open;
@@ -484,6 +487,35 @@ test('a save still running when another scan is opened leaves the opened scan al
       return request;
     };
   });
+}
+
+const slowScans = (page: Page, on: boolean) =>
+  page.evaluate((on) => { (window as unknown as { __slowScans?: boolean }).__slowScans = on; }, on);
+
+/** Holds back the cleanup of any file with this name until releaseCleanup(page). */
+async function holdCleanup(page: Page, name: string) {
+  await page.addInitScript((name) => {
+    const post = Worker.prototype.postMessage;
+    const held: (() => void)[] = [];
+    let released = false;
+    Worker.prototype.postMessage = function (this: Worker, ...args: Parameters<Worker['postMessage']>) {
+      if (!released && (args[0] as { file?: File } | null)?.file?.name === name) {
+        held.push(() => post.apply(this, args));
+        return;
+      }
+      post.apply(this, args);
+    } as Worker['postMessage'];
+    (window as unknown as { __release: () => void }).__release = () => {
+      released = true;
+      held.splice(0).forEach((send) => send());
+    };
+  }, name);
+}
+
+const releaseCleanup = (page: Page) => page.evaluate(() => (window as unknown as { __release: () => void }).__release());
+
+test('a save still running when another scan is opened leaves the opened scan alone', async ({ page }) => {
+  await slowScanDatabase(page);
   await page.goto('/scan', { waitUntil: 'networkidle' });
   await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
   await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
@@ -494,7 +526,7 @@ test('a save still running when another scan is opened leaves the opened scan al
   await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
   await page.getByLabel('Title').fill('Scan X');
 
-  await page.evaluate(() => { (window as unknown as { __slowScans?: boolean }).__slowScans = true; });
+  await slowScans(page, true);
   await page.getByRole('button', { name: 'Save to this device' }).click();
   const saved = page.getByRole('region', { name: 'Saved scans' });
   await saved.getByRole('button', { name: 'Open Scan B' }).click();
@@ -626,6 +658,9 @@ test('a page moves to another saved scan with its regions, and both scans are sa
   const saved = page.getByRole('region', { name: 'Saved scans' });
   await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
   await page.getByRole('button', { name: 'Page 2, 1 region, every region marked' }).click();
+  // A remove confirm left open for the page goes when the page does.
+  await page.getByRole('button', { name: 'Remove page 2' }).click();
+  await expect(page.getByRole('group', { name: /^Remove page 2/ })).toBeVisible();
 
   const target = page.getByLabel('Move page 2 to');
   await expect(target.locator('option')).toHaveText(['Lab 2, 1 page']);
@@ -635,6 +670,7 @@ test('a page moves to another saved scan with its regions, and both scans are sa
   await expect(page.getByRole('status').filter({ hasText: 'Moved page 2 to Lab 2.' })).toBeAttached();
   await expect(move).toBeFocused();
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(1);
+  await expect(page.getByRole('group', { name: /^Remove page/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
   await expect(saved.getByRole('listitem').filter({ hasText: 'Lab 2' })).toContainText('2 pages');
 
@@ -706,15 +742,171 @@ test('a move is refused, and changes nothing, when the scan changed since it was
   await page.goto('/settings', { waitUntil: 'networkidle' });
   await seedScans(page, 2, [lecture, lab]);
   await page.goto('/scan', { waitUntil: 'networkidle' });
-  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
   // Another tab saves Lecture 4 with one page fewer.
   await seedScans(page, 2, [{ id: 'a', title: 'Lecture 4', sizes: [[400, 500]] }]);
 
-  await page.getByRole('button', { name: 'Move', exact: true }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'The page was not moved, because a saved scan changed since it was opened here.' })).toBeVisible();
+  const move = page.getByRole('button', { name: 'Move', exact: true });
+  await move.click();
+  const refused = page.getByRole('alert').filter({ hasText: 'The page was not moved' });
+  await expect(refused).toHaveText('The page was not moved, because this scan was saved again in another tab or window. Open it again from Saved scans, then move the page.');
   expect((await readScan(page, 'a')).pages).toHaveLength(1);
   expect((await readScan(page, 'b')).pages).toHaveLength(1);
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(2);
+
+  // Saved scans now shows what is stored, so the advice works: open it again, then move.
+  await expect(saved.getByRole('listitem').filter({ hasText: 'Lecture 4' })).toContainText('1 page');
+  await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(1);
+  await move.click();
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2. Its scan had no pages left, so it was deleted.' })).toBeAttached();
+  await expect(refused).toHaveCount(0);
+  expect((await readScan(page, 'b')).pages).toHaveLength(2);
+});
+
+test('a move is refused when the scan was saved again elsewhere, even with its pages all one size', async ({ page }) => {
+  const first = { width: 400, height: 500, regionsComplete: true, blocks: [mathRegion('r9')] };
+  const second = { width: 400, height: 500, regionsComplete: false, blocks: [] };
+  const sameSize = { id: 'a', title: 'Lecture 4', sizes: [[400, 500], [400, 500]] as [number, number][] };
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [{ ...sameSize, document: { version: 1, pages: [first, second] } }, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  // Another tab swaps the two pages and saves. Every size still matches.
+  await seedScans(page, 2, [{ ...sameSize, document: { version: 1, pages: [second, first] } }]);
+
+  await page.getByRole('button', { name: 'Page 1, 1 region, every region marked' }).click();
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'this scan was saved again in another tab or window' })).toBeVisible();
+  expect((await readScan(page, 'b')).pages).toHaveLength(1);
+  expect((await readScan(page, 'a')).document).toEqual({ version: 1, pages: [second, first] });
+});
+
+test('a move to a scan deleted elsewhere is refused, and that scan leaves the list', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab, { id: 'c', title: 'Lab 3', sizes: [[300, 400]] }]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
+  // Another tab deletes Lab 2.
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const open = indexedDB.open('sahurlock-scans');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const tx = open.result.transaction('scans', 'readwrite');
+      tx.objectStore('scans').delete('b');
+      tx.oncomplete = () => { open.result.close(); resolve(); };
+    };
+  }));
+
+  const target = page.getByLabel('Move page 1 to');
+  await target.selectOption('b');
+  const move = page.getByRole('button', { name: 'Move', exact: true });
+  await move.click();
+  const refused = page.getByRole('alert').filter({ hasText: 'The page was not moved' });
+  await expect(refused).toHaveText(
+    'The page was not moved, because Lab 2 was changed or deleted in another tab or window. Saved scans now shows what is stored.',
+  );
+  await expect(saved.getByRole('button', { name: 'Open Lab 2' })).toHaveCount(0);
+  await expect(target.locator('option')).toHaveText(['Lab 3, 1 page']);
+  expect(await scanIds(page)).toEqual(['a', 'c']);
+  expect((await readScan(page, 'a')).pages).toHaveLength(2);
+
+  // A move that then works takes the old error away.
+  await move.click();
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 3.' })).toBeAttached();
+  await expect(refused).toHaveCount(0);
+});
+
+test('saving waits while a page is being moved', async ({ page }) => {
+  await slowScanDatabase(page);
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) },
+    { name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) },
+  ]);
+  await expect(page.getByRole('button', { name: 'Download PDF (2 pages)' })).toBeEnabled({ timeout: 30_000 });
+
+  await slowScans(page, true);
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  // Saving now would keep a copy of the page being moved.
+  const save = page.getByRole('button', { name: 'Save to this device' });
+  await expect(save).toHaveAttribute('aria-disabled', 'true');
+  await save.focus();
+  await page.keyboard.press('Enter');
+
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2.' })).toBeAttached({ timeout: 10_000 });
+  await slowScans(page, false);
+  // Long enough for a held save to have landed, had one started.
+  await page.waitForTimeout(2_000);
+  expect(await scanIds(page)).toEqual(['b']);
+  expect((await readScan(page, 'b')).pages).toHaveLength(2);
+  await expect(page.getByLabel('Title')).toHaveValue('');
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ })).toHaveCount(1);
+});
+
+test('opening a saved scan waits while a page is being moved into it', async ({ page }) => {
+  await slowScanDatabase(page);
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
+
+  await slowScans(page, true);
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  // Lecture 4 is saved as shown, so Open would not ask first, and the Lab 2 it holds is the one from before the move.
+  const open = saved.getByRole('button', { name: 'Open Lab 2' });
+  await expect(open).toHaveAttribute('aria-disabled', 'true');
+  await open.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2.' })).toBeAttached({ timeout: 10_000 });
+  await slowScans(page, false);
+  await expect(page.getByLabel('Title')).toHaveValue('Lecture 4');
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+});
+
+test('removing the other pages while a move runs leaves a new scan, not a link to the saved one', async ({ page }) => {
+  await slowScanDatabase(page);
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  await page.getByRole('button', { name: 'Page 2, 1 region, every region marked' }).click();
+
+  await slowScans(page, true);
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await page.getByRole('button', { name: 'Remove page 1' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 2 to Lab 2.' })).toBeAttached({ timeout: 10_000 });
+  await slowScans(page, false);
+
+  // Nothing is left on screen, so a photo added now starts a new scan instead of replacing Lecture 4.
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: 'Save to this device' })).toBeVisible();
+  expect((await readScan(page, 'a')).pages).toEqual([{ width: 400, height: 500 }]);
+});
+
+test('after a move, focus goes to the next page when that page cannot move yet', async ({ page }) => {
+  await holdCleanup(page, 'slow.jpg');
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'fast.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) },
+    { name: 'slow.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) },
+  ]);
+  const move = page.getByRole('button', { name: 'Move', exact: true });
+  await expect(move).toBeVisible({ timeout: 30_000 });
+  await move.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2.' })).toBeAttached();
+  // The page left is still being cleaned, so it has no Move button. Focus goes to it in the page list.
+  await expect(move).toHaveCount(0);
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /Page 1$/ })).toBeFocused();
 });
 
 test('code from before regions cannot open the scans database and save over them', async ({ page }) => {
@@ -982,23 +1174,8 @@ async function twoPagesWithARegion(page: Page) {
 }
 
 test('a page that finishes cleaning ahead of the one being marked does not take its place', async ({ page }) => {
-  // Holds back the cleanup of slow.jpg until the test lets it go, so the page after it finishes first.
-  await page.addInitScript(() => {
-    const post = Worker.prototype.postMessage;
-    const held: (() => void)[] = [];
-    let released = false;
-    Worker.prototype.postMessage = function (this: Worker, ...args: Parameters<Worker['postMessage']>) {
-      if (!released && (args[0] as { file?: File } | null)?.file?.name === 'slow.jpg') {
-        held.push(() => post.apply(this, args));
-        return;
-      }
-      post.apply(this, args);
-    } as Worker['postMessage'];
-    (window as unknown as { __release: () => void }).__release = () => {
-      released = true;
-      held.splice(0).forEach((send) => send());
-    };
-  });
+  // So the page after slow.jpg finishes first.
+  await holdCleanup(page, 'slow.jpg');
   await page.goto('/scan', { waitUntil: 'networkidle' });
   await page.getByLabel('Choose photos or a PDF').setInputFiles([
     { name: 'slow.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) },
@@ -1012,7 +1189,7 @@ test('a page that finishes cleaning ahead of the one being marked does not take 
   await editor.getByRole('button', { name: 'Add region' }).click();
   await editor.getByLabel('What it says').fill('Second page');
 
-  await page.evaluate(() => (window as unknown as { __release: () => void }).__release());
+  await releaseCleanup(page);
   await expect(editor.getByRole('button', { name: 'Previous page' })).toHaveAttribute('aria-disabled', 'false', { timeout: 30_000 });
   await expect(editor.getByRole('heading', { name: 'Mark regions on page 2 of 2' })).toBeVisible();
   await expect(editor.getByRole('list', { name: 'Regions on this page' })).toContainText('Second page');

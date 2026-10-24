@@ -152,16 +152,25 @@ export const saveScan = (idb: IDBFactory, scan: SavedScan) => run(idb, 'readwrit
 export const deleteScan = (idb: IDBFactory, id: string) => run(idb, 'readwrite', (s) => s.delete(id)).then(() => undefined);
 
 /**
- * The page to move: one of a saved scan's pages, with the page sizes the
- * caller holds for that scan so a scan changed since is refused, or a page
- * that is not saved anywhere yet.
+ * The page to move: one of a saved scan's pages, or a page that is not saved
+ * anywhere yet. For a saved scan the caller gives the saved time and page
+ * sizes of the copy it holds, so a scan saved again since, in another tab or
+ * window, is refused. Every save stamps a new time, so pages reordered there
+ * are caught even when they are all one size.
  */
 export type MoveSource =
-  | { scanId: string; position: number; sizes: { width: number; height: number }[] }
+  | { scanId: string; position: number; savedAt: string; sizes: { width: number; height: number }[] }
   | { page: SavedPage; labels: DocumentPage };
 
-/** A scan the move needed is gone, changed since it was opened, or has labels that cannot be read. Nothing was written. */
-export class ScanChangedError extends Error {}
+/**
+ * A scan the move needed is gone, changed since it was opened, or has labels
+ * that cannot be read. Nothing was written. `scan` says which one.
+ */
+export class ScanChangedError extends Error {
+  constructor(readonly scan: 'source' | 'target', reason: string) {
+    super(reason);
+  }
+}
 
 export interface MoveResult {
   target: SavedScan;
@@ -183,8 +192,8 @@ export async function movePageToScan(idb: IDBFactory, source: MoveSource, target
       const store = tx.objectStore(STORE);
       let result: MoveResult | null = null;
       let refused: ScanChangedError | null = null;
-      const refuse = (reason: string) => {
-        refused = new ScanChangedError(reason);
+      const refuse = (scan: 'source' | 'target', reason: string) => {
+        refused = new ScanChangedError(scan, reason);
         tx.abort();
       };
       tx.oncomplete = () => resolve(result!);
@@ -208,16 +217,16 @@ export async function movePageToScan(idb: IDBFactory, source: MoveSource, target
       const targetRequest = store.get(targetId);
       targetRequest.onsuccess = () => {
         const target = decodeSavedScan(targetRequest.result);
-        if (!target) return refuse('the scan to move to is gone');
-        if (target.labelsUnreadable) return refuse('the scan to move to has labels that cannot be read');
+        if (!target) return refuse('target', 'the scan to move to is gone');
+        if (target.labelsUnreadable) return refuse('target', 'the scan to move to has labels that cannot be read');
         if ('page' in source) return write(target, null, source.page, source.labels);
-        if (source.scanId === targetId) return refuse('a page cannot move to its own scan');
+        if (source.scanId === targetId) return refuse('target', 'a page cannot move to its own scan');
         const sourceRequest = store.get(source.scanId);
         sourceRequest.onsuccess = () => {
           const from = decodeSavedScan(sourceRequest.result);
-          const same = from !== null && from.pages.length === source.sizes.length
+          const same = from !== null && from.createdAt === source.savedAt && from.pages.length === source.sizes.length
             && from.pages.every((p, i) => p.width === source.sizes[i].width && p.height === source.sizes[i].height);
-          if (!from || !same) return refuse('the scan the page is in has changed since it was opened');
+          if (!from || !same) return refuse('source', 'the scan the page is in has changed since it was opened');
           write(target, { scan: from, position: source.position }, from.pages[source.position], from.document.pages[source.position]);
         };
       };
