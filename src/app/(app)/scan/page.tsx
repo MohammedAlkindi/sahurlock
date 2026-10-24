@@ -90,6 +90,8 @@ export default function ScanPage() {
   /** The saved scan chosen to move the selected page to. */
   const [moveTarget, setMoveTarget] = useState<string | null>(null);
   const [moving, setMoving] = useState(false);
+  /** PDFs being read into the pages on screen, tagged with the page set they belong to, so a read that will be dropped does not count. */
+  const [reading, setReading] = useState({ set: 0, count: 0 });
   const [saveError, setSaveError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
   /** The page the region editor opened on, while it is open. */
@@ -163,6 +165,7 @@ export default function ScanPage() {
       if (pageSet.current !== set) return;
       if (!isPdf(file)) { addImages([file]); continue; }
       setNotice({ kind: 'reading', text: `Reading ${file.name}…` });
+      setReading((r) => ({ set, count: r.set === set ? r.count + 1 : 1 }));
       try {
         const { images, skipped } = await pdfToImages(file);
         // Another scan was opened, or Start over pressed, while this PDF was read.
@@ -173,6 +176,8 @@ export default function ScanPage() {
           : null);
       } catch {
         setNotice({ kind: 'error', text: `${file.name} could not be read as a PDF. If it has a password, export it again without one.` });
+      } finally {
+        setReading((r) => (r.set === set ? { set, count: r.count - 1 } : r));
       }
     }
   };
@@ -213,6 +218,7 @@ export default function ScanPage() {
 
   const startOver = () => {
     pageSet.current += 1;
+    setReading({ set: pageSet.current, count: 0 });
     pages.forEach(release);
     setPages([]);
     setSelectedId(null);
@@ -350,6 +356,7 @@ export default function ScanPage() {
 
   const openSaved = (scan: SavedScan) => {
     pageSet.current += 1;
+    setReading({ set: pageSet.current, count: 0 });
     editing.current += 1;
     pages.forEach(release);
     const opened: ScanPage[] = scan.pages.map((p, i) => ({
@@ -401,13 +408,14 @@ export default function ScanPage() {
     const index = now.findIndex((p) => p.id === id);
     if (index >= 0) release(now[index]);
     const rest = now.filter((p) => p.id !== id);
+    const next = rest[index] ?? rest[index - 1] ?? null;
     flushSync(() => {
       setPages((all) => all.filter((p) => p.id !== id));
-      setSelectedId((current) => (current === id ? (rest[index] ?? rest[index - 1])?.id ?? null : current));
-      // A remove confirm for the page that left has nothing left to ask about.
-      setDiscarding((d) => (d?.action === 'remove' && d.pageId === id ? null : d));
+      setSelectedId((current) => (current === id ? next?.id ?? null : current));
+      // A confirm about the page that left, or about all of them once none are left, has nothing to ask about.
+      setDiscarding((d) => (rest.length === 0 || (d?.action === 'remove' && d.pageId === id) ? null : d));
     });
-    return rest;
+    return { rest, next };
   };
 
   const moveToScan = async (pageId: string, targetId: string) => {
@@ -425,41 +433,57 @@ export default function ScanPage() {
         };
     // What the saved copy looks like after the move, from the pages as they were when it started.
     const keyAfter = keyOf(title.trim(), course, pages.filter((p) => p.id !== pageId));
+    const sourceId = savedAs?.id ?? null;
     const scan = editing.current;
     const set = pageSet.current;
+    // Focus is moved later only if what had it now is gone. A click in Safari focuses nothing, so a body check would misfire.
+    const had = document.activeElement;
+    const refocus = (fallback: HTMLElement | null | undefined) => {
+      if (had instanceof HTMLElement && had !== document.body && !had.isConnected) fallback?.focus();
+    };
     // Cleared first, so an old error does not sit beside this result, and the same error twice is announced twice.
-    flushSync(() => setNotice(null));
+    // A PDF still being read keeps its notice.
+    flushSync(() => setNotice((n) => (n?.kind === 'reading' ? n : null)));
     setMoving(true);
     try {
       const result = await movePageToScan(idb, source, targetId, new Date());
       // Another scan may have been opened meanwhile. Then only the library changes.
       if (editing.current === scan && pageSet.current === set) {
-        const rest = dropMovedPage(pageId);
+        const { rest, next } = dropMovedPage(pageId);
         // With nothing left on screen, what comes next is a new scan, as after removing the last page.
         if (rest.length === 0) forgetSavedScan();
         else if (savedAs && result.source) setSavedAs({ id: result.source.id, key: keyAfter, savedAt: result.source.createdAt });
         // The last page left its saved scan, which is deleted, so pages added meanwhile make a new scan.
         else if (savedAs) forgetSavedScan();
         // The Move control goes when the page now selected cannot move, so focus moves on with it.
-        if (!document.activeElement || document.activeElement === document.body) {
-          const next = rest[index] ?? rest[index - 1];
-          (next ? pageButtons.current.get(next.id) : pageHeading.current)?.focus();
-        }
+        refocus(next ? pageButtons.current.get(next.id) : pageHeading.current);
       }
       announce(`Moved page ${index + 1} to ${target.title}.${savedAs && !result.source ? ' Its scan had no pages left, so it was deleted.' : ''}`);
       await reloadLibrary();
     } catch (error) {
-      // Show what is stored now, so opening a scan again opens the copy the move was refused for.
-      await reloadLibrary().catch(() => undefined);
+      const refused = error instanceof ScanChangedError ? error.scan : null;
+      // After a refusal, show what is stored now, so opening a scan again opens the copy the move was
+      // refused for. Not after other failures: with storage itself failing, the list would read back empty.
+      const stored = refused ? await listScans(idb).catch(() => null) : null;
+      const here = editing.current === scan && pageSet.current === set;
       const full = error instanceof DOMException && error.name === 'QuotaExceededError';
-      setNotice({
-        kind: 'error',
-        text: !(error instanceof ScanChangedError)
-          ? full ? 'The page was not moved, because this browser is out of room for saved scans.' : 'The page could not be moved. Try again.'
-          : error.scan === 'source'
-            ? 'The page was not moved, because this scan was saved again in another tab or window. Open it again from Saved scans, then move the page.'
-            : `The page was not moved, because ${target.title} was changed or deleted in another tab or window. Saved scans now shows what is stored.`,
+      const messages = {
+        'source': 'The page was not moved, because this scan was saved again in another tab or window. Open it again from Saved scans, then move the page.',
+        'source-gone': 'The page was not moved, because this scan was deleted in another tab or window. Its pages are still here, so save them to keep them.',
+        'target': `The page was not moved, because ${target.title} was changed or deleted in another tab or window. Saved scans now shows what is stored.`,
+      };
+      flushSync(() => {
+        if (stored) setLibrary(stored);
+        // These pages are now saved nowhere, so they show as unsaved: Save offers a new copy, and Open and Start over ask first.
+        if (refused === 'source-gone' && here) setSavedAs((link) => (link?.id === sourceId ? null : link));
+        setNotice({
+          kind: 'error',
+          text: refused ? messages[refused]
+            : full ? 'The page was not moved, because this browser is out of room for saved scans.' : 'The page could not be moved. Try again.',
+        });
       });
+      // The reload can take the Move control away, when the refused target was the only other scan.
+      if (here) refocus(pageButtons.current.get(pageId) ?? pageHeading.current);
     } finally {
       setMoving(false);
     }
@@ -776,7 +800,7 @@ export default function ScanPage() {
           // The editor has its own paper control. Without it open, the list shows one.
           paper={pages.length === 0 ? { value: paper, onChange: setPaper } : null}
           // Opening over pages that are not saved as they are, or while a PDF is still being read, asks first.
-          openNeedsConfirm={(pages.length > 0 && !upToDate) || notice?.kind === 'reading'}
+          openNeedsConfirm={(pages.length > 0 && !upToDate) || reading.count > 0}
           onOpen={openSaved}
           onDownloadLabels={downloadLabels}
           onDownload={(scan) => savePdf(scan.pages.map((pg) => pg.jpeg), scanFileName(scan.title))}

@@ -642,6 +642,19 @@ async function scanIds(page: Page) {
   }));
 }
 
+/** Delete a saved scan straight from storage, as another tab would. */
+async function deleteStored(page: Page, id: string) {
+  await page.evaluate((id) => new Promise<void>((resolve, reject) => {
+    const open = indexedDB.open('sahurlock-scans');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const tx = open.result.transaction('scans', 'readwrite');
+      tx.objectStore('scans').delete(id);
+      tx.oncomplete = () => { open.result.close(); resolve(); };
+    };
+  }), id);
+}
+
 const mathRegion = (id: string) => ({ id, kind: 'math', box: { x: 40, y: 50, width: 200, height: 60 }, content: 'F = ma', tokens: [], origin: { by: 'user' }, reviewed: true });
 const lecture = { id: 'a', title: 'Lecture 4', sizes: [[400, 500], [500, 400]] as [number, number][], document: { version: 1, pages: [
   { width: 400, height: 500, regionsComplete: false, blocks: [] },
@@ -790,15 +803,7 @@ test('a move to a scan deleted elsewhere is refused, and that scan leaves the li
   const saved = page.getByRole('region', { name: 'Saved scans' });
   await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
   // Another tab deletes Lab 2.
-  await page.evaluate(() => new Promise<void>((resolve, reject) => {
-    const open = indexedDB.open('sahurlock-scans');
-    open.onerror = () => reject(open.error);
-    open.onsuccess = () => {
-      const tx = open.result.transaction('scans', 'readwrite');
-      tx.objectStore('scans').delete('b');
-      tx.oncomplete = () => { open.result.close(); resolve(); };
-    };
-  }));
+  await deleteStored(page, 'b');
 
   const target = page.getByLabel('Move page 1 to');
   await target.selectOption('b');
@@ -817,6 +822,104 @@ test('a move to a scan deleted elsewhere is refused, and that scan leaves the li
   await move.click();
   await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 3.' })).toBeAttached();
   await expect(refused).toHaveCount(0);
+});
+
+test('a move refused because the open scan was deleted elsewhere leaves its pages unsaved, ready to save again', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  await deleteStored(page, 'a');
+
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'The page was not moved' })).toHaveText(
+    'The page was not moved, because this scan was deleted in another tab or window. Its pages are still here, so save them to keep them.',
+  );
+  // Saved nowhere now, so it no longer reads as Saved, and saving makes a new copy with both pages.
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+  const ids = await scanIds(page);
+  expect(ids).toHaveLength(2);
+  expect((await readScan(page, ids.find((id) => id !== 'b')!)).pages).toHaveLength(2);
+  expect((await readScan(page, 'b')).pages).toHaveLength(1);
+});
+
+test('when a refused move leaves no scan to move to, focus goes to the page', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  await deleteStored(page, 'b');
+
+  const move = page.getByRole('button', { name: 'Move', exact: true });
+  await move.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('alert').filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible();
+  await expect(move).toHaveCount(0);
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: 'Page 1', exact: true })).toBeFocused();
+});
+
+test('a PDF still being read keeps Open asking first after a move', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
+
+  // Six pages at full size take a few seconds to read.
+  const photos = [];
+  for (let i = 0; i < 6; i++) photos.push(new Uint8Array(await notebookPhoto(page, i % 2 === 1)));
+  await page.getByLabel('Add page').setInputFiles({ name: 'big.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) });
+  const reading = page.getByRole('status').filter({ hasText: 'Reading big.pdf' });
+  await expect(reading).toBeVisible();
+
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2.' })).toBeAttached();
+  await expect(reading).toBeVisible();
+  await saved.getByRole('button', { name: 'Open Lab 2' }).click();
+  await expect(saved.getByRole('group', { name: /^Open Lab 2 in place/ })).toBeVisible();
+});
+
+test('a PDF still being read keeps Open asking first after a refused move replaces its notice', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
+  const photos = [];
+  for (let i = 0; i < 6; i++) photos.push(new Uint8Array(await notebookPhoto(page, i % 2 === 1)));
+  await page.getByLabel('Add page').setInputFiles({ name: 'big.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) });
+  await expect(page.getByRole('status').filter({ hasText: 'Reading big.pdf' })).toBeVisible();
+
+  // Another tab deletes Lab 2, so the move is refused and its error takes the reading notice's place.
+  await deleteStored(page, 'b');
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Reading big.pdf' })).toHaveCount(0);
+  // The read goes on, so opening Lecture 4 afresh would throw its pages away, and asks first.
+  await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
+  await expect(saved.getByRole('group', { name: /^Open Lecture 4 in place/ })).toBeVisible();
+});
+
+test('a Start over confirm left open goes when a move empties the screen', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await page.getByRole('button', { name: 'Mark regions on page 1' }).click({ timeout: 30_000 });
+  const editor = page.getByRole('dialog');
+  await editor.getByRole('button', { name: 'Add region' }).click();
+  await editor.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Start over' }).click();
+  const confirm = page.getByRole('group', { name: /^Start over\?/ });
+  await expect(confirm).toBeVisible();
+
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2.' })).toBeAttached();
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
+  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await expect(confirm).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Start over' })).toBeVisible();
 });
 
 test('saving waits while a page is being moved', async ({ page }) => {

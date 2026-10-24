@@ -164,10 +164,11 @@ export type MoveSource =
 
 /**
  * A scan the move needed is gone, changed since it was opened, or has labels
- * that cannot be read. Nothing was written. `scan` says which one.
+ * that cannot be read. Nothing was written. `scan` says which: the target, the
+ * source changed, or the source gone.
  */
 export class ScanChangedError extends Error {
-  constructor(readonly scan: 'source' | 'target', reason: string) {
+  constructor(readonly scan: 'source' | 'source-gone' | 'target', reason: string) {
     super(reason);
   }
 }
@@ -192,7 +193,7 @@ export async function movePageToScan(idb: IDBFactory, source: MoveSource, target
       const store = tx.objectStore(STORE);
       let result: MoveResult | null = null;
       let refused: ScanChangedError | null = null;
-      const refuse = (scan: 'source' | 'target', reason: string) => {
+      const refuse = (scan: ScanChangedError['scan'], reason: string) => {
         refused = new ScanChangedError(scan, reason);
         tx.abort();
       };
@@ -223,6 +224,7 @@ export async function movePageToScan(idb: IDBFactory, source: MoveSource, target
         if (source.scanId === targetId) return refuse('target', 'a page cannot move to its own scan');
         const sourceRequest = store.get(source.scanId);
         sourceRequest.onsuccess = () => {
+          if (sourceRequest.result === undefined) return refuse('source-gone', 'the scan the page is in is gone');
           const from = decodeSavedScan(sourceRequest.result);
           const same = from !== null && from.createdAt === source.savedAt && from.pages.length === source.sizes.length
             && from.pages.every((p, i) => p.width === source.sizes[i].width && p.height === source.sizes[i].height);
