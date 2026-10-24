@@ -899,7 +899,7 @@ test('a PDF still being read keeps Open asking first after a move', async ({ pag
   await expect(saved.getByRole('group', { name: /^Open Lab 2 in place/ })).toBeVisible();
 });
 
-test('a PDF still being read keeps Open asking first after a refused move replaces its notice', async ({ page }) => {
+test('a refused move during a PDF read leaves the reading notice, and Open still asks first', async ({ page }) => {
   await page.goto('/settings', { waitUntil: 'networkidle' });
   await seedScans(page, 2, [lecture, lab]);
   await page.goto('/scan', { waitUntil: 'networkidle' });
@@ -910,11 +910,11 @@ test('a PDF still being read keeps Open asking first after a refused move replac
   await page.getByLabel('Add page').setInputFiles({ name: 'big.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) });
   await expect(page.getByRole('status').filter({ hasText: 'Reading big.pdf' })).toBeVisible();
 
-  // Another tab deletes Lab 2, so the move is refused and its error takes the reading notice's place.
+  // Another tab deletes Lab 2, so the move is refused. Its alert shows beside the reading notice, not in its place.
   await deleteStored(page, 'b');
   await page.getByRole('button', { name: 'Move', exact: true }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible();
-  await expect(page.getByRole('status').filter({ hasText: 'Reading big.pdf' })).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Reading big.pdf' })).toBeVisible();
   // The read goes on, so opening Lecture 4 afresh would throw its pages away, and asks first.
   await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
   await expect(saved.getByRole('group', { name: /^Open Lecture 4 in place/ })).toBeVisible();
@@ -998,6 +998,96 @@ test('a move that fails because storage does not open leaves Saved scans as they
   await expect(saved.getByRole('button', { name: 'Open Lab 2' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Move', exact: true })).toBeVisible();
   await failScans(page, false);
+});
+
+test('a photo added while a PDF is read leaves the reading notice up', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const photos = [];
+  for (let i = 0; i < 6; i++) photos.push(new Uint8Array(await notebookPhoto(page, i % 2 === 1)));
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'big.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) });
+  const reading = page.getByRole('status').filter({ hasText: 'Reading big.pdf' });
+  await expect(reading).toBeVisible();
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /Page 1$/ })).toBeVisible();
+  await expect(reading).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /Page 7$/ })).toBeVisible({ timeout: 30_000 });
+  await expect(reading).toHaveCount(0);
+});
+
+test('a PDF still being read keeps Open asking first after another pick fails and takes its notice', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
+  const photos = [];
+  for (let i = 0; i < 6; i++) photos.push(new Uint8Array(await notebookPhoto(page, i % 2 === 1)));
+  await page.getByLabel('Add page').setInputFiles({ name: 'big.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) });
+  await expect(page.getByRole('status').filter({ hasText: 'Reading big.pdf' })).toBeVisible();
+
+  await page.getByLabel('Add page').setInputFiles({ name: 'broken.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') });
+  await expect(page.getByRole('alert').filter({ hasText: 'broken.pdf could not be read as a PDF' })).toBeVisible();
+  // Nothing on screen says big.pdf is still being read, and no page has changed, yet opening would drop it.
+  const pageButtons = page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: /^Page \d/ });
+  await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
+  await expect(saved.getByRole('group', { name: /^Open Lecture 4 in place/ })).toBeVisible();
+  await expect(pageButtons).toHaveCount(2);
+});
+
+test('a move refused after Start over does not tell the user to open the scan again', async ({ page }) => {
+  await slowScanDatabase(page);
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  // Another tab saves Lecture 4 again.
+  await seedScans(page, 2, [lecture]);
+
+  await slowScans(page, true);
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'The page was not moved' })).toHaveText(
+    'The page was not moved, because the scan it was in was saved again in another tab or window.',
+    { timeout: 10_000 },
+  );
+  await slowScans(page, false);
+});
+
+test('a refused move leaves focus where the user moved it', async ({ page }) => {
+  await slowScanDatabase(page);
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  await deleteStored(page, 'b');
+
+  await slowScans(page, true);
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  // While it runs the user moves on. The refusal then takes the Move control away, Lab 2 being the only other scan.
+  const grid = page.getByLabel('Remove grid lines');
+  await grid.focus();
+  await expect(page.getByRole('alert').filter({ hasText: 'Lab 2 was changed or deleted' })).toBeVisible({ timeout: 10_000 });
+  await slowScans(page, false);
+  await expect(page.getByRole('button', { name: 'Move', exact: true })).toHaveCount(0);
+  await expect(grid).toBeFocused();
+});
+
+test('focus in a Saved scans row the move deletes goes to the page heading', async ({ page }) => {
+  await slowScanDatabase(page);
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [{ id: 'loose', title: 'Loose page', sizes: [[400, 500]] }, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await saved.getByRole('button', { name: 'Open Loose page' }).click();
+
+  await slowScans(page, true);
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  // The page's only scan is deleted when the page leaves, and its row with it.
+  await saved.getByRole('button', { name: 'Download Loose page as PDF' }).focus();
+  await expect(page.getByRole('status').filter({ hasText: 'Its scan had no pages left, so it was deleted.' })).toBeAttached({ timeout: 10_000 });
+  await slowScans(page, false);
+  await expect(saved.getByRole('button', { name: 'Download Loose page as PDF' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Scan notes' })).toBeFocused();
 });
 
 test('saving waits while a page is being moved', async ({ page }) => {
@@ -1124,25 +1214,26 @@ test('a page removed during a move, taking focus with it, leaves focus on the pa
   await expect(page.getByRole('list', { name: 'Pages' }).getByRole('button', { name: 'Page 1', exact: true })).toBeFocused();
 });
 
-test('the region editor opened during a move that empties the screen does not open again later', async ({ page }) => {
+test('Mark regions waits while a page is being moved, so no region is left behind', async ({ page }) => {
   await slowScanDatabase(page);
   await page.goto('/settings', { waitUntil: 'networkidle' });
-  await seedScans(page, 2, [lab]);
+  await seedScans(page, 2, [lecture, lab]);
   await page.goto('/scan', { waitUntil: 'networkidle' });
-  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
-  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  await page.getByRole('button', { name: 'Page 2, 1 region, every region marked' }).click();
 
   await slowScans(page, true);
   await page.getByRole('button', { name: 'Move', exact: true }).click();
-  await page.getByRole('button', { name: 'Mark regions on page 1' }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page.getByRole('status').filter({ hasText: 'Moved page 1 to Lab 2.' })).toBeAttached({ timeout: 10_000 });
+  // The move copies the page as it was, so a region marked now would not go with it.
+  const mark = page.getByRole('button', { name: 'Mark regions on page 2' });
+  await expect(mark).toHaveAttribute('aria-disabled', 'true');
+  await mark.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Moved page 2 to Lab 2.' })).toBeAttached({ timeout: 10_000 });
   await slowScans(page, false);
   await expect(page.getByRole('dialog')).toHaveCount(0);
-
-  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p2.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) });
-  await expect(page.getByRole('button', { name: /^Download PDF$/ })).toBeEnabled({ timeout: 30_000 });
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Mark regions on page 1' })).toHaveAttribute('aria-disabled', 'false');
 });
 
 test('after a move, focus goes to the next page when that page cannot move yet', async ({ page }) => {
