@@ -93,14 +93,16 @@ export const updateSessionNotes = (id: string, notes: string) => {
 /**
  * Remove everything SahurLock keeps in this browser: every sahurlock.* key
  * (sessions, notes, flashcards, tasks, settings, schedules, Spotify tokens, UI
- * state), the theme preference, and the uploaded-video and saved-scan databases. Callers should
+ * state), the theme preference, the uploaded-video and saved-scan databases, and the cookie
+ * that keeps the Spotify login. Callers should
  * reload afterwards so no in-memory copy writes data back.
  */
 export const clearAllData = async () => {
   if (typeof window === 'undefined') return;
   clearAppStorage(localStorage);
   setCustomVideoBlobUrl(null);
-  await deleteAppDatabases(indexedDB);
+  // The Spotify refresh token is in an httpOnly cookie, which only the server can clear.
+  await Promise.all([deleteAppDatabases(indexedDB), fetch('/api/spotify/logout', { method: 'POST' }).catch(() => undefined)]);
 };
 
 // ── Aggregate stats ────────────────────────────────────────────────────────────

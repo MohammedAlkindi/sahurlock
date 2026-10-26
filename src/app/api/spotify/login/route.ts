@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { codeChallenge, createCodeVerifier } from '@/lib/pkce';
+import { isHttps } from '@/lib/spotify-server';
 
 const SCOPES = [
   'streaming',
@@ -42,8 +43,9 @@ export function GET(request: NextRequest) {
   );
 
   // State checks the callback against CSRF. The verifier finishes the PKCE
-  // exchange. Both stay in httpOnly cookies for the 10 minutes a login may take.
-  const cookie = { httpOnly: true, sameSite: 'lax', maxAge: 600, path: '/' } as const;
+  // exchange. Both stay in httpOnly cookies for the 10 minutes a login may take,
+  // Secure over HTTPS. Lax, since Spotify's redirect back is a cross-site navigation.
+  const cookie = { httpOnly: true, secure: isHttps(request), sameSite: 'lax', maxAge: 600, path: '/' } as const;
   response.cookies.set('spotify_auth_state', state, cookie);
   response.cookies.set('spotify_code_verifier', verifier, cookie);
 

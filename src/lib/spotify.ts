@@ -82,7 +82,6 @@ export class SpotifyService {
   private static _instance: SpotifyService | null = null;
 
   private _accessToken: string | null = null;
-  private _refreshToken: string | null = null;
   private _tokenExpiry = 0; // unix ms
 
   private _player: Spotify.Player | null = null;
@@ -134,8 +133,9 @@ export class SpotifyService {
   private _loadFromStorage() {
     try {
       this._accessToken  = localStorage.getItem(KEYS.ACCESS_TOKEN);
-      this._refreshToken = localStorage.getItem(KEYS.REFRESH_TOKEN);
       this._tokenExpiry  = Number(localStorage.getItem(KEYS.TOKEN_EXPIRY) ?? 0);
+      // The refresh token now lives in an httpOnly cookie. Drop a copy an older version stored here.
+      localStorage.removeItem(KEYS.REFRESH_TOKEN);
     } catch {
       // localStorage may be unavailable (SSR, privacy mode)
     }
@@ -144,7 +144,6 @@ export class SpotifyService {
   private _saveToStorage() {
     try {
       if (this._accessToken)  localStorage.setItem(KEYS.ACCESS_TOKEN,  this._accessToken);
-      if (this._refreshToken) localStorage.setItem(KEYS.REFRESH_TOKEN, this._refreshToken);
       localStorage.setItem(KEYS.TOKEN_EXPIRY, String(this._tokenExpiry));
     } catch { /* ignore */ }
   }
@@ -167,9 +166,10 @@ export class SpotifyService {
   logout() {
     this._destroyPlayer();
     this._accessToken  = null;
-    this._refreshToken = null;
     this._tokenExpiry  = 0;
     this._clearStorage();
+    // The refresh token's cookie is httpOnly, so only the server can clear it.
+    fetch('/api/spotify/logout', { method: 'POST' }).catch(() => {});
     this._emit({ type: 'auth_changed', connected: false });
   }
 
@@ -184,13 +184,11 @@ export class SpotifyService {
 
     const params = new URLSearchParams(hash);
     const accessToken  = params.get('spotify_access_token');
-    const refreshToken = params.get('spotify_refresh_token');
     const expiresIn    = Number(params.get('spotify_expires_in') ?? 3600);
 
-    if (!accessToken || !refreshToken) return false;
+    if (!accessToken) return false;
 
     this._accessToken  = accessToken;
-    this._refreshToken = refreshToken;
     this._tokenExpiry  = Date.now() + expiresIn * 1000 - 60_000; // 1min early margin
     this._saveToStorage();
 
@@ -204,19 +202,14 @@ export class SpotifyService {
 
   // ── Token refresh ─────────────────────────────────────────────────────────────
 
+  /** A new access token from the server, which holds the refresh token in an httpOnly cookie. */
   private async _refreshAccessToken(): Promise<string | null> {
-    if (!this._refreshToken) return null;
     try {
-      const res = await fetch('/api/spotify/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: this._refreshToken }),
-      });
+      const res = await fetch('/api/spotify/refresh', { method: 'POST' });
       if (!res.ok) throw new Error('Refresh failed');
-      const data = await res.json() as { access_token: string; expires_in: number; refresh_token?: string };
+      const data = await res.json() as { access_token: string; expires_in: number };
       this._accessToken = data.access_token;
       this._tokenExpiry = Date.now() + data.expires_in * 1000 - 60_000;
-      if (data.refresh_token) this._refreshToken = data.refresh_token;
       this._saveToStorage();
       return this._accessToken;
     } catch {
