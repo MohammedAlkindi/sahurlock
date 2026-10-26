@@ -36,6 +36,26 @@ test('every link on every route leads to a page', async ({ page }) => {
   expect(broken).toEqual([]);
 });
 
+test('the Spotify callback starts a login only when asked, and as a page load', async ({ page }) => {
+  const calls: boolean[] = [];
+  // Any request to the login route, a prefetch with ?_rsc= included.
+  await page.route(/\/api\/spotify\/login(\?|$)/, (route) => {
+    calls.push(route.request().isNavigationRequest());
+    return route.fulfill({ status: 200, contentType: 'text/plain', body: 'login started' });
+  });
+  const errors: string[] = [];
+  // Vercel Analytics' script exists only on Vercel, so its 404 here is not counted.
+  page.on('console', (m) => { if (m.type() === 'error' && !`${m.location().url} ${m.text()}`.includes('/_vercel/insights/')) errors.push(m.text()); });
+  await page.goto('/spotify/callback?error=access_denied', { waitUntil: 'networkidle' });
+  await expect(page.getByText('You cancelled the Spotify login.')).toBeVisible();
+  // Next prefetches its own links once they show, which here would start a login nobody asked for.
+  expect(calls).toEqual([]);
+  await page.getByRole('link', { name: 'Try again' }).click();
+  await expect(page.locator('body')).toHaveText('login started');
+  expect(calls).toEqual([true]);
+  expect(errors).toEqual([]);
+});
+
 test('the face detector loads from the app itself and runs under the policy', async ({ page }) => {
   const origins = new Set<string>();
   page.on('request', (request) => origins.add(new URL(request.url()).origin));

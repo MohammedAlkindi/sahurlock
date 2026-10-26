@@ -85,12 +85,14 @@ function CallbackInner() {
             <p className="text-2xl font-black">Failed</p>
             <p className="mt-1 text-sm text-muted-foreground">{errorMsg}</p>
             <div className="mt-6 flex gap-3">
-              <Link
+              {/* A plain link: the login route redirects to Spotify, so it must load as a page. Next's Link
+                  would prefetch it as soon as it shows, starting a login, and the CSP blocks that fetch. */}
+              <a
                 href="/api/spotify/login"
                 className="rounded-xl bg-[#1DB954] px-5 py-2.5 text-sm font-bold text-black transition hover:bg-[#1ed760]"
               >
                 Try again
-              </Link>
+              </a>
               <Link
                 href="/session"
                 className="rounded-xl border border-border px-5 py-2.5 text-sm font-medium text-muted-foreground transition hover:text-foreground"
