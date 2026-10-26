@@ -39,3 +39,25 @@ export function storedRefreshToken(request: NextRequest): string | null {
   const token = request.cookies.get(REFRESH_COOKIE)?.value ?? '';
   return token && token.length <= MAX_TOKEN_LENGTH ? token : null;
 }
+
+const CALLBACK_PATH = '/api/spotify/callback';
+
+/**
+ * Where Spotify sends the user back after login. SPOTIFY_REDIRECT_URI pins one
+ * address for every alias of the deployment, but only when it is a single
+ * absolute URL to the callback route. Anything else, such as several lines or
+ * another route, would make Spotify refuse the login, so this origin's callback
+ * is used and the problem is logged. Spotify accepts only an address registered
+ * for the app in its dashboard.
+ */
+export function redirectUri(request: NextRequest): string {
+  const own = `${new URL(request.url).origin}${CALLBACK_PATH}`;
+  const configured = process.env.SPOTIFY_REDIRECT_URI;
+  if (!configured) return own;
+  try {
+    const url = new URL(configured);
+    if (!/\s/.test(configured) && url.pathname === CALLBACK_PATH && !url.search && !url.hash) return url.toString();
+  } catch { /* not a URL */ }
+  console.error('[spotify] SPOTIFY_REDIRECT_URI is not one URL to /api/spotify/callback, so this origin is used');
+  return own;
+}

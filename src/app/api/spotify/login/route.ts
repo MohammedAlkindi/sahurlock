@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { codeChallenge, createCodeVerifier } from '@/lib/pkce';
-import { isHttps } from '@/lib/spotify-server';
+import { isHttps, redirectUri as spotifyRedirectUri } from '@/lib/spotify-server';
 
 const SCOPES = [
   'streaming',
@@ -23,8 +23,7 @@ export function GET(request: NextRequest) {
     );
   }
 
-  const origin      = new URL(request.url).origin;
-  const redirectUri = process.env.SPOTIFY_REDIRECT_URI ?? `${origin}/api/spotify/callback`;
+  const redirectUri = spotifyRedirectUri(request);
   const state       = randomBytes(16).toString('hex');
   const verifier    = createCodeVerifier();
 

@@ -49,6 +49,28 @@ describe('login', () => {
   });
 });
 
+describe('redirect URI', () => {
+  const sentTo = () => new URL(login(new NextRequest(`${ORIGIN}/api/spotify/login`)).headers.get('location') ?? '').searchParams.get('redirect_uri');
+
+  it('uses SPOTIFY_REDIRECT_URI when it is one URL to the callback route', () => {
+    vi.stubEnv('SPOTIFY_REDIRECT_URI', 'https://sahurlock.example/api/spotify/callback');
+    expect(sentTo()).toBe('https://sahurlock.example/api/spotify/callback');
+  });
+
+  it('falls back to this origin when the setting is malformed, so login still reaches the callback', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    for (const bad of [
+      'https://sahur-lock.example/api/spotify/login',
+      ['https://a.example/api/spotify/callback', 'https://a.example/api/spotify/callback'].join(String.fromCharCode(10)),
+      'not a url',
+      'https://a.example/api/spotify/callback?x=1',
+    ]) {
+      vi.stubEnv('SPOTIFY_REDIRECT_URI', bad);
+      expect(sentTo()).toBe(`${ORIGIN}/api/spotify/callback`);
+    }
+  });
+});
+
 describe('callback', () => {
   const request = (cookies: string) =>
     new NextRequest(`${ORIGIN}/api/spotify/callback?code=abc&state=s1`, { headers: { cookie: cookies } });
