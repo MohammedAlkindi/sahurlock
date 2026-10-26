@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 import { ThemeProvider } from 'next-themes';
-import { Analytics } from '@vercel/analytics/next';
+import { Analytics } from '@/components/analytics';
 import { SITE_DESCRIPTION, SITE_NAME, SITE_OPEN_GRAPH, SITE_URL } from '@/lib/site';
 
 export const metadata: Metadata = {
