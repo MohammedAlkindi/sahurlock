@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import AxeBuilder from '@axe-core/playwright';
 import { devices, expect, test, type Page } from '@playwright/test';
 import { readingTime } from '../src/lib/announce';
 import { buildPdf, jpegInfo } from '../src/lib/scan/pdf';
@@ -1809,6 +1810,25 @@ for (const theme of ['light', 'dark'] as const) {
     expect(await violations(page, ['wcag22aa'])).toEqual([]);
   });
 }
+
+test('a region at the smallest size still passes the WCAG 2.2 target size check when selected', async ({ page }) => {
+  const editor = await openEditor(page);
+  await editor.getByRole('button', { name: 'Add region' }).click();
+  const box = editor.getByRole('region', { name: 'Page' }).getByRole('button', { name: /^Region 1, text, / });
+  await box.focus();
+  // Shift and an arrow resize from the bottom-right corner, never below the smallest size.
+  for (let i = 0; i < 100; i++) await page.keyboard.press('Shift+ArrowLeft');
+  for (let i = 0; i < 12; i++) await page.keyboard.press('Shift+ArrowUp');
+  await expect(box).toBeFocused();
+  const drawn = (await box.boundingBox())!;
+  expect(Math.max(drawn.width, drawn.height)).toBeLessThan(24);
+  expect(await violations(page, ['wcag22aa'])).toEqual([]);
+  // axe judged this box and passed it, rather than leaving it out: a passing node is the box itself.
+  const label = await box.getAttribute('aria-label');
+  const { passes } = await new AxeBuilder({ page }).withRules(['target-size']).analyze();
+  const passed = passes.flatMap((rule) => rule.nodes.map((node) => node.html));
+  expect(passed.some((html) => html.includes(`aria-label="${label}"`))).toBe(true);
+});
 
 /** The editor's page surface and its rectangle on screen. */
 async function surfaceOf(editor: ReturnType<Page['getByRole']>) {
