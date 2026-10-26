@@ -91,7 +91,7 @@ export default function NotesPage() {
       {/* ── Notes list ──────────────────────────────────────────────────── */}
       <aside className="flex w-60 shrink-0 flex-col border-r border-border">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <span className="text-sm font-semibold">Notes</span>
+          <h1 className="text-sm font-semibold">Notes</h1>
           <button
             onClick={createNote}
             className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SiteFooter } from '@/components/site-footer';
 
 const FEATURES = [
   { index: '01', title: 'Face tracking',  description: 'MediaPipe runs in your browser. Camera frames are never uploaded.' },
@@ -12,19 +13,16 @@ export default function LandingPage() {
 
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-border bg-card/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3.5">
-          <span className="text-base font-black tracking-tight">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3.5 sm:px-6">
+          <Link href="/" className="text-base font-black tracking-tight">
             <span className="text-accent">S</span>ahurLock
-          </span>
+          </Link>
           <div className="flex items-center gap-1">
-            <Link href="/session" className="rounded-md px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-              Session
-            </Link>
             <Link href="/stats" className="rounded-md px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
               Stats
             </Link>
-            <Link href="/session" className="ml-2 rounded-md bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent/90 transition-colors">
-              Start
+            <Link href="/session" className="ml-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent/90 transition-colors">
+              Start a session
             </Link>
           </div>
         </div>
@@ -32,7 +30,7 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="mx-auto max-w-5xl px-6 pt-16 pb-10 text-center">
-        <h1 className="text-6xl font-black leading-[1.05] tracking-tight md:text-7xl lg:text-8xl">
+        <h1 className="text-[clamp(2rem,11vw,2.75rem)] font-black leading-[1.05] tracking-tight sm:text-6xl md:text-7xl lg:text-8xl">
           Attention tracking<br />
           <span className="text-accent">with real consequences.</span>
         </h1>
@@ -41,7 +39,7 @@ export default function LandingPage() {
           Your webcam watches. Look away too long — a fullscreen alert locks you out until you refocus.
         </p>
 
-        <div className="mt-8 flex items-center justify-center gap-3">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link
             href="/session"
             className="rounded-xl bg-accent px-8 py-3.5 text-base font-semibold text-accent-foreground hover:bg-accent/90 transition shadow-sm"
@@ -81,17 +79,14 @@ export default function LandingPage() {
               className={`bg-card p-8 ${i < FEATURES.length - 1 ? 'border-b border-border md:border-b-0 md:border-r' : ''}`}
             >
               <p className="mb-3 font-mono text-[11px] text-muted-foreground">{f.index}</p>
-              <h3 className="mb-2 text-base font-semibold text-foreground">{f.title}</h3>
+              <h2 className="mb-2 text-base font-semibold text-foreground">{f.title}</h2>
               <p className="text-sm leading-relaxed text-muted-foreground">{f.description}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border px-6 py-4 text-center text-xs text-muted-foreground">
-        SahurLock &copy; 2026 Mohammed Alkindi &mdash; MIT License
-      </footer>
+      <SiteFooter />
 
     </main>
   );

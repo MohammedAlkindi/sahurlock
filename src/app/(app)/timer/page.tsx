@@ -275,6 +275,7 @@ export default function TimerPage() {
 
   return (
     <div className="flex flex-col items-center px-4 py-16">
+      <h1 className="sr-only">Timer</h1>
       <div className="mb-12 flex rounded-xl border border-border bg-card p-1">
         {(['stopwatch', 'countdown'] as Tab[]).map((t) => (
           <button

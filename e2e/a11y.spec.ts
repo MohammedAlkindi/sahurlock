@@ -1,7 +1,7 @@
 import { devices, expect, test, type Page } from '@playwright/test';
 import { violations } from './axe';
 
-const ROUTES = ['/', '/session', '/timer', '/stats', '/schedule', '/tasks', '/notes', '/flashcards', '/scan', '/sounds', '/settings'];
+const ROUTES = ['/', '/session', '/timer', '/stats', '/schedule', '/tasks', '/notes', '/flashcards', '/scan', '/sounds', '/settings', '/privacy', '/terms', '/no-such-page'];
 
 /**
  * A week of use: sessions across every score grade, tasks, notes, flashcards
