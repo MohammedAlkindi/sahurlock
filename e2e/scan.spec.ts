@@ -2119,6 +2119,24 @@ test('a file that is not an image gets a clear message', async ({ page }) => {
 /** The kinds of the nodes inside an element: 3 for text, 1 for elements. */
 const childKinds = (line: ReturnType<Page['locator']>) => line.evaluate((p) => Array.from(p.childNodes).map((n) => n.nodeType));
 
+test('the page line is in a live region already on the page, so the first page is read too', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const region = page.locator('#page-line');
+  await expect(region).toHaveAttribute('role', 'status');
+  await expect(region).toHaveAttribute('aria-atomic', 'true');
+  await expect(region).toHaveText('');
+  // Marked while empty, to check the first line arrives in this same element.
+  await region.evaluate((p) => { p.setAttribute('data-test-region', 'before'); });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  await expect(region).toHaveText(/^Page 1: /, { timeout: 30_000 });
+  await expect(region).toHaveAttribute('data-test-region', 'before');
+  // Start over, with no regions marked to lose, leaves it on the page, empty, for the next first page.
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await expect(page.getByRole('list', { name: 'Pages' })).toHaveCount(0);
+  await expect(region).toHaveText('');
+  await expect(region).toHaveAttribute('data-test-region', 'before');
+});
+
 test('the page line is read whole, as one new node each time it changes', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
   await page.getByLabel('Choose photos or a PDF').setInputFiles([

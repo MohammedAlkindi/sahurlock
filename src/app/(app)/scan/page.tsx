@@ -725,21 +725,27 @@ export default function ScanPage() {
               </div>
             );
           })()}
+        </>
+      )}
 
+      {/* The selected page's line, read whole (aria-atomic) when it changes. Written as JSX parts,
+          React rewrote only the parts that changed, such as the page number, and Firefox with NVDA
+          read just those. The region is on the page from load, empty with no page or a failed page
+          selected: a live region that arrives holding its text is often not read (Chrome reports
+          only that the region appeared), so the first page's line was silent, and as one element
+          that switched between role=status and role=alert, moving from a failed page to a good one
+          was silent too. Its words are a child keyed by them, so each new line arrives as one new
+          node. The alert is its own element, and a node added under role=alert raises an alert, so
+          its text stays plain. It also says aria-live, since Firefox on Windows gives role=alert no
+          live region. */}
+      <p id="page-line" role="status" aria-live="polite" aria-atomic="true" className={selected && !selected.error ? 'mb-4 min-h-5 text-sm text-muted-foreground' : undefined}>
+        {selected && !selected.error && <span key={statusLine}>{statusLine}</span>}
+      </p>
+
+      {pages.length > 0 && (
+        <>
           {selected && (
             <>
-              {/* The page's line, read whole (aria-atomic) when it changes. Written as JSX parts,
-                  React rewrote only the parts that changed, such as the page number, and Firefox with
-                  NVDA read just those. The status line stays on the page while a page is selected,
-                  empty for a page that failed: as one element that switched between role=status and
-                  role=alert, the browser rebuilt it with its text already in it on each switch, so
-                  moving from a failed page to a good one was silent. Its words are a child keyed by
-                  them, so each new line arrives as one new node. The alert is its own element, and a
-                  node added under role=alert raises an alert, so its text stays plain. It also says
-                  aria-live, since Firefox on Windows gives role=alert no live region. */}
-              <p role="status" aria-live="polite" aria-atomic="true" className={selected.error ? undefined : 'mb-4 min-h-5 text-sm text-muted-foreground'}>
-                {!selected.error && <span key={statusLine}>{statusLine}</span>}
-              </p>
               {selected.error && <p role="alert" aria-live="assertive" aria-atomic="true" className="mb-4 text-sm text-danger">{`Page ${selectedNumber}: ${selected.error}`}</p>}
 
               {pages.length > 1 && (
