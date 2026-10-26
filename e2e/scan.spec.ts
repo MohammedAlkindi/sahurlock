@@ -1964,3 +1964,48 @@ test('a file that is not an image gets a clear message', async ({ page }) => {
   await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('not an image') });
   await expect(page.getByRole('alert').filter({ hasText: 'could not be opened' })).toBeVisible({ timeout: 30_000 });
 });
+
+/** The kinds of the nodes inside an element: 3 for text, 1 for elements. */
+const childKinds = (line: ReturnType<Page['locator']>) => line.evaluate((p) => Array.from(p.childNodes).map((n) => n.nodeType));
+
+test('the page line is read whole, as one new node each time it changes', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) },
+    { name: 'notes.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('not an image') },
+    { name: 'p3.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page, true) },
+  ]);
+  const pages = page.getByRole('list', { name: 'Pages' });
+  const status = page.getByRole('status').filter({ hasText: /^Page \d:/ });
+  await expect(status).toHaveText('Page 1: Found the page edges and straightened it.', { timeout: 30_000 });
+  await expect(status).toHaveAttribute('aria-atomic', 'true');
+  // Marked to check below that the status line stays the same element, a status, throughout.
+  await status.evaluate((p) => { p.setAttribute('data-test-region', 'status'); });
+  const region = page.locator('[data-test-region="status"]');
+  // Each new line is a new node holding all of it, so it reaches a screen reader whole.
+  const line = region.locator('span');
+  await line.evaluate((s) => { s.setAttribute('data-test-line', 'old'); });
+  // The page is cleaned again, so its line reads "Cleaning the page…" and then the result.
+  await page.getByLabel('Remove ruled lines').uncheck();
+  await expect(region.locator('span[data-test-line]')).toHaveCount(0);
+  await expect(region).toHaveText('Page 1: Found the page edges and straightened it.', { timeout: 30_000 });
+  expect(await childKinds(line)).toEqual([3]);
+  await pages.getByRole('button', { name: /^Page 3(,|$)/ }).click();
+  await expect(region).toHaveText(/^Page 3: /, { timeout: 30_000 });
+  await expect(line).toHaveCount(1);
+
+  // A failed page's line is an alert of its own, and the status line waits, empty.
+  await pages.getByRole('button', { name: 'Error Page 2' }).click();
+  const alert = page.getByRole('alert').filter({ hasText: /^Page 2:/ });
+  await expect(alert).toContainText('could not be opened', { timeout: 30_000 });
+  expect(await childKinds(alert)).toEqual([3]);
+  await expect(alert).toHaveAttribute('aria-live', 'assertive');
+  await expect(alert).toHaveAttribute('aria-atomic', 'true');
+  await expect(region).toHaveAttribute('role', 'status');
+  await expect(region).toHaveText('');
+  // Back on a good page, the line arrives in the status region that was already there, so it is read.
+  await pages.getByRole('button', { name: /^Page 1(,|$)/ }).click();
+  await expect(region).toHaveText('Page 1: Found the page edges and straightened it.');
+  await expect(region).toHaveAttribute('role', 'status');
+  await expect(alert).toHaveCount(0);
+});
