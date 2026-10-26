@@ -2,6 +2,8 @@
 export interface Spoken {
   id: number;
   text: string;
+  /** How long it stays before a newer message may replace it, in ms. */
+  hold: number;
 }
 
 /**
@@ -19,3 +21,20 @@ export const ANNOUNCE_MIN_MS = 500;
  */
 export const waitBeforeShowing = (shownAt: number, now: number, min = ANNOUNCE_MIN_MS) =>
   shownAt ? Math.min(min, Math.max(0, min - (now - shownAt))) : 0;
+
+/** About how long a screen reader takes to say one character at its default rate. */
+export const SPOKEN_MS_PER_CHAR = 65;
+
+/**
+ * How long a line stays before a newer message replaces it, given its text. JAWS and
+ * VoiceOver stop speaking when an assertive line changes, so it stays about as long as it
+ * takes to say, never less than ANNOUNCE_MIN_MS and never more than `max`.
+ */
+export const readingTime = (text: string, max: number) =>
+  Math.min(max, Math.max(ANNOUNCE_MIN_MS, text.length * SPOKEN_MS_PER_CHAR));
+
+/**
+ * How long an idle assertive announcer waits for more messages before it shows the first.
+ * The errors from one pick of files arrive milliseconds apart, and then share one line.
+ */
+export const GATHER_MS = 250;

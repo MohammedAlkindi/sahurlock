@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { devices, expect, test, type Page } from '@playwright/test';
+import { readingTime } from '../src/lib/announce';
 import { buildPdf, jpegInfo } from '../src/lib/scan/pdf';
 import { readZip } from '../src/lib/zip-read';
 import { violations } from './axe';
@@ -1155,9 +1156,10 @@ test('a second import error is added beside the first, which stays as it was', a
   await first.evaluate((line) => { line.setAttribute('data-test-line', 'first'); });
   await expect(errorLines(page).getByText('second.pdf could not be read as a PDF')).toBeVisible({ timeout: 30_000 });
   await expect(first).toHaveAttribute('data-test-line', 'first');
-  // The announcer reads the second error alone. It is not role=alert, which Firefox answers with an alert event.
+  // The announcer reads the second error alone, once the first has been said. It is not role=alert, which
+  // Firefox answers with an alert event.
   const announcer = page.locator('#announce-assertive');
-  await expect(announcer).toHaveText('second.pdf could not be read as a PDF. If it has a password, export it again without one.');
+  await expect(announcer).toHaveText('second.pdf could not be read as a PDF. If it has a password, export it again without one.', { timeout: 10_000 });
   await expect(announcer).toHaveAttribute('aria-live', 'assertive');
   expect(await announcer.getAttribute('role')).toBeNull();
 });
@@ -1186,8 +1188,9 @@ test('each Scan message is announced from one live region, which holds only that
   await expect(assertive).toHaveText(broken);
   expect(await liveRegionsHolding(page, broken)).toEqual(['announce-assertive']);
 
-  // A move error.
+  // A move error. Open first clears the import error from the screen, and the announcer takes its line back.
   await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
+  await expect(assertive.locator('p')).toHaveCount(0);
   await deleteStored(page, 'a');
   await page.getByRole('button', { name: 'Move', exact: true }).click();
   const gone = 'The page was not moved, because this scan was deleted in another tab or window. Its pages are still here, so save them to keep them.';
@@ -1204,7 +1207,7 @@ test('each Scan message is announced from one live region, which holds only that
   }
 });
 
-test('a message that follows quickly waits until the one before it has been read', async ({ page }) => {
+test('errors that arrive together share one assertive line, in order', async ({ page }) => {
   await page.goto('/scan', { waitUntil: 'networkidle' });
   // Every line the assertive announcer shows, with when it arrived.
   await page.evaluate(() => {
@@ -1229,9 +1232,101 @@ test('a message that follows quickly waits until the one before it has been read
   // Both are said, the first before the second.
   expect(all.indexOf('one.pdf could not be read')).toBeGreaterThanOrEqual(0);
   expect(all.indexOf('one.pdf could not be read')).toBeLessThan(all.indexOf('two.pdf could not be read'));
-  // Two lines, the first not replaced before Chrome had passed it on: it stayed at least half a second.
-  expect(lines).toHaveLength(2);
-  for (let i = 1; i < lines.length; i++) expect(lines[i].at - lines[i - 1].at).toBeGreaterThanOrEqual(480);
+  // One line, so neither cuts the other off where an assertive change stops current speech.
+  expect(lines).toHaveLength(1);
+});
+
+/** Records every state of the assertive announcer, with when it began: a line's text, or '' when empty. */
+async function watchAssertive(page: Page) {
+  await page.evaluate(() => {
+    const states: { text: string; at: number }[] = [];
+    (window as unknown as { __states: typeof states }).__states = states;
+    const region = document.getElementById('announce-assertive')!;
+    let last: Element | null = null;
+    new MutationObserver(() => {
+      const line = region.querySelector('p');
+      if (line !== last) states.push({ text: line?.textContent ?? '', at: performance.now() });
+      last = line;
+    }).observe(region, { childList: true, subtree: true });
+  });
+  return () => page.evaluate(() => (window as unknown as { __states: { text: string; at: number }[] }).__states);
+}
+
+test('an assertive line stays until it has been said before the next one replaces it', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const states = await watchAssertive(page);
+  const photos = [];
+  for (let i = 0; i < 6; i++) photos.push(new Uint8Array(await notebookPhoto(page, i % 2 === 1)));
+  // One pick. The long name makes an error of more than 100 characters, about seven seconds to say,
+  // and big.pdf takes long enough to read that second.pdf's error comes after the gathering wait.
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'Chemistry lab week 4 notes.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') },
+    { name: 'big.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) },
+    { name: 'second.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') },
+  ]);
+  const line = page.locator('#announce-assertive p');
+  await expect(line).toContainText('Chemistry lab week 4 notes.pdf could not be read as a PDF');
+  await expect(errorLines(page).getByText('second.pdf could not be read as a PDF')).toBeVisible({ timeout: 30_000 });
+  await expect(line).toContainText('second.pdf could not be read as a PDF', { timeout: 15_000 });
+  const seen = await states();
+  // The first line went straight to the second: it was not taken off the page before it had been said.
+  expect(seen.map((s) => s.text.split(' could')[0])).toEqual(['Chemistry lab week 4 notes.pdf', 'second.pdf']);
+  expect(readingTime(seen[0].text, Infinity)).toBeGreaterThan(7000);
+  expect(seen[1].at - seen[0].at).toBeGreaterThanOrEqual(readingTime(seen[0].text, Infinity) - 50);
+});
+
+test("a new pick takes back the last pick's errors, said or waiting", async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const states = await watchAssertive(page);
+  const photos = [];
+  for (let i = 0; i < 6; i++) photos.push(new Uint8Array(await notebookPhoto(page, i % 2 === 1)));
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'Chemistry lab week 4 notes.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') },
+    { name: 'big.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) },
+    { name: 'waiting.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') },
+  ]);
+  const line = page.locator('#announce-assertive p');
+  await expect(line).toContainText('Chemistry lab week 4 notes.pdf could not be read');
+  // waiting.pdf's error is on screen, and waits behind the first one's line.
+  await expect(errorLines(page).getByText('waiting.pdf could not be read')).toBeVisible({ timeout: 30_000 });
+  await expect(line).toContainText('Chemistry lab week 4 notes.pdf');
+  // The next pick clears both from the screen, so neither is read any further.
+  await page.getByLabel('Add page').setInputFiles({ name: 'next.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') });
+  await expect(errorLines(page)).toHaveText(/^next\.pdf could not be read/);
+  await expect(line).toContainText('next.pdf could not be read');
+  // Past the time waiting.pdf's turn would have come.
+  await page.waitForTimeout(8_000);
+  const seen = (await states()).map((s) => s.text.split(' could')[0]);
+  expect(seen).toEqual(['Chemistry lab week 4 notes.pdf', '', 'next.pdf', ...(seen.length > 3 ? [''] : [])]);
+});
+
+test('a move error withdrawn before its turn to be said is never read', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const assertive = page.locator('#announce-assertive');
+  await page.evaluate(() => {
+    const said: string[] = [];
+    (window as unknown as { __said: typeof said }).__said = said;
+    const region = document.getElementById('announce-assertive')!;
+    new MutationObserver(() => { said.push(region.textContent ?? ''); }).observe(region, { childList: true, subtree: true, characterData: true });
+  });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Lecture 4' }).click();
+  // An import error holds the assertive line for about five seconds.
+  await page.getByLabel('Add page').setInputFiles({ name: 'broken.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') });
+  await expect(assertive).toContainText('broken.pdf could not be read as a PDF');
+  // The move error waits behind it, and Start over takes it off the screen meanwhile.
+  await deleteStored(page, 'a');
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(errorLines(page).getByText('Its pages are still here')).toBeVisible();
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await page.getByRole('group', { name: /^Start over\?/ }).getByRole('button', { name: 'Start over' }).click();
+  await expect(page.getByRole('list', { name: 'Pages' })).toHaveCount(0);
+  // Long enough for the import error's turn to end and the move error's to come.
+  await page.waitForTimeout(8_000);
+  const said = await page.evaluate(() => (window as unknown as { __said: string[] }).__said);
+  expect(said.some((text) => text.includes('broken.pdf could not be read'))).toBe(true);
+  expect(said.some((text) => text.includes('Its pages are still here'))).toBe(false);
 });
 
 test('the same error said twice is read twice, from a new line', async ({ page }) => {
@@ -1248,6 +1343,7 @@ test('the same error said twice is read twice, from a new line', async ({ page }
   await expect(line).toContainText('broken.pdf could not be read as a PDF');
   await line.evaluate((p) => { p.setAttribute('data-test-line', 'first'); });
   await pick();
+  // The new pick takes the first line back, so the second is a new line at once.
   await expect(page.locator('#announce-assertive p:not([data-test-line])')).toContainText('broken.pdf could not be read as a PDF');
   await expect(line).toHaveCount(1);
   await expect(page.locator('#announce-assertive')).toHaveAttribute('data-test-region', 'before');
@@ -1307,8 +1403,8 @@ test('a move alert goes once the pages it is about are gone', async ({ page }) =
   await page.getByRole('button', { name: 'Remove page 1' }).click();
   await page.getByRole('group', { name: /^Remove page 1 and its/ }).getByRole('button', { name: 'Remove' }).click();
   await expect(alert).toHaveCount(0);
-  // The announcer drops its copy a few seconds after reading it, so it is not read again, or once out of date.
-  await expect(page.locator('#announce-assertive')).not.toContainText('Its pages are still here', { timeout: 10_000 });
+  // The announcer takes its copy back with it, so it is not read once out of date.
+  await expect(page.locator('#announce-assertive')).not.toContainText('Its pages are still here');
 });
 
 test('a move alert that says to open the scan again goes when that scan is deleted here', async ({ page }) => {
