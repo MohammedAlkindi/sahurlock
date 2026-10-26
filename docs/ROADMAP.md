@@ -66,9 +66,13 @@ that shipped it.
       fixes for. The unused image optimizer stays off (59fb9b0)
 - [x] Replace `next lint` with the ESLint CLI before Next.js 16, which removes it (ed3e6a7)
 - [x] Upgrade Vitest to 5, clearing the two critical tinypool advisories (f5d6d5c)
-- [ ] Upgrade the dev tools that still carry advisories: Tailwind CSS 4 (braces,
-      micromatch), and the Next.js ESLint plugin once a release drops its old fast-glob.
-      Neither ships to the browser
+- [ ] Move to Next.js 16.4.1 or later. Next.js 15.5.28 bundles PostCSS 8.4.31, which
+      had four advisories in the 2026-10-26 `npm audit`: an XSS through an unescaped
+      `</style>`, and three ways to read files through source map comments. PostCSS
+      runs only at build time, on the app's own CSS. 16.3.0 is the first release with
+      a fixed PostCSS, but 16.3.0 to 16.4.0 have critical Next.js advisories that
+      15.5.28 does not. Nothing else is open: the braces, micromatch and fast-glob
+      this item used to name have no advisory
 - [x] A tool registry (`src/lib/tools.ts`) that drives the sidebar, command palette and
       breadcrumb, so a new tool is registered in one place (2e5d545)
 - [ ] Move tool code into `tools/` and shared code into `core/` once Scan
