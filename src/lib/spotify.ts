@@ -1,3 +1,5 @@
+import { cancelPendingLogout, clearSpotifyLogin, withTokenLock } from '@/lib/spotify-logout';
+
 // ── Spotify types ──────────────────────────────────────────────────────────────
 
 export interface SpotifyProfile {
@@ -83,6 +85,10 @@ export class SpotifyService {
 
   private _accessToken: string | null = null;
   private _tokenExpiry = 0; // unix ms
+  /** Changes on each disconnect, so a refresh that started before one is dropped when it ends. */
+  private _generation = 0;
+  /** The refresh in progress in this tab, which every caller waits on instead of starting another. */
+  private _refreshing: Promise<string | null> | null = null;
 
   private _player: Spotify.Player | null = null;
   private _deviceId: string | null = null;
@@ -164,12 +170,14 @@ export class SpotifyService {
   }
 
   logout() {
+    this._generation += 1;
     this._destroyPlayer();
     this._accessToken  = null;
     this._tokenExpiry  = 0;
     this._clearStorage();
-    // The refresh token's cookie is httpOnly, so only the server can clear it.
-    fetch('/api/spotify/logout', { method: 'POST' }).catch(() => {});
+    // The refresh token's cookie is httpOnly, so only the server can clear it. Until it
+    // confirms, a mark in storage makes the next page load try again.
+    void clearSpotifyLogin();
     this._emit({ type: 'auth_changed', connected: false });
   }
 
@@ -191,6 +199,8 @@ export class SpotifyService {
     this._accessToken  = accessToken;
     this._tokenExpiry  = Date.now() + expiresIn * 1000 - 60_000; // 1min early margin
     this._saveToStorage();
+    // This login's cookie replaced the one an unfinished disconnect was for.
+    cancelPendingLogout();
 
     // Remove Spotify tokens from URL without adding a history entry
     const clean = window.location.pathname + window.location.search;
@@ -202,19 +212,50 @@ export class SpotifyService {
 
   // ── Token refresh ─────────────────────────────────────────────────────────────
 
-  /** A new access token from the server, which holds the refresh token in an httpOnly cookie. */
-  private async _refreshAccessToken(): Promise<string | null> {
-    try {
+  /**
+   * A new access token from the server, which holds the refresh token in an
+   * httpOnly cookie. One refresh at a time: callers in this tab share it, and a
+   * Web Lock queues other tabs, since Spotify may rotate the refresh token and
+   * a second request with the old one would fail and sign the user out.
+   */
+  private _refreshAccessToken(): Promise<string | null> {
+    this._refreshing ??= this._refreshOnce().finally(() => { this._refreshing = null; });
+    return this._refreshing;
+  }
+
+  private async _refreshOnce(): Promise<string | null> {
+    const generation = this._generation;
+    const refresh = async (): Promise<string | null> => {
+      // Another tab may have refreshed, or disconnected, while this one waited.
+      this._loadFromStorage();
+      if (generation !== this._generation || !this._accessToken) return null;
+      if (Date.now() < this._tokenExpiry) return this._accessToken;
       const res = await fetch('/api/spotify/refresh', { method: 'POST' });
       if (!res.ok) throw new Error('Refresh failed');
       const data = await res.json() as { access_token: string; expires_in: number };
+      // Disconnected while this refresh ran, here or in another tab (which removes the stored
+      // token), or everything was cleared. The refresh may have set the cookie again, so the
+      // server is asked once more, after this lock is released.
+      // Where storage cannot be read, no other tab can have removed the token, so only the generation counts.
+      let stillStored = true;
+      try { stillStored = localStorage.getItem(KEYS.ACCESS_TOKEN) !== null; } catch { /* storage unavailable */ }
+      if (generation !== this._generation || !stillStored) {
+        void clearSpotifyLogin();
+        return null;
+      }
       this._accessToken = data.access_token;
       this._tokenExpiry = Date.now() + data.expires_in * 1000 - 60_000;
       this._saveToStorage();
       return this._accessToken;
+    };
+    try {
+      const token = await withTokenLock(refresh);
+      // Disconnected in another tab, which cleared the stored token: this tab disconnects too.
+      if (!token && generation === this._generation) this.logout();
+      return token;
     } catch {
-      // Refresh failed — force re-login
-      this.logout();
+      // The refresh was refused, so the user connects again.
+      if (generation === this._generation) this.logout();
       return null;
     }
   }

@@ -1,4 +1,5 @@
 import { clearAppStorage, deleteAppDatabases } from '@/lib/data-management';
+import { clearSpotifyLogin } from '@/lib/spotify-logout';
 import {
   decodeAggregate, decodeConfig, decodeGoals, decodeHistoryItem, decodeScheduledSession,
   decodeTask, decodeTemplate, decodeVideoMeta, listOf, parseStored,
@@ -101,8 +102,12 @@ export const clearAllData = async () => {
   if (typeof window === 'undefined') return;
   clearAppStorage(localStorage);
   setCustomVideoBlobUrl(null);
-  // The Spotify refresh token is in an httpOnly cookie, which only the server can clear.
-  await Promise.all([deleteAppDatabases(indexedDB), fetch('/api/spotify/logout', { method: 'POST' }).catch(() => undefined)]);
+  // The Spotify refresh token is in an httpOnly cookie, which only the server can clear. The
+  // request is not waited for: it marks itself pending at once, outlives a reload (keepalive),
+  // and if it fails, for example offline, the next page load sends it again. It must come after
+  // clearAppStorage, which would remove that mark.
+  void clearSpotifyLogin();
+  await deleteAppDatabases(indexedDB);
 };
 
 // ── Aggregate stats ────────────────────────────────────────────────────────────

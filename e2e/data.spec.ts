@@ -65,10 +65,22 @@ test('Clear everything leaves nothing behind', async ({ page, context }) => {
     page.waitForEvent('load'),
     page.getByRole('button', { name: /clear everything/i }).click(),
   ]);
-  const { keys, databases } = await leftovers(page);
-  // The settings page saves its defaults again on load; nothing the user created survives.
-  expect(keys.filter((k) => k !== 'sahurlock.settings')).toEqual([]);
+  // The settings page saves its defaults again on load; nothing the user created survives. The
+  // Spotify disconnect is not waited for, so its pending mark goes once the server has answered.
+  await expect.poll(async () => (await leftovers(page)).keys.filter((k) => k !== 'sahurlock.settings')).toEqual([]);
+  const { databases } = await leftovers(page);
   expect(databases).not.toContain('sahurlock');
   expect(databases).not.toContain('sahurlock-scans');
   expect((await context.cookies('http://localhost:3200/api/spotify')).map((c) => c.name)).not.toContain('spotify_refresh');
+});
+
+test('a Spotify disconnect that could not reach the server is sent again once the browser is back online', async ({ page, context }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  // As left by a disconnect made offline.
+  await page.evaluate(() => localStorage.setItem('sahurlock.spotify.logout_pending', '1'));
+  await context.setOffline(true);
+  const sent = page.waitForRequest((r) => r.url().endsWith('/api/spotify/logout') && r.method() === 'POST');
+  await context.setOffline(false);
+  await sent;
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('sahurlock.spotify.logout_pending'))).toBeNull();
 });
