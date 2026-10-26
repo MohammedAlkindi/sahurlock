@@ -29,7 +29,7 @@ that shipped it.
       (bc88013)
 - [x] Stop counting uncertain frames as focused time (708dc35)
 - [x] Measure head pose in units that hold at any distance, with fixtures projected from
-      MediaPipe's canonical face model
+      MediaPipe's canonical face model (33f2b52)
 - [ ] Try the head-pose limits in a real webcam session and adjust them if turning or
       nodding is flagged too early or too late (needs a person at a camera)
 - [x] Self-host a pinned MediaPipe build, so no third-party script sees camera frames
@@ -38,13 +38,13 @@ that shipped it.
 - [x] Harden the scheduler: feature-detect `Notification`, split timeouts longer than
       2^31 ms, use an icon that exists, arm new schedules without a reload (c0652ce)
 - [x] Move Spotify login to PKCE so no client secret is needed. The refresh route stays
-      as a secretless proxy, so the client needs no new origin in the security policy
+      as a secretless proxy, so the client needs no new origin in the security policy (0f79b05)
 - [x] Make the README, landing page and settings text match the code (ccdd3f9) (warning
       threshold, recovery time, the "no backend" claim, the iris tracking toggle)
 - [x] Export and "clear everything" cover every key and the IndexedDB video store
       (04d0371)
 - [x] Validate stored data on load instead of casting it, so one malformed key can no
-      longer crash every page
+      longer crash every page (77bc9a2)
 - [ ] Version the storage format, with migrations, when the first stored shape changes
 - [x] Accessibility pass: dialog semantics and focus traps, an alert role on the
       violation overlay, reduced motion, one `<main>`, modifier-free shortcuts made
@@ -53,40 +53,41 @@ that shipped it.
 - [x] Make Tailwind opacity modifiers work on theme colors, so backdrops, dividers and
       selected states render as written (5ffce14)
 - [x] Give form fields a border that meets 3:1 against the page (WCAG 1.4.11). The
-      shared `border-border` is about 1.3:1
-- [x] Show row actions (edit, delete) on touch screens, where there is no hover
+      shared `border-border` is about 1.3:1 (8482724)
+- [x] Show row actions (edit, delete) on touch screens, where there is no hover (b1f07b4)
 - [x] Browser tests for the camera lifecycle (start, hide and show, retry, leave the
       page), the detector, the security policy and the scheduler (6b05d93)
 - [ ] Run the browser tests in CI (a CI change, so it needs the owner's OK)
 - [x] A synthetic-face fixture so browser tests can reach the focused state: MediaPipe's
-      canonical face, posed and projected, stands in for the face mesh model in tests
+      canonical face, posed and projected, stands in for the face mesh model in tests (df7edef)
 - [x] Remove dead code and keep a single default configuration (6ede0dd)
 - [x] Upgrade Next.js to the latest 14.2 release and pin the Node version (b457065)
 - [x] Move to Next.js 15.5.28 (React 19) to clear the advisories 14.2 will not get
-      fixes for. The unused image optimizer stays off
-- [x] Replace `next lint` with the ESLint CLI before Next.js 16, which removes it
-- [x] Upgrade Vitest to 5, clearing the two critical tinypool advisories
+      fixes for. The unused image optimizer stays off (59fb9b0)
+- [x] Replace `next lint` with the ESLint CLI before Next.js 16, which removes it (ed3e6a7)
+- [x] Upgrade Vitest to 5, clearing the two critical tinypool advisories (f5d6d5c)
 - [ ] Upgrade the dev tools that still carry advisories: Tailwind CSS 4 (braces,
       micromatch), and the Next.js ESLint plugin once a release drops its old fast-glob.
       Neither ships to the browser
 - [x] A tool registry (`src/lib/tools.ts`) that drives the sidebar, command palette and
-      breadcrumb, so a new tool is registered in one place
+      breadcrumb, so a new tool is registered in one place (2e5d545)
 - [ ] Move tool code into `tools/` and shared code into `core/` once Scan
       shows where the seams are. Moving files before then is churn without a payoff
 
 ## Phase 2: notes import, no ML yet
 
 - [x] Upload a photo and see it cleaned: page detection, perspective correction,
-      illumination flattening, deskew, ruled-line removal, before and after view
-- [x] Scan several pages and save them as one PDF on A4 or Letter
-- [x] Accept PDF pages too, through pdf.js (its legacy build, for older browsers)
-- [x] Save scans to an on-device library, covered by Clear everything
+      illumination flattening, deskew, ruled-line removal, before and after view (820150c, 43fa787)
+- [x] Scan several pages and save them as one PDF on A4 or Letter (ec65949)
+- [x] Accept PDF pages too, through pdf.js (its legacy build, for older browsers) (5639bb6)
+- [x] Save scans to an on-device library, covered by Clear everything (4ac29f4)
 - [x] Open a saved scan again to rename it, file it under a course, and reorder, add or
-      remove its pages. The list groups scans by course
+      remove its pages. The list groups scans by course (c6d0447)
 - [x] Move a page, with its marked regions, from one saved scan to another. Both scans
-      change in one transaction, and a scan with unsaved changes is saved first
+      change in one transaction, and a page leaves a saved scan only once that scan's
+      changes are saved (4458121)
 - [x] Versioned Document JSON for a converted page: blocks with bounding boxes,
-      content, per-token confidence and alternatives (`src/lib/scan/document.ts`)
+      content, per-token confidence and alternatives (`src/lib/scan/document.ts`, ba04b30)
 - [ ] Layout styles (outline, Cornell, two-column) with print-ready PDF and
       Markdown export
 
@@ -113,17 +114,18 @@ Phases 3 to 7 follow one plan:
 - Correction screen, the labeling tool:
   - [x] Draw a box around a region with a mouse, finger or pen, or place it with
         the keyboard, and mark it as text, heading, math, table, graph or diagram
+        (c9ea33f, d666ca0)
   - [x] Type what a text, heading or math region says, and mark a page as having
-        every region marked
-  - [x] Save the labels with the scan, on the device
-  - [x] Download every labeled page as one dataset file (`src/lib/scan/dataset.ts`)
+        every region marked (8a50f89, c9ea33f)
+  - [x] Save the labels with the scan, on the device (bfdc6eb)
+  - [x] Download every labeled page as one dataset file (`src/lib/scan/dataset.ts`, f9319f4)
   - [ ] Fix a misread word, and keep the model version and confidence beside each
         correction. Needs the first recognizer, and Document v2 to keep a prediction
         next to its correction
 - [ ] Held-out evaluation set with character error rate for text, expression error
       rate for math, and precision and recall for regions
 - [x] Training code under `training/`: check a labels download, and build the region
-      detector's COCO set with a fixed held-out split and a near-duplicate guard
+      detector's COCO set with a fixed held-out split and a near-duplicate guard (bb653b1)
 - [ ] A model card for every published version
 
 ## Phase 4: region detection
