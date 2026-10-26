@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { say, type Spoken } from '@/lib/announce';
+import { type Spoken, waitBeforeShowing } from '@/lib/announce';
 
 /**
  * How long a line stays in an announcer after it reaches the page. Screen
@@ -11,38 +11,69 @@ import { say, type Spoken } from '@/lib/announce';
  */
 export const ANNOUNCE_HOLD_MS = 7000;
 
-/** Drop `line` once it has been on the page for ANNOUNCE_HOLD_MS, unless a newer line replaced it. */
-function useDropLater(line: Spoken | null, set: (update: (line: Spoken | null) => Spoken | null) => void) {
+/** Ids for the lines of both announcers, so no two lines share one. */
+let lastId = 0;
+
+/**
+ * One announcer's line, and a function that says a message on it. A message
+ * becomes a new line, as a new node, so only it is read. It waits until the
+ * line on the page has been there long enough to be read (waitBeforeShowing),
+ * and messages said meanwhile, or in the same update, share the next line.
+ */
+function useAnnouncerLine() {
+  const [line, setLine] = useState<Spoken | null>(null);
+  const waiting = useRef<string[]>([]);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // When the line on the page arrived, on the monotonic clock. 0 for none. Set when a line is
+  // shown, so a message in the next task waits even before React has rendered it, then set
+  // again to the moment React put it on the page.
+  const shownAt = useRef(0);
+  useLayoutEffect(() => { shownAt.current = line ? performance.now() : 0; }, [line]);
+
+  const show = useCallback(() => {
+    timer.current = null;
+    if (waiting.current.length === 0) return;
+    const wait = waitBeforeShowing(shownAt.current, performance.now());
+    if (wait > 0) {
+      timer.current = setTimeout(show, wait);
+      return;
+    }
+    lastId += 1;
+    setLine({ id: lastId, text: waiting.current.join(' ') });
+    waiting.current = [];
+    shownAt.current = performance.now();
+  }, []);
+
+  const say = useCallback((text: string) => {
+    waiting.current.push(text);
+    if (timer.current) return;
+    timer.current = setTimeout(show, waitBeforeShowing(shownAt.current, performance.now()));
+  }, [show]);
+
+  // Drop the line once it has been read, unless a newer one replaced it.
   useEffect(() => {
     if (!line) return;
-    const timer = setTimeout(() => set((now) => (now?.id === line.id ? null : now)), ANNOUNCE_HOLD_MS);
-    return () => clearTimeout(timer);
-  }, [line, set]);
+    const drop = setTimeout(() => setLine((now) => (now?.id === line.id ? null : now)), ANNOUNCE_HOLD_MS);
+    return () => clearTimeout(drop);
+  }, [line]);
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
+
+  return [line, say] as const;
 }
 
 /**
  * The lines for two screen reader announcers, one polite and one assertive,
- * which stay on the page and hold one line each. A message replaces the line
- * as a new node, so only that message is read, never one said before it.
- * Messages said in one update share a line, so each of them is read.
+ * which stay on the page and hold one line each.
  */
 export function useAnnouncer() {
-  const [polite, setPolite] = useState<Spoken | null>(null);
-  const [assertive, setAssertive] = useState<Spoken | null>(null);
-  const nextId = useRef(0);
-  // The ids on the page, noted as soon as React has put a line there.
-  const shown = useRef({ polite: 0, assertive: 0 });
-  useLayoutEffect(() => { shown.current.polite = polite?.id ?? 0; }, [polite]);
-  useLayoutEffect(() => { shown.current.assertive = assertive?.id ?? 0; }, [assertive]);
-  useDropLater(polite, setPolite);
-  useDropLater(assertive, setAssertive);
-
+  const [polite, sayPolitely] = useAnnouncerLine();
+  const [assertive, sayAssertively] = useAnnouncerLine();
   const announce = useCallback((text: string, urgency: 'polite' | 'assertive' = 'polite') => {
-    nextId.current += 1;
-    const id = nextId.current;
-    if (urgency === 'assertive') setAssertive((line) => say(line, text, shown.current.assertive, id));
-    else setPolite((line) => say(line, text, shown.current.polite, id));
-  }, []);
-
+    if (urgency === 'assertive') sayAssertively(text);
+    else sayPolitely(text);
+  }, [sayPolitely, sayAssertively]);
   return { polite, assertive, announce };
 }
