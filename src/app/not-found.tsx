@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SiteFooter } from '@/components/site-footer';
+import { SITE_OPEN_GRAPH } from '@/lib/site';
 import { TOOLS, toolHref } from '@/lib/tools';
 
 export const metadata: Metadata = {
   title: 'Page not found',
+  openGraph: SITE_OPEN_GRAPH,
 };
 
 export default function NotFound() {
