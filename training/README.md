@@ -9,9 +9,18 @@ GPU, never in the app and not in CI. The download's format is described in
 ## Setup
 
 ```bash
-python -m venv .venv
-. .venv/bin/activate
+python -m venv training/.venv
+. training/.venv/bin/activate
 pip install -r training/requirements.txt
+```
+
+On Windows, in Git Bash, the venv keeps its programs in `Scripts` instead of `bin`.
+Ask pip for wheels only, since there is no C compiler to build pycocotools from source:
+
+```bash
+python -m venv training/.venv
+training/.venv/Scripts/python -m pip install --only-binary=:all: -r training/requirements.txt
+training/.venv/Scripts/python training/prepare.py check sahurlock-labels-2026-10-23.zip
 ```
 
 ## Check a download
@@ -30,9 +39,12 @@ any image's hash, size, or region boxes do not add up.
 python training/prepare.py detector sahurlock-labels-2026-10-23.zip out
 ```
 
-- `out/detector/` is a COCO detection set: `annotations/instance_train.json`,
-  `instance_val.json`, `instance_test.json` and `images/<sha256>.jpg`. That is the
-  folder layout PaddleX's COCO detection datasets use.
+- `out/detector/` is the COCO detection set to train on:
+  `annotations/instance_train.json`, `instance_val.json` and `images/<sha256>.jpg`.
+  That is the folder layout PaddleX's COCO detection datasets use.
+- `out/held-out/` holds the test pages the same way (`annotations/instance_test.json`
+  and their images). They sit in a folder of their own so that nothing a training job
+  is given contains a test page.
 - Category ids are the app's kinds in order, starting at 1: text, heading, math,
   table, graph, diagram. Every file lists all six.
 - Only pages marked "Every region on this page is marked" go in, since anything
@@ -51,12 +63,30 @@ python training/prepare.py detector sahurlock-labels-2026-10-23.zip out
   The threshold was set on synthetic pages, so look over the listed matches on
   real ones.
 
+## Score a detector on the held-out pages
+
+```bash
+python training/evaluate.py out/held-out/annotations/instance_test.json predictions.json
+```
+
+`predictions.json` is the model's output on the held-out images as a COCO results
+list: one `{"image_id", "category_id", "bbox": [x, y, width, height], "score"}` per
+box, with the image ids from `instance_test.json`. It prints, for each kind and for
+all of them, the true boxes, true and false positives, precision and recall at an IoU
+of 0.5 among boxes scoring 0.5 or more, and COCO average precision (AP over IoU 0.5 to
+0.95, and AP50) over every box. `--iou`, `--min-score` and `--json` change those, and
+`--split val` scores the val pages while tuning.
+
+It refuses a file that is not that split under `sha256-mod100-v1`, so a training or
+val file cannot be scored as the held-out set by mistake, and predictions on images
+the file does not have.
+
 ## Training notes
 
 - Fine-tune, never train from scratch. For regions, start from PP-DocLayout-S or
   -M (Apache-2.0) through PaddleX, with `out/detector` as the dataset folder.
-- Keep `instance_test.json` out of training entirely. Evaluate on it in a separate
-  step, never as the validation file, and ship a model only when it beats the
+- Never give a training job `out/held-out`. Score on it in a separate step with
+  `evaluate.py`, never as the validation set, and ship a model only when it beats the
   current one there.
 - Do not use the `ultralytics` or DocLayout-YOLO packages: their code is AGPL-3.0.
 - Handwriting models fine-tuned on IAM are for non-commercial research only.
@@ -75,5 +105,5 @@ pip install -r training/requirements-dev.txt
 python -m pytest training/tests
 ```
 
-They build downloads with Python's own `zipfile` in the app's layout, and load the
-COCO files with pycocotools.
+They build downloads with Python's own `zipfile` in the app's layout, load the COCO
+files with pycocotools, and score synthetic predictions with `evaluate.py`.

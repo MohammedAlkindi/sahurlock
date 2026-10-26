@@ -205,15 +205,15 @@ def test_detector_set_is_valid_coco_with_no_held_out_page_in_training(tmp_path, 
     from pycocotools.cocoeval import COCOeval
 
     seen = {}
-    for name in ("train", "val", "test"):
-        path = out / "detector" / "annotations" / f"instance_{name}.json"
+    for name, folder in (("train", "detector"), ("val", "detector"), ("test", "held-out")):
+        path = out / folder / "annotations" / f"instance_{name}.json"
         data = json.loads(path.read_text())
         assert [c["id"] for c in data["categories"]] == [1, 2, 3, 4, 5, 6]
         for a in data["annotations"]:
             assert a["area"] == a["bbox"][2] * a["bbox"][3] and a["iscrowd"] == 0
         seen[name] = {i["sha256"] for i in data["images"]}
         for sha in seen[name]:
-            assert (out / "detector" / "images" / f"{sha}.jpg").exists()
+            assert (out / folder / "images" / f"{sha}.jpg").exists()
         if data["annotations"]:
             gt = COCO(str(path))
             dt = gt.loadRes([{**a, "score": 1.0} for a in data["annotations"]])
@@ -223,3 +223,7 @@ def test_detector_set_is_valid_coco_with_no_held_out_page_in_training(tmp_path, 
     assert not (seen["test"] | seen["val"]) & seen["train"]
     assert shas[6] not in seen["train"]
     assert hashlib.sha256(empty).hexdigest() in seen["train"]
+    # Nothing a training job is given holds a test page.
+    assert sorted(p.name for p in (out / "detector" / "annotations").iterdir()) == ["instance_train.json", "instance_val.json"]
+    assert sorted(p.name for p in (out / "detector" / "images").iterdir()) == sorted(f"{s}.jpg" for s in seen["train"] | seen["val"])
+    assert sorted(p.name for p in (out / "held-out" / "images").iterdir()) == [f"{shas[0]}.jpg"]

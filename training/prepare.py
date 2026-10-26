@@ -243,16 +243,19 @@ def build_detector(path: Path, out: Path) -> dict:
     for match in dropped:
         del splits[match["train"]]
 
-    (out / "detector" / "annotations").mkdir(parents=True, exist_ok=True)
-    (out / "detector" / "images").mkdir(parents=True, exist_ok=True)
+    # The test pages get a folder of their own, so a training job given out/detector never sees them.
+    folders = {"train": out / "detector", "val": out / "detector", "test": out / "held-out"}
+    for folder in (out / "detector", out / "held-out"):
+        (folder / "annotations").mkdir(parents=True, exist_ok=True)
+        (folder / "images").mkdir(parents=True, exist_ok=True)
     for page in complete:
         if page.sha256 in splits:
-            (out / "detector" / "images" / f"{page.sha256}.jpg").write_bytes(images[page.sha256])
+            (folders[splits[page.sha256]] / "images" / f"{page.sha256}.jpg").write_bytes(images[page.sha256])
     counts = {}
-    for split in ("train", "val", "test"):
+    for split, folder in folders.items():
         chosen = [p for p in complete if splits.get(p.sha256) == split]
         counts[split] = len(chosen)
-        (out / "detector" / "annotations" / f"instance_{split}.json").write_text(json.dumps(coco(chosen), indent=1) + "\n")
+        (folder / "annotations" / f"instance_{split}.json").write_text(json.dumps(coco(chosen), indent=1) + "\n")
     (out / "split.json").write_text(json.dumps({"rule": SPLIT_RULE, "pages": dict(sorted(splits.items()))}, indent=1) + "\n")
     return {"pages": len(pages), "complete": len(complete), "dropped_near_duplicates": dropped, "splits": counts}
 
