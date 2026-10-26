@@ -412,12 +412,17 @@ export default function ScanPage() {
   };
 
   const removeSaved = async (scan: SavedScan) => {
+    // Said by the announcer, a new line each time, so a delete that fails again is read again.
+    const failed = () => {
+      announce(`${scan.title} could not be deleted. Try again.`, 'assertive');
+      return null;
+    };
     const idb = scanStore();
-    if (!idb) return null;
+    if (!idb) return failed();
     try {
       await deleteScan(idb, scan.id);
     } catch {
-      return null;
+      return failed();
     }
     if (savedAs?.id === scan.id) {
       setSavedAs(null);

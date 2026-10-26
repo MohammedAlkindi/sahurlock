@@ -1237,6 +1237,30 @@ test('the same news said twice is read twice, from a new line', async ({ page })
   await expect(line).toHaveCount(1);
 });
 
+test('a delete that fails again is announced again', async ({ page }) => {
+  await page.goto('/settings', { waitUntil: 'networkidle' });
+  await seedScans(page, 2, [lecture, lab]);
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  const saved = page.getByRole('region', { name: 'Saved scans' });
+  await expect(saved.getByRole('button', { name: 'Open Lecture 4' })).toBeVisible();
+  // Storage refuses every delete from here on.
+  await page.evaluate(() => {
+    IDBObjectStore.prototype.delete = function () { throw new DOMException('Deletes are failing in this test.', 'UnknownError'); };
+  });
+  await saved.getByRole('button', { name: 'Delete Lecture 4' }).click();
+  const confirm = saved.getByRole('group', { name: 'Delete Lecture 4?' });
+  const text = 'Lecture 4 could not be deleted. Try again.';
+  const line = page.locator('#announce-assertive p');
+  await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(line).toHaveText(text);
+  await line.evaluate((p) => { p.setAttribute('data-test-line', 'first'); });
+  // The confirm stays open, so the user tries again, and hears that this one failed too.
+  await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.locator('#announce-assertive p:not([data-test-line])')).toHaveText(text);
+  await expect(saved.getByText('This scan could not be deleted. Try again.')).toBeVisible();
+  expect(await liveRegionsHolding(page, 'could not be deleted')).toEqual(['announce-assertive']);
+});
+
 test('a move alert goes once the pages it is about are gone', async ({ page }) => {
   await page.goto('/settings', { waitUntil: 'networkidle' });
   await seedScans(page, 2, [lecture, lab]);
