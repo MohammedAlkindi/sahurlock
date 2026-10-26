@@ -54,9 +54,11 @@ test('export includes notes and flashcards but not the Spotify token', async ({ 
   expect(text).not.toContain('secret-token');
 });
 
-test('Clear everything leaves nothing behind', async ({ page }) => {
+test('Clear everything leaves nothing behind', async ({ page, context }) => {
   await page.goto('/settings');
   await seedEverything(page);
+  // The Spotify login's refresh token, in the httpOnly cookie the callback sets.
+  await context.addCookies([{ name: 'spotify_refresh', value: 'rt', domain: 'localhost', path: '/api/spotify', httpOnly: true, sameSite: 'Strict' }]);
   await page.getByRole('button', { name: 'Data', exact: true }).first().click();
   await page.getByRole('button', { name: /^clear$/i }).click();
   await Promise.all([
@@ -68,4 +70,5 @@ test('Clear everything leaves nothing behind', async ({ page }) => {
   expect(keys.filter((k) => k !== 'sahurlock.settings')).toEqual([]);
   expect(databases).not.toContain('sahurlock');
   expect(databases).not.toContain('sahurlock-scans');
+  expect((await context.cookies('http://localhost:3200/api/spotify')).map((c) => c.name)).not.toContain('spotify_refresh');
 });
