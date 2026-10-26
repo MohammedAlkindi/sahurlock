@@ -1,11 +1,10 @@
-import type { Metadata } from 'next';
 import { DocumentPage } from '@/components/document-page';
+import { metadataFor } from '@/lib/site';
 
-export const metadata: Metadata = {
+export const metadata = metadataFor('/privacy', {
   title: 'Privacy',
   description: 'What SahurLock keeps on your device, what reaches a server, and the cookies it sets.',
-  alternates: { canonical: '/privacy' },
-};
+});
 
 export default function PrivacyPage() {
   return (

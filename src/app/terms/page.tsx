@@ -1,12 +1,11 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { DocumentPage } from '@/components/document-page';
+import { metadataFor } from '@/lib/site';
 
-export const metadata: Metadata = {
+export const metadata = metadataFor('/terms', {
   title: 'Terms',
   description: 'The terms for using SahurLock: free, open source, provided as is, and your content stays yours.',
-  alternates: { canonical: '/terms' },
-};
+});
 
 export default function TermsPage() {
   return (

@@ -1,5 +1,26 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SiteFooter } from '@/components/site-footer';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_OPEN_GRAPH, SITE_URL } from '@/lib/site';
+
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+  openGraph: { ...SITE_OPEN_GRAPH, url: '/' },
+};
+
+// What search engines read about the app: free, in the browser, by its author.
+const STRUCTURED_DATA = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: SITE_NAME,
+  url: SITE_URL,
+  description: SITE_DESCRIPTION,
+  applicationCategory: 'EducationalApplication',
+  operatingSystem: 'Any, in a web browser',
+  isAccessibleForFree: true,
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  author: { '@type': 'Person', name: 'Mohammed Alkindi', url: 'https://github.com/MohammedAlkindi' },
+};
 
 const FEATURES = [
   { index: '01', title: 'Face tracking',  description: 'MediaPipe runs in your browser. Camera frames are never uploaded.' },
@@ -87,6 +108,11 @@ export default function LandingPage() {
       </section>
 
       <SiteFooter />
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA).replace(/</g, '\\u003c') }}
+      />
 
     </main>
   );
