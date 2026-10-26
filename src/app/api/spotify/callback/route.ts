@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { REFRESH_COOKIE, refreshCookie } from '@/lib/spotify-server';
+import { REFRESH_COOKIE, refreshCookie, redirectUri as spotifyRedirectUri } from '@/lib/spotify-server';
 
 const TOKEN_URL = 'https://accounts.spotify.com/api/token';
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   // ── Exchange code for tokens ──────────────────────────────────────────────
   // PKCE: the verifier stands in for a client secret, so none is configured.
   const clientId    = process.env.SPOTIFY_CLIENT_ID;
-  const redirectUri = process.env.SPOTIFY_REDIRECT_URI ?? `${origin}/api/spotify/callback`;
+  const redirectUri = spotifyRedirectUri(request);
 
   if (!clientId) {
     return redirectToSession(origin, null, 'server_misconfigured');
