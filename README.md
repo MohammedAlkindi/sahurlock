@@ -40,7 +40,7 @@ Recognising handwriting, math and diagrams, with models that run on the device, 
 ## Install
 
 ```bash
-npm install
+npm ci
 ```
 
 ## Run locally
