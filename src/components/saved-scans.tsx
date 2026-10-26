@@ -142,8 +142,9 @@ export function SavedScans({ scans, exporting, busy, paper, openNeedsConfirm, on
           </button>
         </div>
       )}
+      {/* Plain text: the Scan page's announcer reads each failure, so a second one is read too. */}
       {failedDelete === scan.id && (
-        <p role="alert" className="w-full text-xs text-danger">This scan could not be deleted. Try again.</p>
+        <p className="w-full text-xs text-danger">This scan could not be deleted. Try again.</p>
       )}
     </li>
   );
