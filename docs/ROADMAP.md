@@ -126,8 +126,11 @@ Phases 3 to 7 follow one plan:
   - [ ] Fix a misread word, and keep the model version and confidence beside each
         correction. Needs the first recognizer, and Document v2 to keep a prediction
         next to its correction
-- [ ] Held-out evaluation set with character error rate for text, expression error
-      rate for math, and precision and recall for regions
+- [x] Held-out evaluation for the region detector: precision and recall per kind, and
+      COCO average precision, from `training/evaluate.py` on pages no training job sees
+      (887eec2)
+- [ ] Character error rate for text and expression error rate for math on the
+      held-out pages. Needs the first recognizer
 - [x] Training code under `training/`: check a labels download, and build the region
       detector's COCO set with a fixed held-out split and a near-duplicate guard (bb653b1)
 - [ ] A model card for every published version
