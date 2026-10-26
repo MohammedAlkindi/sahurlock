@@ -5,11 +5,17 @@ export interface Spoken {
 }
 
 /**
- * The announcer's line once `text` is said. A line that has not reached the
- * page yet (its id is above `shown`, the id on the page) takes the new text on
- * the end, so two messages made in one update are both read. Otherwise the new
- * text gets a line of its own, numbered `id`.
+ * How long a line stays on the page before a newer message may replace it.
+ * Chrome passes live region changes to screen readers in batches about 150 ms
+ * apart, so a line replaced sooner can be skipped. Half a second leaves room.
  */
-export function say(line: Spoken | null, text: string, shown: number, id: number): Spoken {
-  return line && line.id > shown ? { id: line.id, text: `${line.text} ${text}` } : { id, text };
-}
+export const ANNOUNCE_MIN_MS = 500;
+
+/**
+ * How long a new message waits before it replaces the line on the page, given
+ * when that line arrived (0 for no line). Messages that arrive while it waits
+ * join it, so each is read once, in order. Never longer than `min`, even if the
+ * clock went back.
+ */
+export const waitBeforeShowing = (shownAt: number, now: number, min = ANNOUNCE_MIN_MS) =>
+  shownAt ? Math.min(min, Math.max(0, min - (now - shownAt))) : 0;

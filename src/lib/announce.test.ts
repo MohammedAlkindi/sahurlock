@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { say } from './announce';
+import { ANNOUNCE_MIN_MS, waitBeforeShowing } from './announce';
 
-describe('say', () => {
-  it('starts a line when the announcer is empty', () => {
-    expect(say(null, 'Saved.', 0, 1)).toEqual({ id: 1, text: 'Saved.' });
+describe('waitBeforeShowing', () => {
+  it('shows a message at once when no line is on the page', () => {
+    expect(waitBeforeShowing(0, 10_000)).toBe(0);
   });
 
-  it('gives a message its own line once the last one is on the page', () => {
-    expect(say({ id: 1, text: 'Saved.' }, 'Saved.', 1, 2)).toEqual({ id: 2, text: 'Saved.' });
+  it('holds a message until the line on the page has been there long enough', () => {
+    expect(waitBeforeShowing(10_000, 10_100)).toBe(ANNOUNCE_MIN_MS - 100);
+    expect(waitBeforeShowing(10_000, 10_000)).toBe(ANNOUNCE_MIN_MS);
   });
 
-  it('adds a message to a line that has not reached the page yet', () => {
-    expect(say({ id: 3, text: 'Opened Lab 2.' }, 'Its regions could not be read.', 2, 4))
-      .toEqual({ id: 3, text: 'Opened Lab 2. Its regions could not be read.' });
+  it('never holds a message longer than the minimum, even if the clock went back', () => {
+    expect(waitBeforeShowing(10_000, 9_000)).toBe(ANNOUNCE_MIN_MS);
+  });
+
+  it('shows a message at once when the line has been there long enough', () => {
+    expect(waitBeforeShowing(10_000, 10_000 + ANNOUNCE_MIN_MS)).toBe(0);
+    expect(waitBeforeShowing(10_000, 20_000)).toBe(0);
   });
 });

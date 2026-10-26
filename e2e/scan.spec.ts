@@ -920,10 +920,11 @@ test('a PDF still being read keeps Open asking first after a move', async ({ pag
   const saved = page.getByRole('region', { name: 'Saved scans' });
   await saved.getByRole('button', { name: 'Open Lecture 4' }).click();
 
-  // Six pages at full size take a few seconds to read.
-  const photos = [];
+  // Twelve pages at full size take several seconds to read, which outlasts the move and its
+  // announcement (held until the "Opened" line before it has been read).
+  const photos: Uint8Array[] = [];
   for (let i = 0; i < 6; i++) photos.push(new Uint8Array(await notebookPhoto(page, i % 2 === 1)));
-  await page.getByLabel('Add page').setInputFiles({ name: 'big.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf(photos)) });
+  await page.getByLabel('Add page').setInputFiles({ name: 'big.pdf', mimeType: 'application/pdf', buffer: Buffer.from(buildPdf([...photos, ...photos])) });
   const reading = page.getByRole('status').filter({ hasText: 'Reading big.pdf' });
   await expect(reading).toBeVisible();
 
@@ -1201,6 +1202,36 @@ test('each Scan message is announced from one live region, which holds only that
     expect(await page.locator(id).getAttribute('role')).toBeNull();
     expect(await page.locator(id).getAttribute('aria-live')).toBeNull();
   }
+});
+
+test('a message that follows quickly waits until the one before it has been read', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  // Every line the assertive announcer shows, with when it arrived.
+  await page.evaluate(() => {
+    const lines: { text: string; at: number }[] = [];
+    (window as unknown as { __lines: typeof lines }).__lines = lines;
+    const region = document.getElementById('announce-assertive')!;
+    new MutationObserver(() => {
+      const line = region.querySelector('p');
+      if (line && lines.at(-1)?.text !== line.textContent) lines.push({ text: line.textContent ?? '', at: performance.now() });
+    }).observe(region, { childList: true, subtree: true, characterData: true });
+  });
+  // pdf.js is loaded by then, so the second file fails a few milliseconds after the first.
+  await page.getByLabel('Choose photos or a PDF').setInputFiles([
+    { name: 'one.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') },
+    { name: 'two.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a pdf') },
+  ]);
+  await expect(errorLines(page).getByText('two.pdf could not be read as a PDF')).toBeVisible();
+  const read = () => page.evaluate(() => (window as unknown as { __lines: { text: string; at: number }[] }).__lines);
+  await expect.poll(async () => (await read()).map((l) => l.text).join(' ')).toContain('two.pdf could not be read as a PDF');
+  const lines = await read();
+  const all = lines.map((l) => l.text).join(' ');
+  // Both are said, the first before the second.
+  expect(all.indexOf('one.pdf could not be read')).toBeGreaterThanOrEqual(0);
+  expect(all.indexOf('one.pdf could not be read')).toBeLessThan(all.indexOf('two.pdf could not be read'));
+  // Two lines, the first not replaced before Chrome had passed it on: it stayed at least half a second.
+  expect(lines).toHaveLength(2);
+  for (let i = 1; i < lines.length; i++) expect(lines[i].at - lines[i - 1].at).toBeGreaterThanOrEqual(480);
 });
 
 test('the same error said twice is read twice, from a new line', async ({ page }) => {
