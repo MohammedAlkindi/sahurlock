@@ -3,10 +3,25 @@
 import { Sidebar } from '@/components/layout/sidebar';
 import { Breadcrumb } from '@/components/layout/breadcrumb';
 import { CommandPalette } from '@/components/layout/command-palette';
+import { useEffect } from 'react';
 import { useScheduler } from '@/hooks/use-scheduler';
+import { finishPendingLogout } from '@/lib/spotify-logout';
 
 function SchedulerMount() {
   useScheduler();
+  return null;
+}
+
+/**
+ * Finishes a Spotify disconnect that did not reach the server: on whichever
+ * page loads next, and when the browser comes back online.
+ */
+function SpotifyLogoutRetry() {
+  useEffect(() => {
+    finishPendingLogout();
+    window.addEventListener('online', finishPendingLogout);
+    return () => window.removeEventListener('online', finishPendingLogout);
+  }, []);
   return null;
 }
 
@@ -29,6 +44,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
       <CommandPalette />
       <SchedulerMount />
+      <SpotifyLogoutRetry />
     </div>
   );
 }

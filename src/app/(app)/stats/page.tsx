@@ -513,7 +513,8 @@ export default function StatsPage() {
   }));
 
   const handleDelete = (id: string) => { deleteSessionById(id); reload(); };
-  const handleClearAll = () => { clearAllData(); setConfirming(false); reload(); };
+  // Reloads, as Settings does, so nothing held in memory, such as a Spotify player, outlives the data.
+  const handleClearAll = async () => { await clearAllData(); window.location.reload(); };
 
   const handleExport = () => {
     const data = { exportedAt: new Date().toISOString(), aggregate: agg, sessions: history, tasks };
