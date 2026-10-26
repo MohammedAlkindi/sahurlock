@@ -19,6 +19,23 @@ test('no route breaks the Content Security Policy', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('every link on every route leads to a page', async ({ page }) => {
+  const links = new Set<string>();
+  for (const route of [...ROUTES, '/spotify/callback']) {
+    await page.goto(route, { waitUntil: 'load' });
+    for (const href of await page.locator('a[href]').evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href))) {
+      const url = new URL(href);
+      if (url.origin === new URL(page.url()).origin && !url.pathname.startsWith('/api/')) links.add(url.pathname);
+    }
+  }
+  const broken: string[] = [];
+  for (const path of links) {
+    const response = await page.request.get(path);
+    if (response.status() !== 200) broken.push(`${path} ${response.status()}`);
+  }
+  expect(broken).toEqual([]);
+});
+
 test('the face detector loads from the app itself and runs under the policy', async ({ page }) => {
   const origins = new Set<string>();
   page.on('request', (request) => origins.add(new URL(request.url()).origin));

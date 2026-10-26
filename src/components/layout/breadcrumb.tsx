@@ -16,7 +16,8 @@ export function Breadcrumb() {
   const crumbs = segments.map((seg, i) => ({
     label: LABELS[seg] ?? seg.charAt(0).toUpperCase() + seg.slice(1),
     href: '/' + segments.slice(0, i + 1).join('/'),
-    isLast: i === segments.length - 1,
+    // A segment links only when it is a tool, which has a page. /spotify, for one, does not.
+    linked: i < segments.length - 1 && seg in LABELS,
   }));
 
   return (
@@ -25,9 +26,9 @@ export function Breadcrumb() {
       {crumbs.map((crumb) => (
         <span key={crumb.href} className="flex items-center gap-1">
           <ChevronRight size={12} className="text-border" />
-          {crumb.isLast
-            ? <span className="text-foreground">{crumb.label}</span>
-            : <Link href={crumb.href} className="hover:text-foreground transition-colors">{crumb.label}</Link>
+          {crumb.linked
+            ? <Link href={crumb.href} className="hover:text-foreground transition-colors">{crumb.label}</Link>
+            : <span className="text-foreground">{crumb.label}</span>
           }
         </span>
       ))}
