@@ -103,7 +103,20 @@ export default function ScanPage() {
    */
   const [importNotes, setImportNotes] = useState<ScanNotice[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const { polite, assertive, announce } = useAnnouncer();
+  const { polite, assertive, announce, retract } = useAnnouncer();
+  // Counts of the times the page took back what it reported: the import notes, the notice or the
+  // move error. An announcement about one checks its count when its turn comes, and is dropped if
+  // the count moved on, and retract takes it off the announcer if it is already there.
+  const withdrawals = useRef({ notes: 0, notice: 0, move: 0 });
+  const withdraw = (what: keyof typeof withdrawals.current) => {
+    withdrawals.current[what] += 1;
+    retract();
+  };
+  /** A check that what the page reports about `what` is still the report made now. */
+  const stillShown = (what: keyof typeof withdrawals.current) => {
+    const at = withdrawals.current[what];
+    return () => withdrawals.current[what] === at;
+  };
   /** The page the region editor opened on, while it is open. */
   const [markingFrom, setMarkingFrom] = useState<string | null>(null);
   /** What is waiting for a yes before marked regions are thrown away. */
@@ -171,7 +184,9 @@ export default function ScanPage() {
     const files = Array.from(list ?? []);
     const set = pageSet.current;
     // Old results go. A PDF still being read by an earlier pick keeps its line, which comes from `reading`.
+    withdraw('notice');
     setNotice(null);
+    withdraw('notes');
     setImportNotes([]);
     for (const file of files) {
       if (pageSet.current !== set) return;
@@ -185,13 +200,14 @@ export default function ScanPage() {
         if (skipped > 0) {
           const text = `${file.name} has more than ${MAX_PDF_PAGES} pages, so only the first ${MAX_PDF_PAGES} were added.`;
           setImportNotes((n) => [...n, { kind: 'info', text }]);
-          announce(text);
+          announce(text, 'polite', stillShown('notes'));
         }
       } catch {
         if (pageSet.current === set) {
           const text = `${file.name} could not be read as a PDF. If it has a password, export it again without one.`;
           setImportNotes((n) => [...n, { kind: 'error', text }]);
-          announce(text, 'assertive');
+          // Dropped if a new pick, Open or Start over clears it before it is said.
+          announce(text, 'assertive', stillShown('notes'));
         }
       } finally {
         setReading((r) => endRead(r, set, file.name));
@@ -232,24 +248,28 @@ export default function ScanPage() {
     setSavedAs(null);
     setSaveError(null);
     // A move error is about pages that are no longer here.
+    withdraw('move');
     setMoveError(null);
   };
 
   const startOver = () => {
     pageSet.current += 1;
     setReading({ set: pageSet.current, names: [] });
+    withdraw('notes');
     setImportNotes([]);
     pages.forEach(release);
     setPages([]);
     setSelectedId(null);
+    withdraw('notice');
     setNotice(null);
     forgetSavedScan();
   };
 
   /** Show a notice at the top of the page, and have an announcer read it. */
   const showNotice = (next: ScanNotice) => {
+    withdraw('notice');
     setNotice(next);
-    announce(next.text, urgencyOf(next));
+    announce(next.text, urgencyOf(next), stillShown('notice'));
   };
 
   const today = localDate();
@@ -367,6 +387,7 @@ export default function ScanPage() {
         setTitle(name);
         setSavedAs({ id, key, savedAt });
         // A move error about these pages, such as their scan being deleted elsewhere, no longer applies.
+        withdraw('move');
         setMoveError(null);
       }
       announce(replacing ? `Saved the changes to ${name}.` : `Saved ${name} to this device.`);
@@ -388,7 +409,9 @@ export default function ScanPage() {
   const openSaved = (scan: SavedScan) => {
     pageSet.current += 1;
     setReading({ set: pageSet.current, names: [] });
+    withdraw('notes');
     setImportNotes([]);
+    withdraw('move');
     setMoveError(null);
     editing.current += 1;
     pages.forEach(release);
@@ -400,6 +423,7 @@ export default function ScanPage() {
     }));
     setPages(opened);
     setSelectedId(opened[0].id);
+    withdraw('notice');
     setNotice(null);
     setSaveError(null);
     setTitle(scan.title);
@@ -427,6 +451,7 @@ export default function ScanPage() {
     if (savedAs?.id === scan.id) {
       setSavedAs(null);
       // Its advice, such as opening this scan again, no longer applies.
+      withdraw('move');
       setMoveError(null);
     }
     announce(`Deleted ${scan.title}.`);
@@ -492,6 +517,7 @@ export default function ScanPage() {
     const scan = editing.current;
     const set = pageSet.current;
     // Cleared first, so an old error does not sit beside this result.
+    withdraw('move');
     flushSync(() => setMoveError(null));
     setMoving(true);
     try {
@@ -533,8 +559,11 @@ export default function ScanPage() {
         if (stored) setLibrary(stored);
         // These pages are now saved nowhere, so they show as unsaved: Save offers a new copy, and Open and Start over ask first.
         if (refused === 'source-gone' && here) setSavedAs((link) => (link?.id === sourceId ? null : link));
+        withdraw('move');
         setMoveError(why);
-        announce(why, 'assertive');
+        // Said only while it is still on screen: Open, Start over, saving, deleting or the next move can
+        // withdraw it first.
+        announce(why, 'assertive', stillShown('move'));
       }, () => (here ? pageButtons.current.get(pageId) ?? pageHeading.current : pageHeading.current));
     } finally {
       setMoving(false);
