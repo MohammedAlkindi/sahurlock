@@ -56,6 +56,7 @@ function CallbackInner() {
   return (
     <div className="flex h-full items-center justify-center px-4">
       <div className="w-full max-w-xs">
+        <h1 className="sr-only">Connecting Spotify</h1>
 
         {status === 'loading' && (
           <div className="flex items-center gap-3 text-muted-foreground">
