@@ -27,9 +27,9 @@ function SpotifyLogoutRetry() {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top bar */}
         <header className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-card/50 px-4 backdrop-blur-sm">
           <Breadcrumb />

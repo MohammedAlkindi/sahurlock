@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { PanelLeftClose, PanelLeftOpen, Sun, Moon, Settings2 } from 'lucide-react';
+import { Menu, X, PanelLeftClose, PanelLeftOpen, Sun, Moon, Settings2 } from 'lucide-react';
 import { TOOLS, toolHref } from '@/lib/tools';
 
 function SahurLockMark({ size = 18 }: { size?: number }) {
@@ -30,6 +30,7 @@ export function Sidebar() {
   const { theme, setTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [mounted,   setMounted]   = useState(false);
+  const mobileMenu = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -49,13 +50,8 @@ export function Sidebar() {
 
   const settingsActive = pathname.startsWith('/settings');
 
-  return (
-    <aside
-      className={cn(
-        'flex h-full flex-col border-r border-border bg-card transition-all duration-200',
-        collapsed ? 'w-14' : 'w-52'
-      )}
-    >
+  const contents = (collapsed: boolean) => (
+    <>
       {/* Logo */}
       <div className={cn(
         'flex items-center border-b border-border py-4',
@@ -77,6 +73,8 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
+              onClick={() => mobileMenu.current?.close()}
+              aria-label={label}
               title={collapsed ? label : undefined}
               aria-current={active ? 'page' : undefined}
               className={cn(
@@ -99,6 +97,8 @@ export function Sidebar() {
         {/* Settings */}
         <Link
           href="/settings"
+          onClick={() => mobileMenu.current?.close()}
+          aria-label="Settings"
           title={collapsed ? 'Settings' : undefined}
           aria-current={settingsActive ? 'page' : undefined}
           className={cn(
@@ -118,6 +118,7 @@ export function Sidebar() {
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+            aria-label={theme === 'dark' ? 'Light mode' : 'Dark mode'}
             className={cn(
               'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted hover:text-foreground',
               collapsed && 'justify-center'
@@ -134,9 +135,10 @@ export function Sidebar() {
         {/* Collapse toggle */}
         <button
           onClick={toggle}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           className={cn(
-            'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+            'hidden w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:flex',
             collapsed && 'justify-center'
           )}
         >
@@ -146,6 +148,33 @@ export function Sidebar() {
           }
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-4 md:hidden">
+        <Link href="/" className="font-black">SahurLock</Link>
+        <button type="button" aria-label="Open navigation" aria-haspopup="dialog"
+          onClick={() => mobileMenu.current?.showModal()}
+          className="rounded-lg p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+          <Menu size={22} aria-hidden="true" />
+        </button>
+      </div>
+      <aside className={cn('hidden h-full shrink-0 flex-col border-r border-border bg-card md:flex', collapsed ? 'w-14' : 'w-52')}>
+        {contents(collapsed)}
+      </aside>
+      <dialog ref={mobileMenu} aria-label="Navigation"
+        className="m-0 h-dvh max-h-none w-72 max-w-[90vw] border-r border-border bg-card p-0 text-foreground backdrop:bg-black/40"
+        onClick={(event) => { if (event.target === event.currentTarget) mobileMenu.current?.close(); }}>
+        <div className="flex h-full flex-col">
+          <button type="button" aria-label="Close navigation" onClick={() => mobileMenu.current?.close()}
+            className="absolute right-2 top-2 rounded-lg p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+            <X size={20} aria-hidden="true" />
+          </button>
+          {contents(false)}
+        </div>
+      </dialog>
+    </>
   );
 }
