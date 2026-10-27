@@ -56,7 +56,7 @@ export function ScoreBreakdownPanel({ breakdown, showHeader = true }: Props) {
         })}
       </div>
 
-      <div className="mt-3 border-t border-border pt-2.5 flex items-center justify-between text-xs">
+      <div className="border-t border-border pt-2.5 flex items-center justify-between text-xs">
         <span className="text-muted-foreground">Total</span>
         <span className="font-bold tabular-nums text-foreground">{breakdown.total} / 100</span>
       </div>

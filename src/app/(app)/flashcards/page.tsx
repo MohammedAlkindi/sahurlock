@@ -17,9 +17,9 @@ import {
 // ── Difficulty selector ────────────────────────────────────────────────────────
 
 const DIFF_OPTIONS: { value: CardDifficulty; label: string; color: string }[] = [
-  { value: 1, label: 'Easy',   color: 'border-success/50  text-success  data-[active]:bg-success/15'  },
-  { value: 2, label: 'Medium', color: 'border-warning/50 text-warning data-[active]:bg-warning/15' },
-  { value: 3, label: 'Hard',   color: 'border-danger/50    text-danger    data-[active]:bg-danger/15'    },
+  { value: 1, label: 'Easy',   color: 'border-success/50  text-success  data-active:bg-success/15'  },
+  { value: 2, label: 'Medium', color: 'border-warning/50 text-warning data-active:bg-warning/15' },
+  { value: 3, label: 'Hard',   color: 'border-danger/50    text-danger    data-active:bg-danger/15'    },
 ];
 
 function DifficultyPicker({
@@ -81,14 +81,14 @@ function CardForm({ initial, onSave, onCancel }: CardFormProps) {
         onChange={(e) => setFront(e.target.value)}
         placeholder="Front — question or term"
         rows={2}
-        className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-ring"
+        className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-hidden focus:ring-1 focus:ring-ring"
       />
       <textarea
         value={back}
         onChange={(e) => setBack(e.target.value)}
         placeholder="Back — answer or definition"
         rows={2}
-        className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-ring"
+        className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-hidden focus:ring-1 focus:ring-ring"
       />
       <div className="flex items-center justify-between">
         <DifficultyPicker value={diff} onChange={setDiff} />
@@ -166,14 +166,14 @@ function CardRow({
           <button
             onClick={() => setEditing(true)}
             aria-label="Edit card"
-            className="rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            className="rounded-sm p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
           >
             <Pencil size={13} />
           </button>
           <button
             onClick={() => onDelete(card.id)}
             aria-label="Delete card"
-            className="rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-danger"
+            className="rounded-sm p-1.5 text-muted-foreground transition hover:bg-muted hover:text-danger"
           >
             <Trash2 size={13} />
           </button>
@@ -181,11 +181,11 @@ function CardRow({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px]">
-        <span className={cn('rounded px-1.5 py-0.5 font-medium', DIFF_BADGE[card.difficulty])}>
+        <span className={cn('rounded-sm px-1.5 py-0.5 font-medium', DIFF_BADGE[card.difficulty])}>
           {DIFF_LABEL[card.difficulty]}
         </span>
         {isDue ? (
-          <span className="rounded bg-warning/10 px-1.5 py-0.5 font-medium text-warning">Due</span>
+          <span className="rounded-sm bg-warning/10 px-1.5 py-0.5 font-medium text-warning">Due</span>
         ) : (
           <span className="text-muted-foreground">
             Next {new Date(card.nextReview + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
@@ -197,7 +197,7 @@ function CardRow({
           </span>
         )}
         {card.interval >= 21 && (
-          <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">Mastered</span>
+          <span className="rounded-sm bg-muted px-1.5 py-0.5 text-muted-foreground">Mastered</span>
         )}
       </div>
     </div>

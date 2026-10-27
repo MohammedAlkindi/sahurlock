@@ -50,7 +50,7 @@ function StreakBanner({ agg }: { agg: AggregateStats }) {
   const bannerClass = streak === 0
     ? 'border-border bg-card'
     : doneToday
-      ? 'border-warning/30 bg-gradient-to-r from-orange-50/60 to-amber-50/40 dark:from-orange-950/20 dark:to-amber-950/10'
+      ? 'border-warning/30 bg-linear-to-r from-orange-50/60 to-amber-50/40 dark:from-orange-950/20 dark:to-amber-950/10'
       : 'border-warning/30 bg-warning/10';
 
   return (
@@ -111,7 +111,7 @@ function StreakBanner({ agg }: { agg: AggregateStats }) {
               title={`${m}-day milestone`}
               className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition ${
                 active
-                  ? 'bg-orange-700 text-white shadow-sm'
+                  ? 'bg-orange-700 text-white shadow-xs'
                   : achieved
                     ? 'bg-warning/20 text-warning'
                     : 'bg-muted/50 text-muted-foreground'
@@ -421,9 +421,9 @@ function FocusHeatmap({ history }: { history: SessionHistoryItem[] }) {
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground">Focus history</h2>
         <div className="flex gap-3 text-[10px] text-muted-foreground">
-          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-green-500" />80+</span>
-          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-yellow-500" />60–79</span>
-          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-red-500" />&lt;60</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-xs bg-green-500" />80+</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-xs bg-yellow-500" />60–79</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-xs bg-red-500" />&lt;60</span>
         </div>
       </div>
 
@@ -444,7 +444,7 @@ function FocusHeatmap({ history }: { history: SessionHistoryItem[] }) {
                 <div
                   key={di}
                   title={isFuture ? '' : `${dayKey(date.toISOString())}${score !== null ? ` · ${score}` : ''}`}
-                  className={`h-3 w-3 rounded-sm transition-opacity ${
+                  className={`h-3 w-3 rounded-xs transition-opacity ${
                     isFuture
                       ? 'bg-muted/20'
                       : `${cellColor(score)} ${cellOpacity(score)}`
@@ -658,7 +658,7 @@ export default function StatsPage() {
                           <td className="px-4 py-3 text-foreground">{item.config.durationMinutes} min</td>
                           <td className="px-4 py-3">
                             <span className={`font-bold tabular-nums ${grade.color}`}>{score}</span>
-                            <span className={`ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-bold ${grade.bg} ${grade.color}`}>{grade.label}</span>
+                            <span className={`ml-1.5 rounded-sm px-1.5 py-0.5 text-[10px] font-bold ${grade.bg} ${grade.color}`}>{grade.label}</span>
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
@@ -684,7 +684,7 @@ export default function StatsPage() {
                               />
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
-                                className="rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-danger"
+                                className="rounded-sm p-1.5 text-muted-foreground transition hover:bg-muted hover:text-danger"
                                 aria-label="Delete session"
                               >
                                 <Trash2 size={14} />

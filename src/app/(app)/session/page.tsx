@@ -1037,9 +1037,9 @@ export default function SessionPage() {
 
                 {config.keyboardShortcutsEnabled !== false && (
                   <div className="mt-3 flex gap-3 text-[10px] text-muted-foreground">
-                    <span><kbd className="rounded bg-muted px-1 py-0.5">B</kbd> break</span>
-                    <span><kbd className="rounded bg-muted px-1 py-0.5">E</kbd> end</span>
-                    <span><kbd className="rounded bg-muted px-1 py-0.5">H</kbd> camera</span>
+                    <span><kbd className="rounded-sm bg-muted px-1 py-0.5">B</kbd> break</span>
+                    <span><kbd className="rounded-sm bg-muted px-1 py-0.5">E</kbd> end</span>
+                    <span><kbd className="rounded-sm bg-muted px-1 py-0.5">H</kbd> camera</span>
                   </div>
                 )}
               </div>

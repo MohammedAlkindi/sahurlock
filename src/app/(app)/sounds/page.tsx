@@ -214,7 +214,7 @@ export default function SoundsPage() {
 
       {/* ── Now playing bar ───────────────────────────────────────────────────── */}
       {activeSound && (
-        <div className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur-sm px-5 py-2.5 flex items-center gap-3">
+        <div className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur-xs px-5 py-2.5 flex items-center gap-3">
           <span className="text-base leading-none">{activeSound.emoji}</span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground truncate leading-none">{activeSound.label}</p>
@@ -258,7 +258,7 @@ export default function SoundsPage() {
               placeholder="Search…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-40 rounded-lg border border-input bg-background pl-7 pr-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none"
+              className="w-40 rounded-lg border border-input bg-background pl-7 pr-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-hidden"
             />
           </div>
         </div>

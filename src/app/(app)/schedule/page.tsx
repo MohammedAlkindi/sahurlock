@@ -150,7 +150,7 @@ export default function SchedulePage() {
               onChange={(e) => setLabel(e.target.value)}
               placeholder="e.g. Evening study"
               maxLength={60}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-hidden focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
             />
           </div>
 
@@ -164,7 +164,7 @@ export default function SchedulePage() {
               type="datetime-local"
               value={datetime}
               onChange={(e) => setDatetime(e.target.value)}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-hidden focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
             />
           </div>
 
@@ -206,7 +206,7 @@ export default function SchedulePage() {
                 placeholder="minutes (5–480)"
                 min={5}
                 max={480}
-                className="mt-2 w-40 rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+                className="mt-2 w-40 rounded-lg border border-input bg-background px-3 py-2 text-sm outline-hidden focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
               />
             )}
           </div>
@@ -215,7 +215,7 @@ export default function SchedulePage() {
 
           <button
             onClick={handleAdd}
-            className="mt-1 w-full rounded-xl bg-accent py-2.5 text-sm font-bold text-accent-foreground hover:opacity-90 transition"
+            className="w-full rounded-xl bg-accent py-2.5 text-sm font-bold text-accent-foreground hover:opacity-90 transition"
           >
             Schedule session
           </button>

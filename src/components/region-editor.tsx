@@ -52,7 +52,7 @@ const pct = (n: number, of: number) => `${(100 * n) / of}%`;
 function Tag({ kind, children }: { kind: BlockKind; children: ReactNode }) {
   const Icon = ICONS[kind];
   return (
-    <span className={`inline-flex items-center gap-1 rounded-sm px-1 py-0.5 text-[11px] font-semibold leading-none text-white ${KIND_STYLE[kind].tag}`}>
+    <span className={`inline-flex items-center gap-1 rounded-xs px-1 py-0.5 text-[11px] font-semibold leading-none text-white ${KIND_STYLE[kind].tag}`}>
       <Icon size={11} aria-hidden="true" />
       {children}
     </span>
@@ -303,7 +303,7 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
     replace(withContent(b, text));
   };
 
-  const fieldClass = 'w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none';
+  const fieldClass = 'w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-hidden';
   const contentField = (b: Block) => {
     const common = {
       id: 'region-content', value: typed(b), autoComplete: 'off', autoCorrect: 'off', autoCapitalize: 'off',
@@ -320,10 +320,10 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
       role="dialog"
       aria-modal="true"
       aria-labelledby="region-editor-title"
-      className="fixed inset-0 z-50 flex h-[100dvh] flex-col bg-background text-foreground"
+      className="fixed inset-0 z-50 flex h-dvh flex-col bg-background text-foreground"
     >
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-        <h2 id="region-editor-title" ref={heading} tabIndex={-1} className="mr-auto text-base font-semibold focus:outline-none">
+        <h2 id="region-editor-title" ref={heading} tabIndex={-1} className="mr-auto text-base font-semibold focus:outline-hidden">
           Mark regions on page {page.number} of {pageCount}
         </h2>
         <button onClick={() => goTo(index - 1)} aria-disabled={index === 0} className={control}>
@@ -378,7 +378,7 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
             onPointerCancel={dropDrag}
             onLostPointerCapture={dropDrag}
             onContextMenu={(e) => e.preventDefault()}
-            className="region-surface relative mx-auto max-w-full cursor-crosshair select-none bg-white shadow-sm focus:outline-none"
+            className="region-surface relative mx-auto max-w-full cursor-crosshair select-none bg-white shadow-xs focus:outline-hidden"
             style={{ aspectRatio: `${page.width} / ${page.height}`, width: `min(100%, calc((100dvh - 15rem) * ${page.width / page.height}))` }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- a local blob URL, which next/image cannot optimise */}

@@ -38,7 +38,7 @@ export function CommandPalette() {
       className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]"
       onClick={() => setOpen(false)}
     >
-      <div className="absolute inset-0 bg-foreground/20 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-foreground/20 backdrop-blur-xs" />
       <div
         ref={dialogRef}
         role="dialog"
@@ -51,9 +51,9 @@ export function CommandPalette() {
           <div className="flex items-center border-b border-border px-4">
             <Command.Input
               placeholder="Go to…"
-              className="flex-1 bg-transparent py-3.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none"
+              className="flex-1 bg-transparent py-3.5 text-sm text-foreground placeholder-muted-foreground focus:outline-hidden"
             />
-            <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">ESC</kbd>
+            <kbd className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">ESC</kbd>
           </div>
           <Command.List className="max-h-64 overflow-y-auto p-2">
             <Command.Empty className="px-4 py-6 text-center text-sm text-muted-foreground">

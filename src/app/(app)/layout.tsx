@@ -31,9 +31,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-card/50 px-4 backdrop-blur-sm">
+        <header className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-card/50 px-4 backdrop-blur-xs">
           <Breadcrumb />
-          <kbd className="hidden rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
+          <kbd className="hidden rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
             ⌘K
           </kbd>
         </header>

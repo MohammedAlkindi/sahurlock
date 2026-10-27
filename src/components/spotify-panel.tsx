@@ -46,7 +46,7 @@ function TrackArt({ images, size = 40 }: { images: { url: string }[]; size?: num
   if (!src) {
     return (
       <div
-        className="rounded bg-muted flex items-center justify-center text-muted-foreground"
+        className="rounded-sm bg-muted flex items-center justify-center text-muted-foreground"
         style={{ width: size, height: size }}
       >
         <Icon d={ICONS.music} size={size * 0.5} />
@@ -54,7 +54,7 @@ function TrackArt({ images, size = 40 }: { images: { url: string }[]; size?: num
     );
   }
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="" width={size} height={size} className="rounded object-cover" style={{ width: size, height: size }} />;
+  return <img src={src} alt="" width={size} height={size} className="rounded-sm object-cover" style={{ width: size, height: size }} />;
 }
 
 function ControlBtn({
@@ -75,7 +75,7 @@ function ControlBtn({
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className="rounded p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+      className="rounded-sm p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
     >
       <Icon d={iconD} size={size} />
     </button>
@@ -334,7 +334,7 @@ export function SpotifyPanel({ compact = false }: Props) {
               <button
                 aria-label={playbackState.is_playing ? 'Pause' : 'Play'}
                 onClick={(e) => { e.stopPropagation(); playbackState.is_playing ? pause() : play(); }}
-                className="rounded p-1 hover:text-foreground transition"
+                className="rounded-sm p-1 hover:text-foreground transition"
               >
                 <Icon d={playbackState.is_playing ? ICONS.pause : ICONS.play} size={14} />
               </button>
@@ -489,7 +489,7 @@ export function SpotifyPanel({ compact = false }: Props) {
                 placeholder="Search tracks or playlists…"
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                className="flex-1 bg-transparent text-xs text-foreground placeholder-muted-foreground focus:outline-none"
+                className="flex-1 bg-transparent text-xs text-foreground placeholder-muted-foreground focus:outline-hidden"
               />
               {searchQuery && (
                 <button
