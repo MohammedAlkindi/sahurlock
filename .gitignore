@@ -12,3 +12,6 @@ tsconfig.tsbuildinfo
 public/vendor
 test-results
 playwright-report
+
+# Next.js writes this on every dev or build run, in a different form for each.
+next-env.d.ts

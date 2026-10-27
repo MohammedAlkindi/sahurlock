@@ -166,6 +166,8 @@ export class SpotifyService {
 
   /** Redirect the browser to the Spotify OAuth login page via our server route. */
   login() {
+    // A full page load: the route answers with a redirect to Spotify, which a client-side navigation cannot follow.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = '/api/spotify/login';
   }
 

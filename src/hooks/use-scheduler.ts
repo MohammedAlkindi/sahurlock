@@ -23,6 +23,8 @@ function notify(id: string, label: string) {
   });
   n.onclick = () => {
     window.focus();
+    // A notification's click handler runs outside React, where there is no router to push with.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = '/session';
     n.close();
   };

@@ -22,6 +22,9 @@ const contentSecurityPolicy = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Without this, `next dev` adds its own block to AGENTS.md whenever an AI agent runs it. The
+  // project's agent instructions are written by hand.
+  agentRules: false,
   // The app uses no next/image, so the image optimizer endpoint would only add
   // attack surface. Keep it off.
   images: { unoptimized: true },
