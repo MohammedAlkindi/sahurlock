@@ -11,11 +11,12 @@ export const SITE_DESCRIPTION =
 export const SITE_IMAGE_ALT = `${SITE_NAME}: focus sessions, notes and study tools in your browser`;
 
 /**
- * Part of the share image's address: a fingerprint of what app/opengraph-image.tsx draws. The
- * image is served as immutable for a year, so a new picture needs a new address. site.test.ts
- * fails, and prints the new fingerprint, until this matches the card.
+ * Part of the share image's address: a fingerprint of what app/opengraph-image.tsx draws, the fonts
+ * it draws in and the Next.js version that renders it. Sites that show link previews keep the image
+ * they fetched under its address, so a new picture needs a new address. site.test.ts fails, and
+ * prints the new fingerprint, until this matches.
  */
-export const SITE_IMAGE_VERSION = 'b6998391c7ee3fba';
+export const SITE_IMAGE_VERSION = '2da1fe2289c5dc42';
 
 /**
  * Every page's Open Graph fields start from these. A page's own openGraph replaces its

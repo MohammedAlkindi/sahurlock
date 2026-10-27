@@ -9,9 +9,16 @@ afterEach(() => {
 });
 
 describe('the share image', () => {
-  it('gets a new address whenever the picture changes, since its old one is cached for a year', () => {
-    const drawn = readFileSync('src/app/opengraph-image.tsx', 'utf8').replace(/\r\n/g, '\n') + SITE_NAME;
-    const fingerprint = createHash('sha256').update(drawn).digest('hex').slice(0, 16);
+  it('gets a new address whenever the picture changes, since link previews keep the old one', () => {
+    // Everything that decides the picture: the card's source, the name it draws, its two fonts, and the
+    // Next.js version whose renderer draws it.
+    const fingerprint = createHash('sha256')
+      .update(readFileSync('src/app/opengraph-image.tsx', 'utf8').replace(/\r\n/g, '\n') + SITE_NAME)
+      .update(readFileSync('node_modules/geist/dist/fonts/geist-sans/Geist-Regular.ttf'))
+      .update(readFileSync('node_modules/geist/dist/fonts/geist-sans/Geist-Black.ttf'))
+      .update(JSON.parse(readFileSync('node_modules/next/package.json', 'utf8')).version)
+      .digest('hex')
+      .slice(0, 16);
     // The version is the fingerprint, so the test passes only once the address has changed too.
     expect(SITE_IMAGE_VERSION, `the share card changed: set SITE_IMAGE_VERSION in src/lib/site.ts to '${fingerprint}'`).toBe(fingerprint);
   });

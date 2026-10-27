@@ -73,6 +73,10 @@ that shipped it.
       a fixed PostCSS, but 16.3.0 to 16.4.0 have critical Next.js advisories that
       15.5.28 does not. Nothing else is open: the braces, micromatch and fast-glob
       this item used to name have no advisory
+- [ ] Turn on the React Compiler lint rules that eslint-plugin-react-hooks 7 brings with
+      Next.js 16 (immutability, purity, refs, set-state-in-effect and static-components).
+      They flag 40 places, mostly state set inside effects and refs read during render,
+      and are off until that code is reworked
 - [x] A tool registry (`src/lib/tools.ts`) that drives the sidebar, command palette and
       breadcrumb, so a new tool is registered in one place (2e5d545)
 - [ ] Move tool code into `tools/` and shared code into `core/` once Scan

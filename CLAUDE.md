@@ -4,7 +4,7 @@
 SahurLock is a browser-based focus enforcement app that uses your webcam and client-side face tracking to estimate attention. If you're off-screen too long (outside allowed breaks), it triggers a fullscreen **LOCK IN** punishment overlay and optionally plays a local meme clip.
 
 ## Stack
-Next.js 15 App Router, React 19, TypeScript, Tailwind CSS. Everything runs in the browser, and MediaPipe FaceMesh tracks attention client-side.
+Next.js 16 App Router, React 19, TypeScript, Tailwind CSS. Everything runs in the browser, and MediaPipe FaceMesh tracks attention client-side.
 
 ## Commands
 ```bash
