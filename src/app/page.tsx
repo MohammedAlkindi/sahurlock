@@ -51,7 +51,7 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="mx-auto max-w-5xl px-6 pt-16 pb-10 text-center">
-        <h1 className="text-[clamp(2rem,11vw,2.75rem)] font-black leading-[1.05] tracking-tight sm:text-6xl md:text-7xl lg:text-8xl">
+        <h1 className="text-[clamp(2rem,11vw,2.75rem)] font-black leading-[1.05] tracking-tight sm:text-6xl sm:leading-none md:text-7xl lg:text-8xl">
           Attention tracking<br />
           <span className="text-accent">with real consequences.</span>
         </h1>
@@ -63,7 +63,7 @@ export default function LandingPage() {
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link
             href="/session"
-            className="rounded-xl bg-accent px-8 py-3.5 text-base font-semibold text-accent-foreground hover:bg-accent/90 transition shadow-sm"
+            className="rounded-xl bg-accent px-8 py-3.5 text-base font-semibold text-accent-foreground hover:bg-accent/90 transition shadow-xs"
           >
             Start a session
           </Link>

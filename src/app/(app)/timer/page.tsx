@@ -204,7 +204,7 @@ function Countdown() {
                   min={0}
                   max={max}
                   onChange={(e) => set(Math.min(max, Math.max(0, Number(e.target.value))))}
-                  className="w-16 rounded-xl border border-input bg-card px-2 py-2 text-center font-mono text-2xl font-bold tabular-nums text-foreground focus:border-accent focus:outline-none"
+                  className="w-16 rounded-xl border border-input bg-card px-2 py-2 text-center font-mono text-2xl font-bold tabular-nums text-foreground focus:border-accent focus:outline-hidden"
                 />
                 <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</span>
               </div>

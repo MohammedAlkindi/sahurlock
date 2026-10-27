@@ -93,7 +93,7 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom actions */}
-      <div className="border-t border-border p-2 space-y-0.5">
+      <div className="flex flex-col gap-0.5 border-t border-border p-2">
         {/* Settings */}
         <Link
           href="/settings"
@@ -157,7 +157,7 @@ export function Sidebar() {
         <Link href="/" className="font-black">SahurLock</Link>
         <button type="button" aria-label="Open navigation" aria-haspopup="dialog"
           onClick={() => mobileMenu.current?.showModal()}
-          className="rounded-lg p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+          className="rounded-lg p-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-accent">
           <Menu size={22} aria-hidden="true" />
         </button>
       </div>
@@ -169,7 +169,7 @@ export function Sidebar() {
         onClick={(event) => { if (event.target === event.currentTarget) mobileMenu.current?.close(); }}>
         <div className="flex h-full flex-col">
           <button type="button" aria-label="Close navigation" onClick={() => mobileMenu.current?.close()}
-            className="absolute right-2 top-2 rounded-lg p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+            className="absolute right-2 top-2 rounded-lg p-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-accent">
             <X size={20} aria-hidden="true" />
           </button>
           {contents(false)}

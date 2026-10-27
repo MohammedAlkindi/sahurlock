@@ -58,7 +58,7 @@ function NumInput({
   onChange: (n: number) => void; min: number; max: number; step?: number;
 }) {
   return (
-    <label className="block space-y-1">
+    <label className="block">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       {hint && <span className="ml-1 text-xs text-muted-foreground">({hint})</span>}
       <input
@@ -71,7 +71,7 @@ function NumInput({
           const n = Number(e.target.value);
           if (!isNaN(n)) onChange(Math.min(max, Math.max(min, n)));
         }}
-        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-ring"
+        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-hidden focus:ring-1 focus:ring-ring"
       />
     </label>
   );
@@ -135,7 +135,7 @@ function TaskSelector({
           <button
             disabled={disabled}
             onClick={clear}
-            className="rounded p-1 text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+            className="rounded-sm p-1 text-muted-foreground transition hover:text-foreground disabled:opacity-50"
             aria-label="Clear task"
           >
             <X size={12} />
@@ -295,13 +295,13 @@ export function SessionConfigCard({ value, onChange, onStart, disabled, selected
 
             {/* Punishment clip override — only shown if punishment is enabled in settings */}
             {value.punishmentEnabled && (
-              <label className="block space-y-1">
+              <label className="block">
                 <span className="text-xs font-medium text-muted-foreground">Punishment clip</span>
                 <select
                   value={value.punishmentMedia}
                   disabled={disabled}
                   onChange={(e) => onChange({ ...value, punishmentMedia: e.target.value })}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none"
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-hidden"
                 >
                   {PUNISHMENT_CLIPS.map((clip) => (
                     <option key={clip.value} value={clip.value}>{clip.label}</option>

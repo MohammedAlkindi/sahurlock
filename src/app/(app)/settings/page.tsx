@@ -87,12 +87,12 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
         checked ? 'bg-foreground' : 'bg-border'
       }`}
     >
       <span
-        className={`inline-block h-4 w-4 transform rounded-full shadow transition duration-150 ${
+        className={`inline-block h-4 w-4 transform rounded-full shadow-sm transition duration-150 ${
           checked ? 'translate-x-4 bg-background' : 'translate-x-0 bg-white'
         }`}
       />
@@ -214,11 +214,13 @@ function PunishmentMediaPicker({
 
   return (
     <div className="space-y-2.5">
+      <input ref={fileRef} type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
       {!hasCustom && (
         <select
           value={config.punishmentMedia === CUSTOM_PUNISHMENT_MEDIA ? DEFAULT_PUNISHMENT_MEDIA : config.punishmentMedia}
           onChange={(e) => update({ punishmentMedia: e.target.value })}
-          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
+          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground focus:border-accent focus:outline-hidden"
         >
           {PUNISHMENT_CLIPS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
@@ -247,7 +249,7 @@ function PunishmentMediaPicker({
             </div>
           </div>
           {showPreview && previewUrl && (
-            <div className="mt-2 overflow-hidden rounded border border-border/30">
+            <div className="mt-2 overflow-hidden rounded-sm border border-border/30">
               <video src={previewUrl} controls className="w-full max-h-28 bg-black" />
             </div>
           )}
@@ -278,8 +280,6 @@ function PunishmentMediaPicker({
 
       {uploadStatus === 'success' && <p className="flex items-center gap-1 text-[11px] text-success"><CheckCircle2 size={9} />Saved</p>}
       {(uploadStatus === 'error' || errorMsg) && <p className="flex items-center gap-1 text-[11px] text-danger"><AlertCircle size={9} />{errorMsg || 'Error'}</p>}
-      <input ref={fileRef} type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
     </div>
   );
 }
@@ -308,7 +308,7 @@ function FocusPanel({
             value={goals.dailyGoalMinutes || ''}
             onChange={(e) => updateGoal(Math.max(0, Math.min(480, Number(e.target.value) || 0)))}
             placeholder="—"
-            className="w-14 rounded-md border border-input bg-background px-2 py-1 text-center text-sm text-foreground focus:border-accent focus:outline-none"
+            className="w-14 rounded-md border border-input bg-background px-2 py-1 text-center text-sm text-foreground focus:border-accent focus:outline-hidden"
           />
           <span className="text-xs text-muted-foreground">min</span>
         </div>
@@ -453,7 +453,7 @@ function TemplatesPanel({
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setSaving(false); }}
               placeholder="Template name…"
               autoFocus
-              className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none"
+              className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-hidden"
             />
             <button onClick={handleSave} className="rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition hover:opacity-80">
               Save
@@ -490,7 +490,7 @@ function ShortcutList({ items }: { items: { keys: string[]; action: string }[] }
             {keys.map((k) => (
               <kbd
                 key={k}
-                className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground border border-border/40"
+                className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground border border-border/40"
               >
                 {k}
               </kbd>

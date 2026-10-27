@@ -32,7 +32,7 @@ export function ViolationOverlay({ visible, stabilizeMs, maxStabilizeMs, violati
       <div className="animate-border-glow absolute inset-0 border-4 border-red-500/80" />
 
       {/* Scan line effect */}
-      <div className="animate-scan absolute inset-x-0 h-24 bg-gradient-to-b from-transparent via-red-400/10 to-transparent" />
+      <div className="animate-scan absolute inset-x-0 h-24 bg-linear-to-b from-transparent via-red-400/10 to-transparent" />
 
       {/* Content */}
       <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-5 px-4 text-center">
@@ -62,17 +62,17 @@ export function ViolationOverlay({ visible, stabilizeMs, maxStabilizeMs, violati
           </div>
           <div className="h-3 overflow-hidden rounded-full border border-red-800 bg-red-900/60">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-200"
+              className="h-full rounded-full bg-linear-to-r from-green-500 to-emerald-400 transition-all duration-200"
               style={{ width: `${recoveryPct}%` }}
             />
           </div>
           {recovering && (
-            <p className="mt-2 text-xs text-green-400/70">Maintaining gaze…</p>
+            <p className="mt-2 text-xs text-green-400/80">Maintaining gaze…</p>
           )}
         </div>
 
         {violationCount > 1 && (
-          <div className="rounded border border-red-900 bg-red-950/60 px-4 py-1.5 text-xs text-red-500">
+          <div className="rounded-sm border border-red-900 bg-red-950/60 px-4 py-1.5 text-xs text-red-500">
             Alert {violationCount} of this session
           </div>
         )}

@@ -57,7 +57,7 @@ export function SessionSummary({ sessionId, stats, config, onReset }: Props) {
     'You need to lock in.';
 
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-foreground/20 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-40 grid place-items-center bg-foreground/20 p-4 backdrop-blur-xs">
       <div
         ref={dialogRef}
         role="dialog"
@@ -148,7 +148,7 @@ export function SessionSummary({ sessionId, stats, config, onReset }: Props) {
             onChange={(e) => handleNotesChange(e.target.value)}
             placeholder="Session notes (optional)…"
             rows={2}
-            className="mb-4 w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-xs text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none"
+            className="mb-4 w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-xs text-foreground placeholder-muted-foreground focus:border-accent focus:outline-hidden"
           />
 
           <button

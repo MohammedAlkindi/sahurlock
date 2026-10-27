@@ -167,7 +167,7 @@ export default function NotesPage() {
               value={activeNote.title}
               onChange={(e) => updateNote(activeNote.id, { title: e.target.value })}
               placeholder="Untitled"
-              className="w-full bg-transparent text-2xl font-black text-foreground placeholder-muted-foreground focus:outline-none"
+              className="w-full bg-transparent text-2xl font-black text-foreground placeholder-muted-foreground focus:outline-hidden"
             />
           </div>
 
@@ -181,7 +181,7 @@ export default function NotesPage() {
               value={activeNote.body}
               onChange={(e) => updateNote(activeNote.id, { body: e.target.value })}
               placeholder="Start writing…"
-              className="h-full w-full resize-none bg-transparent text-sm leading-7 text-foreground placeholder-muted-foreground focus:outline-none"
+              className="h-full w-full resize-none bg-transparent text-sm leading-7 text-foreground placeholder-muted-foreground focus:outline-hidden"
             />
           </div>
         </div>

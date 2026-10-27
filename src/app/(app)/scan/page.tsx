@@ -583,7 +583,7 @@ export default function ScanPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-2 flex items-center justify-between">
-        <h1 ref={pageHeading} tabIndex={-1} className="text-2xl font-black tracking-tight focus:outline-none">Scan notes</h1>
+        <h1 ref={pageHeading} tabIndex={-1} className="text-2xl font-black tracking-tight focus:outline-hidden">Scan notes</h1>
         {pages.length > 0 && (discarding?.action === 'start-over' ? (
           <div key="confirm" role="group" aria-label="Start over? The marked regions are not saved and will be lost." className="flex flex-wrap items-center justify-end gap-2 text-sm">
             <span className="text-muted-foreground" aria-hidden="true">Unsaved regions will be lost.</span>
@@ -678,7 +678,7 @@ export default function ScanPage() {
                     {page.regionsComplete && ', every region marked'}
                   </span>
                   {(page.blocks.length > 0 || page.regionsComplete) && (
-                    <span aria-hidden="true" className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded bg-foreground px-1 text-[10px] font-semibold leading-4 text-background">
+                    <span aria-hidden="true" className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded-sm bg-foreground px-1 text-[10px] font-semibold leading-4 text-background">
                       {page.blocks.length > 0 && page.blocks.length}
                       {page.regionsComplete && <Check size={10} />}
                     </span>
@@ -814,7 +814,7 @@ export default function ScanPage() {
                       id="move-target"
                       value={target.id}
                       onChange={(e) => setMoveTarget(e.target.value)}
-                      className="max-w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none"
+                      className="max-w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-hidden"
                     >
                       {moveTargets.map((s) => (
                         <option key={s.id} value={s.id}>{`${s.title}${s.course ? `, ${s.course}` : ''}, ${pageWord(s.pages.length)}`}</option>
@@ -870,7 +870,7 @@ export default function ScanPage() {
               onChange={(e) => setTitle(e.target.value)}
               placeholder={`Notes ${today}`}
               maxLength={120}
-              className="w-56 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none"
+              className="w-56 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-hidden"
             />
             <label htmlFor="scan-course" className="text-sm text-muted-foreground">Course</label>
             <input
@@ -880,7 +880,7 @@ export default function ScanPage() {
               list="scan-courses"
               placeholder="Optional"
               maxLength={60}
-              className="w-36 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none"
+              className="w-36 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-hidden"
             />
             <datalist id="scan-courses">
               {courses.map((c) => <option key={c} value={c} />)}

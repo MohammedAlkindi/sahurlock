@@ -1,6 +1,70 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss' source('..');
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-background: rgb(var(--background));
+  --color-foreground: rgb(var(--foreground));
+  --color-muted: rgb(var(--muted));
+  --color-muted-foreground: rgb(var(--muted-foreground));
+  --color-border: rgb(var(--border));
+  --color-input: rgb(var(--input));
+  --color-card: rgb(var(--card));
+  --color-card-foreground: rgb(var(--card-foreground));
+  --color-accent: rgb(var(--accent));
+  --color-accent-foreground: rgb(var(--accent-foreground));
+  --color-ring: rgb(var(--ring) / 0.25);
+  --color-success: rgb(var(--success));
+  --color-warning: rgb(var(--warning));
+  --color-danger: rgb(var(--danger));
+
+  --color-region-text: rgb(var(--region-text));
+  --color-region-heading: rgb(var(--region-heading));
+  --color-region-math: rgb(var(--region-math));
+  --color-region-table: rgb(var(--region-table));
+  --color-region-graph: rgb(var(--region-graph));
+  --color-region-diagram: rgb(var(--region-diagram));
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --animate-violation-pulse: violation-pulse 1.2s ease-in-out infinite;
+  --animate-border-glow: border-glow 1.5s ease-in-out infinite;
+  --animate-scan: scan-line 3s linear infinite;
+
+  /* Tailwind 3's line heights. Tailwind 4 gives these sizes ratios instead, which text
+     in a smaller arbitrary size, such as text-[10px], inherits as a shorter line. */
+  --text-xs--line-height: 1rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+}
+
+/* Tailwind 3's defaults that Tailwind 4 changed: a gray border where no color is given
+   (it is now the text color), the pointer cursor on buttons, and gray placeholders. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+}
 
 /* ── Design tokens ───────────────────────────────────────────────────────── */
 /* Space-separated RGB channels, so Tailwind opacity modifiers such as

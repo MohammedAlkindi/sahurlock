@@ -172,7 +172,7 @@ function drawFrame(canvas: HTMLCanvasElement, vW: number, vH: number, attention:
 
 function StatusDot({ ok }: { ok: boolean }) {
   return (
-    <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full transition-colors duration-300 ${ok ? 'bg-accent' : 'bg-border'}`} />
+    <span className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors duration-300 ${ok ? 'bg-accent' : 'bg-border'}`} />
   );
 }
 
@@ -244,7 +244,7 @@ export function CameraPanel({
 
         {/* ── Calibration progress panel (bottom docked, semi-transparent) ── */}
         {calibrating && (
-          <div className="absolute inset-x-0 bottom-0 bg-[#111111]/90 px-4 py-3 backdrop-blur-sm">
+          <div className="absolute inset-x-0 bottom-0 bg-[#111111]/90 px-4 py-3 backdrop-blur-xs">
             {/* Stall / lighting warning */}
             {(calibrationStalled || guidance) && (
               <p className="mb-2 text-xs text-amber-400">
@@ -267,7 +267,7 @@ export function CameraPanel({
 
               {/* Lighting condition badge */}
               {lightingCondition !== 'normal' && (
-                <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                <span className={`rounded-sm px-1.5 py-0.5 text-[10px] font-medium ${
                   lightingCondition === 'dark'
                     ? 'bg-zinc-800 text-zinc-400'
                     : 'bg-amber-900/60 text-amber-300'
@@ -294,7 +294,7 @@ export function CameraPanel({
 
         {/* ── Phone detection badge ─────────────────────────────────────── */}
         {phoneReading?.detected && (
-          <div className="absolute right-2 top-2 rounded bg-warning/90 px-2 py-0.5 text-xs font-bold text-white">
+          <div className="absolute right-2 top-2 rounded-sm bg-warning/90 px-2 py-0.5 text-xs font-bold text-white">
             PHONE?
           </div>
         )}
@@ -355,13 +355,13 @@ export function CameraPanel({
       <div className="mt-3 flex items-center gap-2">
         <button
           onClick={onZoomOut}
-          className="rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:border-foreground/20 hover:text-foreground transition"
+          className="rounded-sm border border-border px-2 py-1 text-xs text-muted-foreground hover:border-foreground/20 hover:text-foreground transition"
         >
           −
         </button>
         <button
           onClick={onZoomIn}
-          className="rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:border-foreground/20 hover:text-foreground transition"
+          className="rounded-sm border border-border px-2 py-1 text-xs text-muted-foreground hover:border-foreground/20 hover:text-foreground transition"
         >
           +
         </button>

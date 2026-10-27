@@ -87,7 +87,7 @@ export function SavedScans({ scans, exporting, busy, paper, openNeedsConfirm, on
   const row = (scan: SavedScan) => (
     <li key={scan.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-2.5">
       {/* eslint-disable-next-line @next/next/no-img-element -- a local blob URL, which next/image cannot optimise */}
-      {thumbnails[scan.id] && <img src={thumbnails[scan.id]} alt="" className="h-14 w-11 shrink-0 rounded border border-border bg-white object-contain" />}
+      {thumbnails[scan.id] && <img src={thumbnails[scan.id]} alt="" className="h-14 w-11 shrink-0 rounded-sm border border-border bg-white object-contain" />}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{scan.title}</p>
         <p className="text-xs text-muted-foreground">
@@ -157,7 +157,7 @@ export function SavedScans({ scans, exporting, busy, paper, openNeedsConfirm, on
     <section aria-labelledby="saved-scans" className="mt-10">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 id="saved-scans" ref={heading} tabIndex={-1} className="mb-1 text-base font-semibold focus:outline-none">Saved scans</h2>
+          <h2 id="saved-scans" ref={heading} tabIndex={-1} className="mb-1 text-base font-semibold focus:outline-hidden">Saved scans</h2>
           <p className="text-xs text-muted-foreground">Kept in this browser only. Settings &gt; Data &gt; Clear all data removes them.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">

@@ -52,7 +52,7 @@ export function FlashcardOverlay({ cards, focusScore, onComplete, onDismiss }: P
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4 backdrop-blur-xs">
       <div
         ref={dialogRef}
         role="dialog"
@@ -68,12 +68,12 @@ export function FlashcardOverlay({ cards, focusScore, onComplete, onDismiss }: P
             <span id="flashcard-dialog-title" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Break Review
             </span>
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+            <span className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
               {idx + 1} / {total}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+            <span className={`rounded-sm px-1.5 py-0.5 text-[10px] font-medium ${
               focusScore >= 80
                 ? 'bg-danger/10 text-danger'
                 : focusScore >= 60
@@ -85,7 +85,7 @@ export function FlashcardOverlay({ cards, focusScore, onComplete, onDismiss }: P
             <span className="text-[10px] text-muted-foreground">{focusScore}</span>
             <button
               onClick={onDismiss}
-              className="rounded p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              className="rounded-sm p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
               aria-label="Skip all cards"
             >
               <X size={15} />
@@ -105,7 +105,7 @@ export function FlashcardOverlay({ cards, focusScore, onComplete, onDismiss }: P
         <div className="p-6">
           {/* Difficulty badge */}
           <div className="mb-4 flex items-center gap-2">
-            <span className={`rounded px-2 py-0.5 text-[10px] font-semibold ${DIFFICULTY_COLOR[card.difficulty]}`}>
+            <span className={`rounded-sm px-2 py-0.5 text-[10px] font-semibold ${DIFFICULTY_COLOR[card.difficulty]}`}>
               {DIFFICULTY_LABEL[card.difficulty]}
             </span>
             {card.reviewCount > 0 && (

@@ -62,7 +62,7 @@ export default function TasksPage() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && addTask()}
           placeholder="Add a task…"
-          className="flex-1 rounded-xl border border-input bg-card px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-ring"
+          className="flex-1 rounded-xl border border-input bg-card px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:border-accent focus:outline-hidden focus:ring-1 focus:ring-ring"
         />
         <button
           onClick={addTask}
@@ -88,7 +88,7 @@ export default function TasksPage() {
             >
               <button
                 onClick={() => completeTask(task.id)}
-                className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border text-transparent transition hover:border-accent hover:bg-accent/10 hover:text-accent"
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-border text-transparent transition hover:border-accent hover:bg-accent/10 hover:text-accent"
                 aria-label="Mark complete"
               >
                 <Check size={12} />
@@ -104,7 +104,7 @@ export default function TasksPage() {
                     if (e.key === 'Enter') commitEdit(task.id);
                     if (e.key === 'Escape') setEditingId(null);
                   }}
-                  className="flex-1 bg-transparent text-sm text-foreground focus:outline-none"
+                  className="flex-1 bg-transparent text-sm text-foreground focus:outline-hidden"
                 />
               ) : (
                 <span
@@ -149,7 +149,7 @@ export default function TasksPage() {
                   key={task.id}
                   className={`group flex items-center gap-3 px-4 py-3 transition hover:bg-muted/20 ${i < done.length - 1 ? 'border-b border-border/40' : ''}`}
                 >
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-accent/30 bg-accent/10 text-accent">
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-accent/30 bg-accent/10 text-accent">
                     <Check size={12} />
                   </div>
                   <span className="flex-1 text-sm text-muted-foreground line-through">{task.title}</span>
