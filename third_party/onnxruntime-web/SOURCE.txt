@@ -1,0 +1,3 @@
+ONNX Runtime Web 1.30.0 is built from https://github.com/microsoft/onnxruntime/tree/v1.30.0
+Its WebAssembly binary includes Eigen (MPL-2.0), whose source is at
+https://github.com/eigen-mirror/eigen/tree/1d8b82b0740839c0de7f1242a3585e3390ff5f33 (cmake/deps.txt at v1.30.0).

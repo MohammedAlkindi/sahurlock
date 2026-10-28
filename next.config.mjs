@@ -1,8 +1,10 @@
 // Scripts and model files come only from this origin, plus the Spotify Web
 // Playback SDK. 'unsafe-eval' is required by MediaPipe: its Emscripten runtime
 // compiles WebAssembly and builds functions with new Function() during init, and
-// Chromium blocks both without it. 'unsafe-inline' covers the inline bootstrap
-// scripts and styles that Next.js and framer-motion emit.
+// Chromium blocks both without it. ONNX Runtime, in the model worker, compiles
+// WebAssembly too, so dropping 'unsafe-eval' would need 'wasm-unsafe-eval' in its
+// place. 'unsafe-inline' covers the inline bootstrap scripts and styles that
+// Next.js and framer-motion emit.
 const contentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.scdn.co",
@@ -32,6 +34,12 @@ const nextConfig = {
     return [
       {
         source: '/media/(.*)',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }]
+      },
+      {
+        // The version is in the path, so these never change. The model worker imports them by
+        // address, so only this HTTP cache lets a worker started offline find them.
+        source: '/vendor/onnxruntime-web/:version/:file',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }]
       },
       {

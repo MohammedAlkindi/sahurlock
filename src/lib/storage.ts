@@ -1,4 +1,4 @@
-import { clearAppStorage, deleteAppDatabases } from '@/lib/data-management';
+import { clearAppStorage, deleteAppCaches, deleteAppDatabases } from '@/lib/data-management';
 import { clearSpotifyLogin } from '@/lib/spotify-logout';
 import {
   decodeAggregate, decodeConfig, decodeGoals, decodeHistoryItem, decodeScheduledSession,
@@ -94,8 +94,8 @@ export const updateSessionNotes = (id: string, notes: string) => {
 /**
  * Remove everything SahurLock keeps in this browser: every sahurlock.* key
  * (sessions, notes, flashcards, tasks, settings, schedules, Spotify tokens, UI
- * state), the theme preference, the uploaded-video and saved-scan databases, and the cookie
- * that keeps the Spotify login. Callers should
+ * state), the theme preference, the uploaded-video and saved-scan databases,
+ * downloaded models, and the cookie that keeps the Spotify login. Callers should
  * reload afterwards so no in-memory copy writes data back.
  */
 export const clearAllData = async () => {
@@ -107,7 +107,8 @@ export const clearAllData = async () => {
   // and if it fails, for example offline, the next page load sends it again. It must come after
   // clearAppStorage, which would remove that mark.
   void clearSpotifyLogin();
-  await deleteAppDatabases(indexedDB);
+  // Cache Storage exists only on HTTPS and localhost.
+  await Promise.all([deleteAppDatabases(indexedDB), typeof caches === 'undefined' ? undefined : deleteAppCaches(caches)]);
 };
 
 // ── Aggregate stats ────────────────────────────────────────────────────────────

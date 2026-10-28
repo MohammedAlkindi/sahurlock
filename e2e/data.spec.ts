@@ -30,6 +30,8 @@ async function seedEverything(page: Page) {
         tx.oncomplete = () => { open.result.close(); resolve(); };
       };
     });
+    // A downloaded model, as the model worker saves one.
+    await (await caches.open('sahurlock-models-v1')).put('/models/a.onnx?sha256=0', new Response(new Uint8Array([1])));
   });
 }
 
@@ -37,6 +39,7 @@ const leftovers = (page: Page) =>
   page.evaluate(async () => ({
     keys: Object.keys(localStorage).filter((k) => k.startsWith('sahurlock')),
     databases: (await indexedDB.databases()).map((d) => d.name),
+    caches: await caches.keys(),
   }));
 
 test('export includes notes and flashcards but not the Spotify token', async ({ page }) => {
@@ -59,7 +62,10 @@ test('Clear everything leaves nothing behind', async ({ page, context }) => {
   await seedEverything(page);
   // The Spotify login's refresh token, in the httpOnly cookie the callback sets.
   await context.addCookies([{ name: 'spotify_refresh', value: 'rt', domain: 'localhost', path: '/api/spotify', httpOnly: true, sameSite: 'Strict' }]);
+  // The Data panel lists the models in a worker. Waiting for it to close keeps it from saving anything after the clear.
+  const listed = new Promise<void>((resolve) => page.once('worker', (w) => w.once('close', () => resolve())));
   await page.getByRole('button', { name: 'Data', exact: true }).first().click();
+  await listed;
   await page.getByRole('button', { name: /^clear$/i }).click();
   await Promise.all([
     page.waitForEvent('load'),
@@ -68,9 +74,10 @@ test('Clear everything leaves nothing behind', async ({ page, context }) => {
   // The settings page saves its defaults again on load; nothing the user created survives. The
   // Spotify disconnect is not waited for, so its pending mark goes once the server has answered.
   await expect.poll(async () => (await leftovers(page)).keys.filter((k) => k !== 'sahurlock.settings')).toEqual([]);
-  const { databases } = await leftovers(page);
+  const { databases, caches } = await leftovers(page);
   expect(databases).not.toContain('sahurlock');
   expect(databases).not.toContain('sahurlock-scans');
+  expect(caches).not.toContain('sahurlock-models-v1');
   expect((await context.cookies('http://localhost:3200/api/spotify')).map((c) => c.name)).not.toContain('spotify_refresh');
 });
 

@@ -14,6 +14,8 @@ import {
   clearAllData,
 } from '@/lib/storage';
 import { collectExport } from '@/lib/data-management';
+import { ModelHost } from '@/lib/model-host/client';
+import type { LoadedModel, ModelHostErrorCode, ModelSummary, Result } from '@/lib/model-host/types';
 import { getVideoBlob, saveVideoBlob, deleteVideoBlob } from '@/lib/video-storage';
 import { SessionConfig, CustomVideoMeta, SessionPreset } from '@/lib/types';
 import { DEFAULT_CONFIG } from '@/lib/defaults';
@@ -103,11 +105,14 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 function Row({
   label,
   description,
+  status,
   last,
   children,
 }: {
   label: string;
   description?: string;
+  /** A line read out when it changes. Pass '' before there is anything to say, so the region is there first. */
+  status?: string;
   last?: boolean;
   children: React.ReactNode;
 }) {
@@ -117,6 +122,9 @@ function Row({
         <p className="text-sm text-foreground">{label}</p>
         {description && (
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
+        )}
+        {status !== undefined && (
+          <p role="status" className="mt-1 text-sm text-foreground">{status}</p>
         )}
       </div>
       <div className="shrink-0 pt-0.5">{children}</div>
@@ -522,6 +530,87 @@ function ShortcutsPanel({ config, update }: { config: SessionConfig; update: (p:
 
 // ── Panel: Data ────────────────────────────────────────────────────────────────
 
+/** What a check found, as read out. It starts with the model's name, as there can be more than one. */
+function checkResult(name: string, r: Result<LoadedModel>): string {
+  if (r.ok) return `${name} is ready on this device (${r.value.backend === 'webgpu' ? 'GPU' : 'CPU'}).`;
+  switch (r.error.code) {
+    case 'sha256': return `${name} was refused: the file does not match its checksum.`;
+    case 'size': return `${name} was refused: the file is not the size it should be.`;
+    case 'unavailable': return `${name} is not saved on this device, and the network is not reachable.`;
+    default: return `${name} could not be loaded. ${r.error.message}`;
+  }
+}
+
+/** Results after which no checked copy of the model is on this device: refused, or not reachable. */
+const NOT_SAVED = new Set<ModelHostErrorCode>(['sha256', 'size', 'unavailable', 'download']);
+
+/** The models the app pins, each with a check that downloads, verifies and loads it. Shows nothing while none are pinned. */
+function ModelsSection() {
+  const [models, setModels] = useState<ModelSummary[]>([]);
+  const [status, setStatus] = useState<Record<string, string>>({});
+  const checking = useRef(new Set<string>());
+  const hosts = useRef(new Set<ModelHost>());
+
+  useEffect(() => {
+    let live = true;
+    const open = hosts.current;
+    const inFlight = checking.current;
+    const host = new ModelHost();
+    host.list().then((r) => { if (live && r.ok) setModels(r.value); }).finally(() => host.dispose());
+    return () => {
+      live = false;
+      host.dispose();
+      // A check does not outlive the section, so coming back cannot start the same check twice.
+      for (const h of open) h.dispose();
+      open.clear();
+      inFlight.clear();
+    };
+  }, []);
+
+  const check = async (name: string) => {
+    // A click while a check runs does nothing. The button stays enabled so it keeps focus.
+    if (checking.current.has(name)) return;
+    checking.current.add(name);
+    setStatus((s) => ({ ...s, [name]: `Checking ${name}…` }));
+    // A worker of its own, closed after, so the runtime does not stay in memory.
+    const host = new ModelHost();
+    hosts.current.add(host);
+    try {
+      const r = await host.load(name);
+      const saved = r.ok ? r.value.saved : NOT_SAVED.has(r.error.code) ? false : null;
+      if (saved !== null) setModels((ms) => ms.map((m) => (m.name === name ? { ...m, cached: saved } : m)));
+      setStatus((s) => ({ ...s, [name]: checkResult(name, r) }));
+    } finally {
+      host.dispose();
+      hosts.current.delete(host);
+      checking.current.delete(name);
+    }
+  };
+
+  if (models.length === 0) return null;
+  return (
+    <>
+      <SectionHeading title="On-device models" />
+      {models.map((m, i) => (
+        <Row
+          key={m.name}
+          label={`${m.name} ${m.version}`}
+          description={`${formatFileSize(m.size)}, ${m.cached ? 'saved on this device' : 'not saved on this device'}.`}
+          status={status[m.name] ?? ''}
+          last={i === models.length - 1}
+        >
+          <button
+            onClick={() => check(m.name)}
+            className="rounded-md border border-border/60 px-4 py-2 text-sm text-foreground transition hover:bg-muted/40"
+          >
+            Check<span className="sr-only"> {m.name}</span>
+          </button>
+        </Row>
+      ))}
+    </>
+  );
+}
+
 function DataPanel() {
   const [confirming, setConfirming] = useState(false);
 
@@ -551,6 +640,8 @@ function DataPanel() {
           <Download size={13} />Export
         </button>
       </Row>
+
+      <ModelsSection />
 
       <SectionHeading title="Danger zone" />
       {confirming ? (
