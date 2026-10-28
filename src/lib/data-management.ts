@@ -5,6 +5,8 @@ export const THEME_STORAGE_KEY = 'sahurlock-theme';
 export const VIDEO_DATABASE = 'sahurlock';
 /** IndexedDB database that holds scans saved from the Scan tool. */
 export const SCAN_DATABASE = 'sahurlock-scans';
+/** Cache Storage cache that holds downloaded model files and the runtime's .wasm, each checked against its pin, plus the last model manifest for offline use. */
+export const MODEL_CACHE = 'sahurlock-models-v1';
 
 /** What the user authored or chose, keyed by the name it gets in an export file. */
 const EXPORTED_KEYS: Record<string, string> = {
@@ -64,3 +66,7 @@ function deleteDatabase(idb: IDBFactory, name: string): Promise<void> {
 /** Delete every IndexedDB database the app owns: uploaded videos and saved scans. */
 export const deleteAppDatabases = (idb: IDBFactory) =>
   Promise.all([VIDEO_DATABASE, SCAN_DATABASE].map((name) => deleteDatabase(idb, name))).then(() => undefined);
+
+/** Delete every Cache Storage cache the app owns: downloaded models. Resolves even if deleting fails. */
+export const deleteAppCaches = (storage: Pick<CacheStorage, 'delete'>) =>
+  storage.delete(MODEL_CACHE).then(() => undefined, () => undefined);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appStorageKeys, clearAppStorage, collectExport } from '@/lib/data-management';
+import { appStorageKeys, clearAppStorage, collectExport, deleteAppCaches, MODEL_CACHE } from '@/lib/data-management';
 
 class MemoryStorage implements Storage {
   private map = new Map<string, string>();
@@ -66,5 +66,24 @@ describe('collectExport', () => {
     const s = new MemoryStorage();
     s.setItem('sahurlock.goals', '{broken');
     expect(collectExport(s, new Date()).goals).toBe('{broken');
+  });
+});
+
+describe('deleteAppCaches', () => {
+  const caches = (deleteResult: Promise<boolean>) => {
+    const deleted: string[] = [];
+    const storage = { delete: (name: string) => { deleted.push(name); return deleteResult; } };
+    return { storage, deleted };
+  };
+
+  it('deletes the model cache', async () => {
+    const { storage, deleted } = caches(Promise.resolve(true));
+    await deleteAppCaches(storage);
+    expect(deleted).toEqual([MODEL_CACHE]);
+  });
+
+  it('resolves when the browser refuses', async () => {
+    const { storage } = caches(Promise.reject(new DOMException('denied', 'SecurityError')));
+    await expect(deleteAppCaches(storage)).resolves.toBeUndefined();
   });
 });
