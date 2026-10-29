@@ -142,7 +142,7 @@ Phases 3 to 7 follow one plan:
 - [ ] Fine-tune a layout detector on note pages: text, math, graph, diagram, table,
       heading. Existing layout models were trained on printed pages, so this step
       helps most
-- [ ] Reading order across regions (XY-cut)
+- [x] Reading order across regions, by XY-cut (`src/lib/scan/reading-order.ts`, 204624e)
 
 ## Phase 5: handwriting
 
