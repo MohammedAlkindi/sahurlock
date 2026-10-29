@@ -68,7 +68,7 @@ export interface DocumentPage {
   height: number;
   /** Set when the user says every region on the page is marked, so a detector can learn from what is not marked too. */
   regionsComplete: boolean;
-  /** In the order they were marked. Nothing may rely on that order until reading order arrives (phase 4). */
+  /** In the order they were marked. readingOrder in reading-order.ts gives the order to read them in. */
   blocks: Block[];
 }
 
