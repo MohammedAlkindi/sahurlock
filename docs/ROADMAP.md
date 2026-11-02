@@ -104,6 +104,10 @@ Phases 3 to 7 follow one plan:
 - Fine-tune small open models whose licences have been checked. Never train from
   scratch. Each release replaces the previous starting point with SahurLock's own
   fine-tuned version.
+- What the licence check covers: the weights a model starts from, and the data it
+  was trained or fine-tuned on for its task, must be free of AGPL and
+  non-commercial terms. Data a backbone inherited from general pretraining, such as
+  ImageNet or COCO, does not count. Each model card names that lineage.
 - The first training set is the maintainer's own course notes: handwriting,
   equations, graphs and diagrams. Anyone else's pages arrive only by opt-in
   donation (phase 8).
