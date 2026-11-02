@@ -4,7 +4,9 @@ import { readFile } from 'node:fs/promises';
 import AxeBuilder from '@axe-core/playwright';
 import { devices, expect, test, type Page } from '@playwright/test';
 import { readingTime } from '../src/lib/announce';
+import { userBlock } from '../src/lib/scan/document';
 import { buildPdf, jpegInfo } from '../src/lib/scan/pdf';
+import { newBoxBelow } from '../src/lib/scan/regions';
 import { readZip } from '../src/lib/zip-read';
 import { violations } from './axe';
 
@@ -114,6 +116,35 @@ test('several pages download as one PDF on the chosen paper', async ({ page }) =
   expect(pdf).toContain('/Count 2');
   expect(pdf.match(/\/MediaBox \[0 0 612 792\]/g)).toHaveLength(2);
   expect(pdf.match(/\/Filter \/DCTDecode/g)).toHaveLength(2);
+});
+
+test('notes download as Markdown, typed regions as text and the rest as pictures', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  const mark = page.getByRole('button', { name: 'Mark regions on page 1' });
+  await expect(mark).toBeEnabled({ timeout: 30_000 });
+  const [width, height] = (await page.getByText(/^Cleaned, \d+ × \d+ px$/).innerText()).match(/\d+/g)!.map(Number);
+  await mark.click();
+  const editor = page.getByRole('dialog');
+  await editor.getByRole('radio', { name: 'Heading' }).check({ force: true });
+  await editor.getByRole('button', { name: 'Add region' }).click();
+  await editor.getByLabel('What it says').fill('Week 3: limits');
+  await editor.getByRole('radio', { name: 'Graph' }).check({ force: true });
+  await editor.getByRole('button', { name: 'Add region' }).click();
+  await editor.getByRole('checkbox', { name: 'Every region on this page is marked' }).check();
+  await editor.getByRole('button', { name: 'Done' }).click();
+  await page.getByLabel('Title').fill('Calculus');
+
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download Markdown' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^notes-\d{4}-\d{2}-\d{2}\.zip$/);
+  const files = readZip(new Uint8Array(await readFile(await download.path())));
+  expect(files.map((f) => f.name)).toEqual(['notes.md', 'assets/page-1-region-2.jpg']);
+  expect(new TextDecoder().decode(files[0].data)).toBe('# Calculus\n\n## Week 3: limits\n\n![Graph on page 1](assets/page-1-region-2.jpg)\n');
+  // The graph is cut out at the box the editor placed it in, below the heading.
+  const size = { width, height };
+  const box = newBoxBelow([userBlock('h', 'heading', newBoxBelow([], size))], size);
+  expect(jpegInfo(files[1].data)).toMatchObject({ width: box.width, height: box.height });
+  expect(box.width).toBeLessThan(width);
 });
 
 test('a page can be removed', async ({ page }) => {

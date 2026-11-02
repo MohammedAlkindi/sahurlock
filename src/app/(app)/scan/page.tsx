@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Check, ChevronLeft, ChevronRight, Download, FileDown, FolderInput, ImageUp, Plus, RotateCcw, Save, SquareDashed, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Download, FileDown, FileText, FolderInput, ImageUp, Plus, RotateCcw, Save, SquareDashed, X } from 'lucide-react';
 import { PaperSelect } from '@/components/paper-select';
 import { type EditorPage, RegionEditor } from '@/components/region-editor';
 import { SavedScans } from '@/components/saved-scans';
 import { useAnnouncer } from '@/hooks/use-announcer';
 import type { LineRemoval } from '@/lib/scan/clean';
 import { type Block, DOCUMENT_VERSION } from '@/lib/scan/document';
+import { buildNotesZip, canvasCrop } from '@/lib/scan/notes';
 import { buildPdf, type Paper } from '@/lib/scan/pdf';
 import { buildLabelsZip, labelsFileName, LabelsTooLargeError } from '@/lib/scan/dataset';
 import { downloadBlob } from '@/lib/download';
@@ -324,6 +325,19 @@ export default function ScanPage() {
   };
 
   const downloadPdf = () => savePdf(pages.map((p) => p.cleaned!.jpeg), `notes-${today}.pdf`);
+
+  const downloadMarkdown = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const notes = pages.map((p) => ({ jpeg: p.cleaned!.jpeg, width: p.cleaned!.width, height: p.cleaned!.height, regionsComplete: p.regionsComplete, blocks: p.blocks }));
+      downloadBlob(await buildNotesZip(title.trim() || `Notes ${today}`, notes, canvasCrop, new Date()), `notes-${today}.zip`);
+    } catch {
+      showNotice({ kind: 'error', text: 'The Markdown could not be made. Try again.' });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const downloadLabels = async () => {
     if (exporting) return;
@@ -851,6 +865,14 @@ export default function ScanPage() {
               <FileDown size={15} /> Download PDF{pages.length > 1 ? ` (${pages.length} pages)` : ''}
             </button>
             <PaperSelect value={paper} onChange={setPaper} />
+            <button
+              onClick={downloadMarkdown}
+              disabled={!ready}
+              aria-disabled={exporting}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-input px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
+            >
+              <FileText size={15} /> Download Markdown
+            </button>
             {selected?.cleaned && (
               <a
                 href={selected.cleaned.url}
