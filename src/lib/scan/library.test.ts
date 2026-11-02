@@ -116,7 +116,10 @@ describe('moving a page between scans', () => {
   it('adds the page at the end with its regions, and stamps the time', () => {
     const target = saved('t', [['a']]);
     const moved = page();
-    const labels = { width: 1700, height: 2200, regionsComplete: true, blocks: [{ ...userBlock('b', 'math', box), content: 'x^2' }] };
+    const labels = {
+      width: 1700, height: 2200, regionsComplete: true, blocks: [{ ...userBlock('b', 'math', box), content: 'x^2' }],
+      cleanup: { horizontal: true, vertical: true },
+    };
     const result = withPageAdded(target, moved, labels, now);
     expect(result.pages).toEqual([target.pages[0], moved]);
     expect(result.document.pages[1]).toEqual(labels);

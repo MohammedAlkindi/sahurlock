@@ -12,7 +12,7 @@ export interface ScanRequest {
 }
 
 export type ScanResponse =
-  | { id: string; ok: true; png: Blob; jpeg: Blob; width: number; height: number; pageFound: boolean; skewDegrees: number }
+  | { id: string; ok: true; png: Blob; jpeg: Blob; width: number; height: number; pageFound: boolean; skewDegrees: number; lines: LineRemoval }
   | { id: string; ok: false; error: string };
 
 
@@ -48,7 +48,7 @@ self.onmessage = async (event: MessageEvent<ScanRequest>) => {
     // For the PDF and the library.
     const jpeg = await canvas.convertToBlob({ type: 'image/jpeg', quality: PAGE_JPEG_QUALITY });
 
-    reply({ id, ok: true, png, jpeg, width: image.width, height: image.height, pageFound: page !== null, skewDegrees });
+    reply({ id, ok: true, png, jpeg, width: image.width, height: image.height, pageFound: page !== null, skewDegrees, lines: event.data.lines });
   } catch {
     reply({ id, ok: false, error: 'Something went wrong while cleaning this page. Try another photo.' });
   }

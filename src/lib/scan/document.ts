@@ -13,6 +13,8 @@
  * diagram is 6), so kinds are only ever added at the end, never reordered.
  */
 
+import type { LineRemoval } from '@/lib/scan/clean';
+
 export const DOCUMENT_VERSION = 1;
 
 export const BLOCK_KINDS = ['text', 'heading', 'math', 'table', 'graph', 'diagram'] as const;
@@ -70,6 +72,8 @@ export interface DocumentPage {
   regionsComplete: boolean;
   /** In the order they were marked. readingOrder in reading-order.ts gives the order to read them in. */
   blocks: Block[];
+  /** Which ruled and grid lines were removed when the page was cleaned. Missing on pages saved before it was recorded. */
+  cleanup?: LineRemoval;
 }
 
 export interface ScanDocument {
@@ -190,7 +194,11 @@ export function decodeDocument(value: unknown): ScanDocument | null {
       seen.add(block.id);
       blocks.push(block);
     }
-    pages.push({ ...size, regionsComplete: p.regionsComplete === true, blocks });
+    const cleanup = record(p.cleanup);
+    const lines = cleanup && typeof cleanup.horizontal === 'boolean' && typeof cleanup.vertical === 'boolean'
+      ? { cleanup: { horizontal: cleanup.horizontal, vertical: cleanup.vertical } }
+      : {};
+    pages.push({ ...size, regionsComplete: p.regionsComplete === true, blocks, ...lines });
   }
   return { version: DOCUMENT_VERSION, pages };
 }

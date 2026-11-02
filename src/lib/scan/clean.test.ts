@@ -110,6 +110,73 @@ describe('removeRuledLines', () => {
     expect(Math.max(...crossings)).toBeLessThan(0.5);
   });
 
+  it('keeps lines drawn in pen: a table rule on a ruled line, a fraction bar between lines, a graph axis', () => {
+    const page = notebookPage();
+    const tableRule = { x: 120, y: RULE_TOP + 4 * RULE_GAP, w: 300 }; // drawn over a printed rule
+    const fractionBar = { x: 200, y: RULE_TOP + 6 * RULE_GAP + 20, w: 70 }; // between two rules
+    const axis = { x: 450, y: RULE_TOP + 8 * RULE_GAP, h: 200 }; // upright
+    fill(page, tableRule.x, tableRule.y, tableRule.w, 2, INK);
+    fill(page, fractionBar.x, fractionBar.y, fractionBar.w, 2, INK);
+    fill(page, axis.x, axis.y, 2, axis.h, INK);
+    const cleaned = removeRuledLines(page, { horizontal: true, vertical: true });
+    const values = (x0: number, y0: number, w: number, h: number) => {
+      const out: number[] = [];
+      for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) out.push(cleaned.data[y * PAGE_W + x]);
+      return out;
+    };
+    expect(Math.max(...values(tableRule.x, tableRule.y, tableRule.w, 2))).toBeLessThan(0.5);
+    expect(Math.max(...values(fractionBar.x, fractionBar.y, fractionBar.w, 2))).toBeLessThan(0.5);
+    expect(Math.max(...values(axis.x, axis.y, 2, axis.h))).toBeLessThan(0.5);
+    // The rest of the printed rule under the table rule still goes, apart from the descenders crossing it.
+    const rest: number[] = [];
+    for (let x = 0; x < PAGE_W; x++) {
+      if (x >= tableRule.x - 5 && x < tableRule.x + tableRule.w + 5) continue;
+      if (DESCENDER_X.some((d) => x >= d && x < d + 3)) continue;
+      rest.push(...values(x, tableRule.y, 1, 2));
+    }
+    expect(mean(rest)).toBeGreaterThan(0.98);
+  });
+
+  it('keeps a pen line that wanders a pixel and skips a few', () => {
+    const page = notebookPage();
+    const base = RULE_TOP + 5 * RULE_GAP + 18; // between two rules
+    const drawn: number[] = [];
+    for (let x = 100; x < 500; x++) {
+      if (x % 100 < 3) continue; // the pen skips
+      const y = base + (Math.floor(x / 50) % 2); // and wanders
+      for (const row of [y, y + 1]) { page.data[row * PAGE_W + x] = INK; drawn.push(row * PAGE_W + x); }
+    }
+    const cleaned = removeRuledLines(page, { horizontal: true, vertical: false });
+    expect(drawn.filter((i) => cleaned.data[i] < 0.5).length / drawn.length).toBeGreaterThan(0.95);
+  });
+
+  it('leaves no dots where a printed rule is as dark as ink for a short stretch', () => {
+    const page = notebookPage();
+    const y = RULE_TOP + 2 * RULE_GAP;
+    // Dark stretches shorter than a line, more than half of the rule's length in all.
+    for (let x = 0; x < PAGE_W - 30; x += 30) fill(page, x, y, 20, 2, INK);
+    const cleaned = removeRuledLines(page, { horizontal: true, vertical: false });
+    const rule: number[] = [];
+    for (let x = 0; x < PAGE_W; x++) {
+      if (!DESCENDER_X.some((d) => x >= d && x < d + 3)) rule.push(cleaned.data[y * PAGE_W + x], cleaned.data[(y + 1) * PAGE_W + x]);
+    }
+    expect(mean(rule)).toBeGreaterThan(0.98);
+  });
+
+  it('erases light grid lines, with no dots where one is as dark as ink for a short stretch', () => {
+    const page = createGray(PAGE_W, PAGE_H, 1);
+    const columns = [60, 120, 180, 240];
+    for (const x of columns) fill(page, x, 0, 2, PAGE_H, RULE);
+    // Dark stretches shorter than a line on one grid line.
+    for (let y = 0; y < PAGE_H - 40; y += 40) fill(page, columns[1], y, 2, 25, INK);
+    const cleaned = removeRuledLines(page, { horizontal: false, vertical: true });
+    for (const x of columns) {
+      const column: number[] = [];
+      for (let y = 0; y < PAGE_H; y++) column.push(cleaned.data[y * PAGE_W + x], cleaned.data[y * PAGE_W + x + 1]);
+      expect(mean(column), `grid line at ${x}`).toBeGreaterThan(0.98);
+    }
+  });
+
   it('leaves words alone', () => {
     const page = notebookPage();
     const cleaned = removeRuledLines(page, { horizontal: true, vertical: true });

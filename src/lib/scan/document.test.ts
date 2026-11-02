@@ -34,6 +34,15 @@ describe('decodeDocument', () => {
     expect(decodeDocument(doc([], true))?.pages[0].regionsComplete).toBe(true);
   });
 
+  it('keeps the lines a page was cleaned with, and drops a malformed record of them', () => {
+    const value = doc([]);
+    const cleanup = { horizontal: true, vertical: false };
+    expect(decodeDocument({ ...value, pages: [{ ...value.pages[0], cleanup }] })?.pages[0].cleanup).toEqual(cleanup);
+    for (const bad of [undefined, null, 'both', { horizontal: true }, { horizontal: 'yes', vertical: false }]) {
+      expect(decodeDocument({ ...value, pages: [{ ...value.pages[0], cleanup: bad }] })?.pages[0]).not.toHaveProperty('cleanup');
+    }
+  });
+
   it('keeps a block nothing has read yet', () => {
     const value = doc([block({ kind: 'diagram', content: null, tokens: [], origin: { by: 'user' } })]);
     expect(decodeDocument(value)?.pages[0].blocks).toHaveLength(1);

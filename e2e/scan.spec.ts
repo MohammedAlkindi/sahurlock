@@ -646,6 +646,28 @@ async function readScan(page: Page, id: string) {
   }), id);
 }
 
+test('a saved page records which lines were removed when it was cleaned, and keeps it through a reopen', async ({ page }) => {
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'p1.jpg', mimeType: 'image/jpeg', buffer: await notebookPhoto(page) });
+  // The options show once there is a page. Changing one cleans the page again, and Download waits for that.
+  await page.getByLabel('Remove grid lines').check();
+  await expect(page.getByRole('button', { name: 'Download PDF' })).toBeEnabled({ timeout: 30_000 });
+  await page.getByLabel('Title').fill('Grid paper');
+  await page.getByRole('button', { name: 'Save to this device' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+  const [id] = await scanIds(page);
+  const cleanup = async () => ((await readScan(page, id)).document as { pages: { cleanup?: unknown }[] }).pages[0].cleanup;
+  expect(await cleanup()).toEqual({ horizontal: true, vertical: true });
+
+  // Opened again and saved under a new name, it keeps the record, as its photo is gone and it cannot be cleaned again.
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('region', { name: 'Saved scans' }).getByRole('button', { name: 'Open Grid paper' }).click();
+  await page.getByLabel('Title').fill('Grid paper, renamed');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('button', { name: 'Saved' })).toBeDisabled();
+  expect(await cleanup()).toEqual({ horizontal: true, vertical: true });
+});
+
 test('a scan saved before regions existed still opens and saves', async ({ page }) => {
   await page.goto('/settings', { waitUntil: 'networkidle' });
   await seedScans(page, 1, [{ id: 'old', title: 'Old notes', sizes: [[400, 500]] }]);
