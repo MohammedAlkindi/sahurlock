@@ -151,7 +151,10 @@ export interface LineRemoval {
  * Erase ruled (horizontal) and grid (vertical) lines. A line is a run of
  * darker-than-paper pixels at least a tenth of the page long. Where writing
  * crosses a line, the crossing stroke is longer across the line than the line
- * is thick, so those pixels are kept. Long underlines count as lines.
+ * is thick, so those pixels are kept. A stretch of line at least that long and
+ * as dark as ink was drawn in pen, such as a table rule, a graph axis, a long
+ * fraction bar or an underline, so it is kept too. Paper printed with lines as
+ * dark as ink keeps them.
  */
 export function removeRuledLines(g: Gray, which: LineRemoval): Gray {
   const out = { width: g.width, height: g.height, data: g.data.slice() };
@@ -164,22 +167,26 @@ export function removeRuledLines(g: Gray, which: LineRemoval): Gray {
   const open = (mask: Gray, rx: number, ry: number) =>
     extremumFilter(extremumFilter(mask, rx, ry, false), rx, ry, true);
 
-  const erase = (lines: Gray, crossing: Gray) => {
+  const erase = (lines: Gray, crossing: Gray, drawn: Gray) => {
     for (let i = 0; i < out.data.length; i++) {
-      if (lines.data[i] > 0 && crossing.data[i] === 0) out.data[i] = 1;
+      if (lines.data[i] > 0 && crossing.data[i] === 0 && drawn.data[i] === 0) out.data[i] = 1;
     }
   };
+
+  // A pen line wanders a pixel and skips a few, so ink is grown that much before it is measured.
+  const drawn = (half: number, along: 'x' | 'y') =>
+    along === 'x' ? open(extremumFilter(ink, 3, 1, true), half, 0) : open(extremumFilter(ink, 1, 3, true), 0, half);
 
   if (which.horizontal) {
     const length = Math.max(15, Math.floor(g.width / 10));
     // Grown by a pixel across the line to catch its soft edges.
     const lines = extremumFilter(open(candidate, length >> 1, 0), 0, 1, true);
-    erase(lines, open(ink, 0, 4));
+    erase(lines, open(ink, 0, 4), drawn(length >> 1, 'x'));
   }
   if (which.vertical) {
     const length = Math.max(15, Math.floor(g.height / 10));
     const lines = extremumFilter(open(candidate, 0, length >> 1), 1, 0, true);
-    erase(lines, open(ink, 4, 0));
+    erase(lines, open(ink, 4, 0), drawn(length >> 1, 'y'));
   }
   return out;
 }

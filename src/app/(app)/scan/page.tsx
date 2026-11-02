@@ -35,6 +35,8 @@ interface Cleaned {
   height: number;
   pageFound: boolean;
   skewDegrees: number;
+  /** The lines removed when it was cleaned. Unknown for a page saved before this was recorded. */
+  lines?: LineRemoval;
 }
 
 interface ScanPage {
@@ -154,7 +156,7 @@ export default function ScanPage() {
         if (page.cleaned) URL.revokeObjectURL(page.cleaned.url);
         return {
           ...page, request: null, error: null,
-          cleaned: { url: URL.createObjectURL(r.png), format: 'png', jpeg: r.jpeg, width: r.width, height: r.height, pageFound: r.pageFound, skewDegrees: r.skewDegrees },
+          cleaned: { url: URL.createObjectURL(r.png), format: 'png', jpeg: r.jpeg, width: r.width, height: r.height, pageFound: r.pageFound, skewDegrees: r.skewDegrees, lines: r.lines },
         };
       }));
     };
@@ -392,7 +394,7 @@ export default function ScanPage() {
         pages: pages.map((p) => ({ jpeg: p.cleaned!.jpeg, width: p.cleaned!.width, height: p.cleaned!.height })),
         document: {
           version: DOCUMENT_VERSION,
-          pages: pages.map((p) => ({ width: p.cleaned!.width, height: p.cleaned!.height, regionsComplete: p.regionsComplete, blocks: p.blocks })),
+          pages: pages.map((p) => ({ width: p.cleaned!.width, height: p.cleaned!.height, regionsComplete: p.regionsComplete, blocks: p.blocks, cleanup: p.cleaned!.lines })),
         },
       });
       // The editor may hold another scan by now. Linking it to this save would let
@@ -431,7 +433,7 @@ export default function ScanPage() {
     pages.forEach(release);
     const opened: ScanPage[] = scan.pages.map((p, i) => ({
       id: uid(), file: null, originalUrl: null, request: null, error: null,
-      cleaned: { url: URL.createObjectURL(p.jpeg), format: 'jpeg', jpeg: p.jpeg, width: p.width, height: p.height, pageFound: true, skewDegrees: 0 },
+      cleaned: { url: URL.createObjectURL(p.jpeg), format: 'jpeg', jpeg: p.jpeg, width: p.width, height: p.height, pageFound: true, skewDegrees: 0, lines: scan.document.pages[i].cleanup },
       blocks: scan.document.pages[i].blocks,
       regionsComplete: scan.document.pages[i].regionsComplete,
     }));
@@ -523,7 +525,7 @@ export default function ScanPage() {
       ? { scanId: savedAs.id, position: index, savedAt: savedAs.savedAt, sizes: pages.map((p) => ({ width: p.cleaned!.width, height: p.cleaned!.height })) }
       : {
           page: { jpeg: cleaned.jpeg, width: cleaned.width, height: cleaned.height },
-          labels: { width: cleaned.width, height: cleaned.height, regionsComplete: page.regionsComplete, blocks: page.blocks },
+          labels: { width: cleaned.width, height: cleaned.height, regionsComplete: page.regionsComplete, blocks: page.blocks, cleanup: cleaned.lines },
         };
     // What the saved copy looks like after the move, from the pages as they were when it started.
     const keyAfter = keyOf(title.trim(), course, pages.filter((p) => p.id !== pageId));
