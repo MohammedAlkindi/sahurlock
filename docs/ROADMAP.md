@@ -94,8 +94,12 @@ that shipped it.
       changes are saved (4458121)
 - [x] Versioned Document JSON for a converted page: blocks with bounding boxes,
       content, per-token confidence and alternatives (`src/lib/scan/document.ts`, ba04b30)
-- [ ] Layout styles (outline, Cornell, two-column) with print-ready PDF and
-      Markdown export
+- [x] Keep table rules, graph axes and fraction bars drawn in pen through ruled-line
+      removal, and record each page's cleanup options in its Document (c4da4e7)
+- [x] Download notes as Markdown: typed regions as text and $$ math in reading order,
+      the rest as pictures, in a ZIP (8b75b91)
+- [ ] Layout styles (outline, Cornell, two-column) with print-ready PDF. Waits on
+      the maintainer's description of each
 
 ## How the models are built
 
