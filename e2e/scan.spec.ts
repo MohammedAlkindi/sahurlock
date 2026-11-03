@@ -44,6 +44,80 @@ async function notebookPhoto(page: Page, closeUp = false): Promise<Buffer> {
   return Buffer.from(dataUrl.split(',')[1], 'base64');
 }
 
+/** A typed page of notes, flat on the desk: a heading, two paragraphs, a formula and a table. */
+async function typedNotes(page: Page): Promise<Buffer> {
+  const dataUrl = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1240; canvas.height = 1754;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#111111';
+    ctx.font = 'bold 56px Arial';
+    ctx.fillText('Week 3: Limits and continuity', 100, 140);
+    ctx.font = '30px Arial';
+    const lines = [
+      'A function f has limit L at a when for every epsilon > 0 there is a',
+      'delta > 0 so that |f(x) - L| < epsilon whenever 0 < |x - a| < delta.',
+      'This says f(x) can be made as close to L as we like by taking x',
+      'close enough to a, without ever needing x to equal a.',
+    ];
+    lines.forEach((line, i) => ctx.fillText(line, 100, 260 + 46 * i));
+    ctx.font = '40px Arial';
+    ctx.fillText('lim (x -> 0) sin(x) / x = 1', 300, 520);
+    ctx.lineWidth = 3;
+    for (let r = 0; r < 5; r++) { ctx.beginPath(); ctx.moveTo(150, 640 + 60 * r); ctx.lineTo(1050, 640 + 60 * r); ctx.stroke(); }
+    for (let c = 0; c < 4; c++) { ctx.beginPath(); ctx.moveTo(150 + 300 * c, 640); ctx.lineTo(150 + 300 * c, 880); ctx.stroke(); }
+    ctx.font = '30px Arial';
+    [['x', 'f(x)', 'g(x)'], ['0.1', '0.998', '1.05'], ['0.01', '0.99998', '1.005'], ['0.001', '1.0000', '1.0005']]
+      .forEach((row, r) => row.forEach((cell, c) => ctx.fillText(cell, 170 + 300 * c, 682 + 60 * r)));
+    lines.forEach((line, i) => ctx.fillText(line, 100, 1000 + 46 * i));
+    return canvas.toDataURL('image/jpeg', 0.92);
+  });
+  return Buffer.from(dataUrl.split(',')[1], 'base64');
+}
+
+test('Suggest regions finds the regions of a page on the device, as suggestions to check', async ({ page }) => {
+  const requests: string[] = [];
+  const errors: string[] = [];
+  page.on('request', (r) => requests.push(r.url()));
+  page.on('console', (m) => { if (m.type() === 'error' && !`${m.location().url} ${m.text()}`.includes('/_vercel/insights/')) errors.push(m.text()); });
+  await page.goto('/scan', { waitUntil: 'networkidle' });
+  await page.getByLabel('Choose photos or a PDF').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: await typedNotes(page) });
+  await page.getByRole('button', { name: 'Mark regions on page 1' }).click({ timeout: 30_000 });
+  const editor = page.getByRole('dialog');
+  // A region the user marked first stays as it is.
+  await editor.getByRole('radio', { name: 'Diagram' }).check({ force: true });
+  await editor.getByRole('button', { name: 'Add region' }).click();
+  await editor.getByRole('button', { name: 'Suggest regions' }).click();
+  await expect(editor.getByRole('status')).toHaveText(/^Added \d+ suggested regions\./, { timeout: 90_000 });
+
+  const list = editor.getByRole('list', { name: 'Regions on this page' }).getByRole('button');
+  const names = await list.allInnerTexts();
+  expect(names.length).toBeGreaterThanOrEqual(4);
+  expect(names[0]).not.toContain('Suggested.');
+  expect(names.slice(1).every((n) => n.includes('Suggested.'))).toBe(true);
+  const labels = await editor.getByRole('list', { name: 'Regions on this page' }).locator('.sr-only').allInnerTexts();
+  expect(labels.some((l) => /heading, suggested/.test(l))).toBe(true);
+  expect(labels.some((l) => /table, suggested/.test(l))).toBe(true);
+
+  // Moving a suggestion checks it. Saying every region is marked checks the rest, until it is unsaid.
+  const second = editor.getByRole('region', { name: 'Page' }).getByRole('button', { name: /^Region 2, / });
+  await second.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(second).not.toHaveAccessibleName(/suggested/);
+  const complete = editor.getByRole('checkbox', { name: 'Every region on this page is marked' });
+  await complete.check();
+  await expect(editor.getByText('Suggested.')).toHaveCount(0);
+  await complete.uncheck();
+  await expect(editor.getByText('Suggested.')).toHaveCount(names.length - 2);
+
+  // The finder and its engine came from this site, once each, and the page went nowhere.
+  expect(requests.filter((u) => u.includes('/models/pp-doclayout-s-'))).toHaveLength(1);
+  expect([...new Set(requests.filter((u) => /^https?:/.test(u)).map((u) => new URL(u).origin))]).toEqual([new URL(page.url()).origin]);
+  expect(errors).toEqual([]);
+});
+
 test('a photographed page comes back cleaned, on the device', async ({ page }) => {
   const origins = new Set<string>();
   page.on('request', (r) => { if (!r.url().startsWith('blob:') && !r.url().startsWith('data:')) origins.add(new URL(r.url()).origin); });

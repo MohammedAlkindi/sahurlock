@@ -3,10 +3,13 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import {
-  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChartLine, ChevronLeft, ChevronRight, Heading, Plus, Sigma, Table, Trash2, Type, Workflow,
+  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChartLine, ChevronLeft, ChevronRight, Heading, Plus, ScanSearch, Sigma, Table, Trash2, Type, Workflow,
 } from 'lucide-react';
 import { useDialog } from '@/hooks/use-dialog';
-import { type Block, BLOCK_KINDS, type BlockKind, type Box, isReadKind, userBlock, withContent, withKind } from '@/lib/scan/document';
+import { ModelHost } from '@/lib/model-host/client';
+import { LAYOUT_MODEL, suggestionsFrom } from '@/lib/scan/detect';
+import { type Block, BLOCK_KINDS, type BlockKind, type Box, isReadKind, isSuggestion, modelBlock, userBlock, withContent, withKind } from '@/lib/scan/document';
+import { findRegions } from '@/lib/scan/find-regions';
 import {
   boxAt, boxFromPoints, KIND_LABELS, moveBox, newBoxBelow, type Point, position, resizeBox, stepSize, summary, toPagePoint,
 } from '@/lib/scan/regions';
@@ -77,6 +80,14 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
   const [selectedId, setSelectedId] = useState<string | null>(page.blocks[0]?.id ?? null);
   const [newKind, setNewKind] = useState<BlockKind>('text');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [finding, setFinding] = useState(false);
+  // One worker for the region finder while the editor is open, so it loads once.
+  const finder = useRef<ModelHost | null>(null);
+  // The pages as they are now, for a suggestion that comes back after they changed.
+  const latestPages = useRef(pages);
+  latestPages.current = pages;
+  const shownId = useRef(page.id);
+  shownId.current = page.id;
   const [announcement, setAnnouncement] = useState('');
   /** A visible line about drawing: a corner waiting for its opposite, or a box too small to keep. */
   const [hint, setHint] = useState('');
@@ -131,10 +142,14 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
 
   useEffect(() => { if (confirmingDelete) keepButton.current?.focus(); }, [confirmingDelete]);
   useEffect(() => () => { if (moveTimer.current) clearTimeout(moveTimer.current); }, []);
+  useEffect(() => () => finder.current?.dispose(), []);
 
   const update = (blocks: Block[], complete = page.regionsComplete) => onChange(page.id, blocks, complete);
   const replace = (block: Block) => update(page.blocks.map((b) => (b.id === block.id ? block : b)));
-  const describe = (b: Block, n: number) => `Region ${n}, ${KIND_LABELS[b.kind].toLowerCase()}, ${position(b.box, page)}`;
+  // A page marked as having every region marked has its suggestions checked.
+  const suggested = (b: Block) => isSuggestion(b) && !page.regionsComplete;
+  const describe = (b: Block, n: number) =>
+    `Region ${n}, ${KIND_LABELS[b.kind].toLowerCase()}${suggested(b) ? ', suggested' : ''}, ${position(b.box, page)}`;
 
   const say = (text: string) => {
     setHint(text);
@@ -177,10 +192,52 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
     announce(`Added ${describe(block, page.blocks.length + 1)}. Move it with the arrow keys.`);
   };
 
-  /** Move or resize the selected region, and say where it ended up once the keys stop. */
+  /** Asks the region finder, on this device, for the shown page's regions, and adds those not marked yet as suggestions to check. */
+  const suggest = async () => {
+    if (finding) return;
+    const asked = page;
+    setFinding(true);
+    setHint('');
+    announce('Finding regions on this page. The first time, the region finder downloads, about 32 MB.');
+    finder.current ??= new ModelHost();
+    const answer = await findRegions(finder.current, asked);
+    setFinding(false);
+    if (!answer.ok) {
+      const text = answer.error.code === 'unavailable'
+        ? 'The region finder could not be downloaded. Check the connection and try again.'
+        : `The region finder did not run. ${answer.error.message}`;
+      setHint(text);
+      announce(text);
+      return;
+    }
+    // The page may have changed while the finder ran, so it is read again.
+    const target = latestPages.current.find((p) => p.id === asked.id);
+    if (!target) return;
+    const found = suggestionsFrom(answer.value.rows, answer.value.count, target, target.blocks.map((b) => b.box));
+    if (found.length === 0) {
+      announce('The region finder found nothing new on this page.');
+      return;
+    }
+    const taken = new Set(latestPages.current.flatMap((p) => p.blocks.map((b) => b.id)));
+    const added = found.map((s) => {
+      let id = uid();
+      while (taken.has(id)) id = uid();
+      taken.add(id);
+      return modelBlock(id, s.kind, s.box, LAYOUT_MODEL, answer.value.version);
+    });
+    // New suggestions are unchecked, so the page no longer has every region marked.
+    onChange(target.id, [...target.blocks, ...added], false);
+    const shown = target.id === shownId.current;
+    if (shown) setSelectedId(added[0].id);
+    const where = shown ? '' : ` to page ${target.number}`;
+    const reopened = target.regionsComplete ? ' The page is no longer marked as having every region marked.' : '';
+    announce(`Added ${added.length} suggested ${added.length === 1 ? 'region' : 'regions'}${where}. Check each one: move it, change its kind, type what it says, or delete it.${reopened}`);
+  };
+
+  /** Move or resize the selected region, and say where it ended up once the keys stop. Moving a suggestion checks it. */
   const reshape = (change: (box: Block['box']) => Block['box']) => {
     if (!selected) return;
-    const moved = { ...selected, box: change(selected.box) };
+    const moved = { ...selected, box: change(selected.box), reviewed: true };
     replace(moved);
     if (moveTimer.current) clearTimeout(moveTimer.current);
     moveTimer.current = setTimeout(() => {
@@ -293,7 +350,8 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
 
   const changeKind = (b: Block, kind: BlockKind) => {
     const draft = drafts.current.get(b.id);
-    let next = withKind(b, kind);
+    // Choosing a kind checks a suggestion.
+    let next = { ...withKind(b, kind), reviewed: true };
     if (isReadKind(kind) && draft) next = withContent(next, draft);
     replace(next);
   };
@@ -355,6 +413,9 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
             <button ref={addButton} onClick={() => addRegion()} className={control}>
               <Plus size={14} aria-hidden="true" /> Add region
             </button>
+            <button onClick={suggest} aria-disabled={finding} className={control}>
+              <ScanSearch size={14} aria-hidden="true" /> {finding ? 'Finding regions…' : 'Suggest regions'}
+            </button>
             <p className="text-xs text-muted-foreground">
               Drag on the page to draw a region, or tap two opposite corners.{' '}
               <span id="region-keys">On a selected region, the arrow keys move it, Shift and the arrow keys resize it, and Delete removes it.</span>
@@ -396,12 +457,12 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
                   aria-label={describe(b, i + 1)}
                   aria-describedby="region-keys"
                   style={style}
-                  className={`region-focus absolute border-[3px] ${look.border} ${look.tint}`}
+                  className={`region-focus absolute border-[3px] ${look.border} ${look.tint} ${suggested(b) ? 'border-dashed' : ''}`}
                 >
                   {tag}
                 </button>
               ) : (
-                <div key={b.id} aria-hidden="true" style={style} className={`absolute border-2 ${look.border}`}>{tag}</div>
+                <div key={b.id} aria-hidden="true" style={style} className={`absolute border-2 ${look.border} ${suggested(b) ? 'border-dashed' : ''}`}>{tag}</div>
               );
             })}
             {draft && (
@@ -501,6 +562,7 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
                       <span aria-hidden="true"><Tag kind={b.kind}>{i + 1}</Tag></span>
                       <span className="min-w-0 flex-1 truncate">
                         <span className="sr-only">{describe(b, i + 1)}. </span>
+                        {suggested(b) && <span aria-hidden="true" className="text-muted-foreground">Suggested. </span>}
                         {isReadKind(b.kind) ? (b.content ?? <span className="text-muted-foreground">Nothing typed yet</span>) : <span className="text-muted-foreground">Kept as an image</span>}
                       </span>
                     </button>
@@ -513,6 +575,7 @@ export function RegionEditor({ pages, pageCount, startId, onChange, onClose }: P
               <input
                 type="checkbox"
                 checked={page.regionsComplete}
+                // Ticking it checks the suggestions left on the page, and unticking it gives them back.
                 onChange={(e) => update(page.blocks, e.target.checked)}
                 className="h-4 w-4 accent-accent"
               />

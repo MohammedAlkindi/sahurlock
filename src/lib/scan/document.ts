@@ -92,6 +92,14 @@ export const userBlock = (id: string, kind: BlockKind, box: Box): Block => ({
   id, kind, box, content: null, tokens: [], origin: { by: 'user' }, reviewed: true,
 });
 
+/** A region a model proposed. Not checked yet, so it is no label until the user has reviewed it. */
+export const modelBlock = (id: string, kind: BlockKind, box: Box, model: string, version: string): Block => ({
+  id, kind, box, content: null, tokens: [], origin: { by: 'model', model, version }, reviewed: false,
+});
+
+/** Whether the block is a model's proposal the user has not checked yet. */
+export const isSuggestion = (block: Block) => block.origin.by === 'model' && !block.reviewed;
+
 /** The block as another kind. A kind kept as an image has no content, so anything typed is dropped. */
 export const withKind = (block: Block, kind: BlockKind): Block =>
   isReadKind(kind) ? { ...block, kind } : { ...block, kind, content: null, tokens: [] };
