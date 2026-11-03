@@ -46,7 +46,8 @@ export function labeledPages(scans: SavedScan[]): LabeledPage[] {
     if (scan.labelsUnreadable) continue;
     scan.pages.forEach((p, position) => {
       const { regionsComplete, blocks } = scan.document.pages[position];
-      const labels = blocks.filter(isLabel);
+      // Saying every region on a page is marked checks the suggestions left on it.
+      const labels = regionsComplete ? blocks : blocks.filter(isLabel);
       if (regionsComplete || labels.length > 0) {
         pages.push({ scan, position, jpeg: p.jpeg, width: p.width, height: p.height, regionsComplete, blocks: labels });
       }

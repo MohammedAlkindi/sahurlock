@@ -8,7 +8,7 @@ export const metadata = metadataFor('/privacy', {
 
 export default function PrivacyPage() {
   return (
-    <DocumentPage title="Privacy" updated="27 October 2026">
+    <DocumentPage title="Privacy" updated="2 November 2026">
       <p>
         SahurLock has no accounts and no database. What you make in it stays in your browser, and the camera
         picture never leaves your device.
@@ -24,8 +24,9 @@ export default function PrivacyPage() {
         </li>
         <li>Scan cleans up your photos and PDFs in your browser. They are not uploaded.</li>
         <li>
-          If Settings lists an on-device model, checking it downloads the model and the engine that runs it from
-          this site, and keeps them in this browser&apos;s Cache Storage.
+          Suggest regions, in Scan, finds the headings, text, math, tables and figures on a page with a model that runs
+          on your device. The first time, it downloads the model and the engine that runs it from this site, about 32 MB,
+          and keeps them in this browser&apos;s Cache Storage. The page is not uploaded.
         </li>
       </ul>
       <p>

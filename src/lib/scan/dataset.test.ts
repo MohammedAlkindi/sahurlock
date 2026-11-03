@@ -44,6 +44,10 @@ describe('labeledPages', () => {
     expect(labeledPages([scan('a', [{ blocks: [guess(true), guess(false)] }])])[0].blocks).toHaveLength(1);
   });
 
+  it('counts every guess on a page the user says has every region marked', () => {
+    expect(labeledPages([scan('a', [{ complete: true, blocks: [guess(false)] }])])[0].blocks).toHaveLength(1);
+  });
+
   it('leaves out scans whose labels could not be read', () => {
     expect(labeledPages([scan('a', [{ complete: true }], { labelsUnreadable: true })])).toEqual([]);
   });

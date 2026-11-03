@@ -30,6 +30,7 @@ async function openData(page: Page) {
 }
 
 test('shows no models and saves nothing while none are pinned', async ({ page }) => {
+  await page.route('**/models/manifest.json', (route) => route.fulfill({ json: { schema: 1, models: [] } }));
   await page.goto('/settings');
   // The block lists the manifest in a worker of its own, which closes once it has the answer.
   const listed = new Promise<void>((resolve) => page.once('worker', (w) => w.once('close', () => resolve())));

@@ -1,0 +1,20 @@
+pp-doclayout-s-33688dbe.onnx is PP-DocLayout-S by PaddlePaddle, under the Apache License 2.0
+(pp-doclayout-s-LICENSE.txt, from https://github.com/PaddlePaddle/PaddleX/blob/release/3.0/LICENSE).
+
+Source: the official PaddleX inference model
+https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-DocLayout-S_infer.tar
+(SHA-256 3f589aa473a5305a626705d94762fcb4ab3e43e6e48983c9b34b011a6c9d0394; its inference.pdiparams is
+4,804,904 bytes, as on https://huggingface.co/PaddlePaddle/PP-DocLayout-S). Converted unchanged with
+paddle2onnx 2.1.0 on paddlepaddle 3.1.1 (Python 3.12):
+
+  paddle2onnx --model_dir PP-DocLayout-S_infer --model_filename inference.json \
+    --params_filename inference.pdiparams --save_file pp-doclayout-s.onnx --opset_version 17
+
+The result's SHA-256 is 33688dbee1c23e34b81777e97cb428eb40f24b242c02b5f623484959e830aec8 (4,917,852 bytes).
+Training data, per the PP-DocLayout paper (https://arxiv.org/abs/2503.17213, section 4.1): PaddlePaddle's own
+set of about 30,000 document pages, among them papers, magazines, newspapers, reports, exams, handwritten notes,
+contracts and books, partly from DocLayNet and PubLayNet. SahurLock's licence check rests on the Apache-2.0
+grant on these weights (docs/ROADMAP.md, How the models are built).
+
+Inputs: image [n,3,480,480] float32 and scale_factor [n,2] float32. Outputs: rows of
+[class, score, x1, y1, x2, y2] in page pixels, and how many rows there are.

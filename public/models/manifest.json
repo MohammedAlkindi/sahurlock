@@ -1,1 +1,12 @@
-{ "schema": 1, "models": [] }
+{
+  "schema": 1,
+  "models": [
+    {
+      "name": "layout-detector",
+      "version": "pp-doclayout-s, PaddleX 3.0.0",
+      "url": "/models/pp-doclayout-s-33688dbe.onnx",
+      "sha256": "33688dbee1c23e34b81777e97cb428eb40f24b242c02b5f623484959e830aec8",
+      "size": 4917852
+    }
+  ]
+}
