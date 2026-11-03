@@ -119,8 +119,9 @@ Phases 3 to 7 follow one plan:
 
 ## Phase 3: model groundwork
 
-- [ ] Web Worker model host: ONNX Runtime Web and transformers.js, WebGPU with a
-      WASM fallback, weights pinned by SHA-256 in a manifest and cached locally
+- [x] Web Worker model host: ONNX Runtime Web, WebGPU with a WASM fallback, weights
+      pinned by SHA-256 in a manifest and cached locally (`src/lib/model-host`, 1bb2070).
+      transformers.js is left out until a model needs its generate loop
 - Correction screen, the labeling tool:
   - [x] Draw a box around a region with a mouse, finger or pen, or place it with
         the keyboard, and mark it as text, heading, math, table, graph or diagram
@@ -143,6 +144,8 @@ Phases 3 to 7 follow one plan:
 
 ## Phase 4: region detection
 
+- [x] Suggest regions with PaddleX's PP-DocLayout-S, run on the device, as
+      suggestions to check by hand (3086cf9)
 - [ ] Fine-tune a layout detector on note pages: text, math, graph, diagram, table,
       heading. Existing layout models were trained on printed pages, so this step
       helps most
