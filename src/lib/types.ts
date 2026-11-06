@@ -181,3 +181,53 @@ export interface Note {
   createdAt: string;
   updatedAt: string;
 }
+
+// ── Document search, chunking and citations (absorbed from Folio) ─────────────
+
+export type ConfidenceTier = 'high' | 'medium' | 'low' | 'insufficient_data';
+
+export interface DocumentPageInput {
+  pageNumber: number;
+  text: string;
+}
+
+export interface TextChunk {
+  id: string;
+  documentId: string;
+  title: string;
+  course: string;
+  text: string;
+  pageNumber: number;
+  pageStart: number | null;
+  pageEnd: number | null;
+  chunkIndex: number;
+}
+
+export interface ChunkOptions {
+  chunkSize?: number;
+  overlap?: number;
+  maxLookahead?: number;
+}
+
+export interface SearchResult {
+  chunk: TextChunk;
+  score: number;
+  distance: number;
+  rank?: number;
+}
+
+export interface CitationSource {
+  documentId: string;
+  title: string;
+  course: string;
+  pageNumber: number | null;
+  chunkIndex: number;
+  excerpt: string;
+  confidence: ConfidenceTier;
+}
+
+export interface GroundedAnswerContext {
+  promptContext: string;
+  sources: CitationSource[];
+  confidence: ConfidenceTier;
+}
