@@ -37,6 +37,15 @@ dataset file. The cleanup runs in a Web
 Worker on your device, so the photos are never uploaded. Cleanup is where Scan starts.
 Recognising handwriting, math and diagrams, with models that run on the device, comes next.
 
+## Note & document intelligence (Folio)
+
+SahurLock absorbs the document chunking, search, and citation architecture from Folio:
+- **Sentence-boundary chunking:** Splits typed notes and multi-page scanned documents into overlapping word windows without cutting sentences in half.
+- **Client-side BM25 search:** Offline lexical ranking across courses, scanned handwriting transcriptions, and typed notes with zero network calls.
+- **Reciprocal Rank Fusion (RRF):** Blends multiple ranked result lists with $1/(k + \text{rank})$ weighting.
+- **Grounded citations:** Formats inline citations `(Source: <title>, p. <page>)` and structured excerpts calibrated across four confidence tiers (`high`, `medium`, `low`, `insufficient_data`).
+- **Python pipeline:** Folio's full Python package and CLI are preserved under `packages/folio/` for batch document intelligence workflows.
+
 ## Install
 
 ```bash

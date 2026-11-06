@@ -1,7 +1,10 @@
-﻿# SahurLock — project context for Claude Code
+# SahurLock — project context for Claude Code
 
 ## What it does
-SahurLock is a browser-based focus enforcement app that uses your webcam and client-side face tracking to estimate attention. If you're off-screen too long (outside allowed breaks), it triggers a fullscreen **LOCK IN** punishment overlay and optionally plays a local meme clip.
+SahurLock is a browser-based focus enforcement and student intelligence app that uses your webcam and client-side face tracking to estimate attention. If you're off-screen too long (outside allowed breaks), it triggers a fullscreen **LOCK IN** punishment overlay and optionally plays a local meme clip. It also carries on-device handwritten note scanning, sentence-boundary chunking, offline BM25 document search, and grounded citations (absorbed from Folio).
+
+## Monorepo packages
+- `packages/folio`: Folio document intelligence pipeline (Python/Streamlit/CLI).
 
 ## Stack
 Next.js 16 App Router, React 19, TypeScript, Tailwind CSS. Everything runs in the browser, and MediaPipe FaceMesh tracks attention client-side.
